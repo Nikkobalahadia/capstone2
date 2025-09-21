@@ -57,31 +57,67 @@ $stats = $db->query("
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Matches - StudyConnect Admin</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <!-- Updated to use Bootstrap and purple admin theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
+        .main-content { margin-left: 250px; padding: 20px; }
+        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+    </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="dashboard.php" class="logo">StudyConnect Admin</a>
-                <ul class="nav-links">
-                    <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="users.php">Users</a></li>
-                    <li><a href="matches.php" class="active">Matches</a></li>
-                    <li><a href="sessions.php">Sessions</a></li>
-                    <li><a href="reports.php">Reports</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
-            </nav>
+    <!-- Replaced horizontal header with purple sidebar navigation -->
+    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
         </div>
-    </header>
+        <nav class="nav flex-column px-3">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="monitoring.php">
+                <i class="fas fa-chart-line me-2"></i> System Monitoring
+            </a>
+            <a class="nav-link" href="reports-inbox.php">
+                <i class="fas fa-inbox me-2"></i> Reports & Feedback
+            </a>
+            <a class="nav-link" href="session-tracking.php">
+                <i class="fas fa-calendar-check me-2"></i> Session Tracking
+            </a>
+            <a class="nav-link active" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="reports.php">
+                <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+        </nav>
+        <div class="position-absolute bottom-0 w-100 p-3">
+            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
+                <i class="fas fa-sign-out-alt me-2"></i> Logout
+            </a>
+        </div>
+    </div>
 
-    <main style="padding: 2rem 0;">
-        <div class="container">
-            <div class="mb-4">
-                <h1>Manage Matches</h1>
-                <p class="text-secondary">Monitor and manage student-mentor matches.</p>
+    <!-- Updated main content area to work with sidebar layout -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">Manage Matches</h1>
+                    <p class="text-muted">Monitor and manage student-mentor matches.</p>
+                </div>
             </div>
 
             <?php if (isset($success_message)): ?>
@@ -89,50 +125,78 @@ $stats = $db->query("
             <?php endif; ?>
 
             <!-- Match Statistics -->
-            <div class="grid grid-cols-4 mb-4">
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">
-                            <?php echo $stats['total_matches']; ?>
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Matches</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_matches']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-handshake fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Total Matches</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--warning-color);">
-                            <?php echo $stats['pending_matches']; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['pending_matches']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Pending</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--success-color);">
-                            <?php echo $stats['accepted_matches']; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Accepted</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['accepted_matches']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Accepted</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--error-color);">
-                            <?php echo $stats['avg_match_score'] ? number_format($stats['avg_match_score'], 1) : '0'; ?>%
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Match Score</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['avg_match_score'] ? number_format($stats['avg_match_score'], 1) : '0'; ?>%</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Avg Match Score</div>
                     </div>
                 </div>
             </div>
 
             <!-- Matches Table -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">All Matches</h3>
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">All Matches</h6>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table">
-                            <thead>
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
                                 <tr>
                                     <th>ID</th>
                                     <th>Student</th>
@@ -149,30 +213,30 @@ $stats = $db->query("
                                     <tr>
                                         <td><?php echo $match['id']; ?></td>
                                         <td>
-                                            <div class="font-medium"><?php echo htmlspecialchars($match['student_first_name'] . ' ' . $match['student_last_name']); ?></div>
-                                            <div class="text-sm text-secondary"><?php echo htmlspecialchars($match['student_email']); ?></div>
+                                            <div class="fw-bold"><?php echo htmlspecialchars($match['student_first_name'] . ' ' . $match['student_last_name']); ?></div>
+                                            <div class="small text-muted"><?php echo htmlspecialchars($match['student_email']); ?></div>
                                         </td>
                                         <td>
-                                            <div class="font-medium"><?php echo htmlspecialchars($match['mentor_first_name'] . ' ' . $match['mentor_last_name']); ?></div>
-                                            <div class="text-sm text-secondary"><?php echo htmlspecialchars($match['mentor_email']); ?></div>
+                                            <div class="fw-bold"><?php echo htmlspecialchars($match['mentor_first_name'] . ' ' . $match['mentor_last_name']); ?></div>
+                                            <div class="small text-muted"><?php echo htmlspecialchars($match['mentor_email']); ?></div>
                                         </td>
                                         <td><?php echo htmlspecialchars($match['subject']); ?></td>
                                         <td><?php echo number_format($match['match_score'], 1); ?>%</td>
                                         <td>
-                                            <span class="badge <?php echo $match['status'] === 'accepted' ? 'badge-success' : ($match['status'] === 'pending' ? 'badge-warning' : 'badge-error'); ?>">
+                                            <span class="badge <?php echo $match['status'] === 'accepted' ? 'bg-success' : ($match['status'] === 'pending' ? 'bg-warning' : 'bg-danger'); ?>">
                                                 <?php echo ucfirst($match['status']); ?>
                                             </span>
                                         </td>
                                         <td><?php echo date('M j, Y', strtotime($match['created_at'])); ?></td>
                                         <td>
                                             <?php if ($match['status'] === 'pending'): ?>
-                                                <form method="POST" style="display: inline;">
+                                                <form method="POST" class="d-inline">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
-                                                    <button type="submit" name="action" value="approve" class="btn btn-sm btn-success">Approve</button>
-                                                    <button type="submit" name="action" value="reject" class="btn btn-sm btn-error">Reject</button>
+                                                    <button type="submit" name="action" value="approve" class="btn btn-success btn-sm">Approve</button>
+                                                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm">Reject</button>
                                                 </form>
                                             <?php else: ?>
-                                                <span class="text-secondary">No actions</span>
+                                                <span class="text-muted">No actions</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -183,6 +247,9 @@ $stats = $db->query("
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+
+    <!-- Added Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

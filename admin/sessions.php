@@ -57,31 +57,67 @@ $stats = $db->query("
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Sessions - StudyConnect Admin</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <!-- Updated to use Bootstrap and purple admin theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
+        .main-content { margin-left: 250px; padding: 20px; }
+        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+    </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="dashboard.php" class="logo">StudyConnect Admin</a>
-                <ul class="nav-links">
-                    <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="users.php">Users</a></li>
-                    <li><a href="matches.php">Matches</a></li>
-                    <li><a href="sessions.php" class="active">Sessions</a></li>
-                    <li><a href="reports.php">Reports</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
-            </nav>
+    <!-- Replaced horizontal header with purple sidebar navigation -->
+    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
         </div>
-    </header>
+        <nav class="nav flex-column px-3">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="monitoring.php">
+                <i class="fas fa-chart-line me-2"></i> System Monitoring
+            </a>
+            <a class="nav-link" href="reports-inbox.php">
+                <i class="fas fa-inbox me-2"></i> Reports & Feedback
+            </a>
+            <a class="nav-link" href="session-tracking.php">
+                <i class="fas fa-calendar-check me-2"></i> Session Tracking
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link active" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="reports.php">
+                <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+        </nav>
+        <div class="position-absolute bottom-0 w-100 p-3">
+            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
+                <i class="fas fa-sign-out-alt me-2"></i> Logout
+            </a>
+        </div>
+    </div>
 
-    <main style="padding: 2rem 0;">
-        <div class="container">
-            <div class="mb-4">
-                <h1>Manage Sessions</h1>
-                <p class="text-secondary">Monitor and manage tutoring sessions.</p>
+    <!-- Updated main content area to work with sidebar layout -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">Manage Sessions</h1>
+                    <p class="text-muted">Monitor and manage tutoring sessions.</p>
+                </div>
             </div>
 
             <?php if (isset($success_message)): ?>
@@ -89,50 +125,78 @@ $stats = $db->query("
             <?php endif; ?>
 
             <!-- Session Statistics -->
-            <div class="grid grid-cols-4 mb-4">
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">
-                            <?php echo $stats['total_sessions']; ?>
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Sessions</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['total_sessions']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-video fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Total Sessions</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--warning-color);">
-                            <?php echo $stats['scheduled_sessions']; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Scheduled</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['scheduled_sessions']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Scheduled</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--success-color);">
-                            <?php echo $stats['completed_sessions']; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Completed</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['completed_sessions']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Completed</div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--info-color);">
-                            <?php echo $stats['upcoming_sessions']; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Upcoming</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['upcoming_sessions']; ?></div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Upcoming</div>
                     </div>
                 </div>
             </div>
 
             <!-- Sessions Table -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">All Sessions</h3>
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">All Sessions</h6>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table">
-                            <thead>
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
                                 <tr>
                                     <th>ID</th>
                                     <th>Student</th>
@@ -150,46 +214,58 @@ $stats = $db->query("
                                     <tr>
                                         <td><?php echo $session['id']; ?></td>
                                         <td>
-                                            <div class="font-medium"><?php echo htmlspecialchars($session['student_first_name'] . ' ' . $session['student_last_name']); ?></div>
+                                            <div class="fw-bold"><?php echo htmlspecialchars($session['student_first_name'] . ' ' . $session['student_last_name']); ?></div>
                                         </td>
                                         <td>
-                                            <div class="font-medium"><?php echo htmlspecialchars($session['mentor_first_name'] . ' ' . $session['mentor_last_name']); ?></div>
+                                            <div class="fw-bold"><?php echo htmlspecialchars($session['mentor_first_name'] . ' ' . $session['mentor_last_name']); ?></div>
                                         </td>
                                         <td><?php echo htmlspecialchars($session['subject']); ?></td>
                                         <td>
                                             <div><?php echo date('M j, Y', strtotime($session['session_date'])); ?></div>
-                                            <div class="text-sm text-secondary"><?php echo date('g:i A', strtotime($session['start_time'])) . ' - ' . date('g:i A', strtotime($session['end_time'])); ?></div>
+                                            <div class="small text-muted"><?php echo date('g:i A', strtotime($session['start_time'])) . ' - ' . date('g:i A', strtotime($session['end_time'])); ?></div>
                                         </td>
-                                        <td><?php echo $session['duration_minutes']; ?> min</td>
+                                        <td>
+                                            <?php 
+                                            $duration = $session['duration_minutes'] ?? 0;
+                                            if ($duration > 0) {
+                                                echo $duration . ' min';
+                                            } else {
+                                                $start = strtotime($session['start_time']);
+                                                $end = strtotime($session['end_time']);
+                                                $calculated_duration = ($end - $start) / 60;
+                                                echo $calculated_duration . ' min';
+                                            }
+                                            ?>
+                                        </td>
                                         <td>
                                             <span class="badge <?php 
-                                                echo $session['status'] === 'completed' ? 'badge-success' : 
-                                                    ($session['status'] === 'scheduled' ? 'badge-info' : 
-                                                    ($session['status'] === 'cancelled' ? 'badge-error' : 'badge-warning')); 
+                                                echo $session['status'] === 'completed' ? 'bg-success' : 
+                                                    ($session['status'] === 'scheduled' ? 'bg-info' : 
+                                                    ($session['status'] === 'cancelled' ? 'bg-danger' : 'bg-warning')); 
                                             ?>">
                                                 <?php echo ucfirst($session['status']); ?>
                                             </span>
                                         </td>
                                         <td>
                                             <?php if ($session['rating']): ?>
-                                                <div class="font-medium"><?php echo $session['rating']; ?>/5</div>
+                                                <div class="fw-bold"><?php echo $session['rating']; ?>/5</div>
                                                 <?php if ($session['feedback']): ?>
-                                                    <div class="text-sm text-secondary" title="<?php echo htmlspecialchars($session['feedback']); ?>">
+                                                    <div class="small text-muted" title="<?php echo htmlspecialchars($session['feedback']); ?>">
                                                         <?php echo substr(htmlspecialchars($session['feedback']), 0, 30) . '...'; ?>
                                                     </div>
                                                 <?php endif; ?>
                                             <?php else: ?>
-                                                <span class="text-secondary">No rating</span>
+                                                <span class="text-muted">No rating</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($session['status'] === 'scheduled'): ?>
-                                                <form method="POST" style="display: inline;">
+                                                <form method="POST" class="d-inline">
                                                     <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                                                    <button type="submit" name="action" value="cancel" class="btn btn-sm btn-error" onclick="return confirm('Are you sure you want to cancel this session?')">Cancel</button>
+                                                    <button type="submit" name="action" value="cancel" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this session?')">Cancel</button>
                                                 </form>
                                             <?php else: ?>
-                                                <span class="text-secondary">No actions</span>
+                                                <span class="text-muted">No actions</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -200,6 +276,9 @@ $stats = $db->query("
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+
+    <!-- Added Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

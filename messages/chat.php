@@ -6,7 +6,7 @@ if (!is_logged_in()) {
     redirect('auth/login.php');
 }
 
-$user = get_current_user();
+$user = get_logged_in_user();
 if (!$user) {
     redirect('auth/login.php');
 }

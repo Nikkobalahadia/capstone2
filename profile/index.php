@@ -69,6 +69,29 @@ $stats = $stats_stmt->fetch();
                             <a href="edit.php" class="btn btn-primary">Edit Profile</a>
                         </div>
                         <div class="card-body">
+                            <!-- Add profile picture display section -->
+                            <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="position: relative;">
+                                    <?php if (!empty($user['profile_picture']) && file_exists('../uploads/profiles/' . $user['profile_picture'])): ?>
+                                        <img src="../uploads/profiles/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                             alt="Profile Picture" 
+                                             style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary-color);">
+                                    <?php else: ?>
+                                        <div style="width: 120px; height: 120px; border-radius: 50%; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.5rem; font-weight: 700;">
+                                            <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <h2 style="margin: 0 0 0.5rem 0; font-size: 1.75rem; font-weight: 700;"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h2>
+                                    <p style="margin: 0 0 0.5rem 0; color: var(--text-secondary); font-size: 1.1rem;">@<?php echo htmlspecialchars($user['username']); ?></p>
+                                    <span class="badge badge-primary"><?php echo ucfirst($user['role']); ?></span>
+                                    <?php if ($user['is_verified']): ?>
+                                        <span class="badge badge-success">Verified</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            
                             <div class="grid grid-cols-2" style="gap: 2rem;">
                                 <div>
                                     <h4 class="font-semibold mb-2">Basic Information</h4>
@@ -152,6 +175,54 @@ $stats = $stats_stmt->fetch();
                             <?php endif; ?>
                         </div>
                     </div>
+
+                    <!-- Mentor Verification -->
+                    <?php if ($user['role'] === 'mentor'): ?>
+                        <div class="card mb-4">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 class="card-title">Mentor Verification</h3>
+                                <a href="verification.php" class="btn btn-secondary">Manage Documents</a>
+                            </div>
+                            <div class="card-body">
+                                <?php if ($user['is_verified']): ?>
+                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 0.5rem; border: 1px solid #bbf7d0;">
+                                        <div style="color: var(--success-color); font-size: 1.5rem;">✓</div>
+                                        <div>
+                                            <div class="font-medium" style="color: var(--success-color);">Verified Mentor</div>
+                                            <div class="text-sm text-secondary">Your mentor status has been verified by our admin team.</div>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #fffbeb; border-radius: 0.5rem; border: 1px solid #fed7aa;">
+                                        <div style="color: var(--warning-color); font-size: 1.5rem;">⚠</div>
+                                        <div>
+                                            <div class="font-medium" style="color: var(--warning-color);">Verification Pending</div>
+                                            <div class="text-sm text-secondary">Upload verification documents to become a verified mentor.</div>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Added referral codes section for verified mentors -->
+                        <?php if ($user['is_verified']): ?>
+                            <div class="card mb-4">
+                                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 class="card-title">Referral Codes</h3>
+                                    <a href="referral-codes.php" class="btn btn-primary">Manage Codes</a>
+                                </div>
+                                <div class="card-body">
+                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 0.5rem; border: 1px solid #bae6fd;">
+                                        <div style="color: var(--primary-color); font-size: 1.5rem;">🎯</div>
+                                        <div>
+                                            <div class="font-medium" style="color: var(--primary-color);">Share Your Expertise</div>
+                                            <div class="text-sm text-secondary">Generate referral codes to invite co-teachers and help them get verified instantly.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Stats Sidebar -->

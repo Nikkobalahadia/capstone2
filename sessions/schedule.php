@@ -40,12 +40,11 @@ $stmt = $db->prepare($matches_query);
 $stmt->execute([$user['id'], $user['id'], $user['id'], $user['id']]);
 $matches = $stmt->fetchAll();
 
-if (empty($matches)) {
-    redirect('../matches/find.php');
-}
+// Flag kung wala pang matches
+$no_matches = empty($matches);
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Handle form submission (only if may matches)
+if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
@@ -135,61 +134,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="alert alert-success"><?php echo $success; ?></div>
                 <?php endif; ?>
                 
-                <form method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    
-                    <div class="form-group">
-                        <label for="match_id" class="form-label">Study Partner</label>
-                        <select id="match_id" name="match_id" class="form-select" required>
-                            <option value="">Select a partner</option>
-                            <?php foreach ($matches as $match): ?>
-                                <option value="<?php echo $match['id']; ?>" 
-                                        <?php echo $match_id == $match['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($match['partner_name']); ?> - <?php echo htmlspecialchars($match['subject']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                <?php if ($no_matches): ?>
+                    <div class="alert alert-warning" style="margin-bottom: 1rem; text-align: center; padding: 10px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px;">
+                        You don’t have any matches yet.  
+                        <br>Please <strong>find a study partner</strong> first before scheduling a session.
+                        <br>
+                        <a href="../matches/find.php" class="btn btn-primary" style="margin-top: 0.5rem; display: inline-block; padding: 6px 12px; background: #007bff; color: #fff; text-decoration: none; border-radius: 4px;">
+                            Find a Match
+                        </a>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="session_date" class="form-label">Session Date</label>
-                        <input type="date" id="session_date" name="session_date" class="form-input" required
-                               min="<?php echo date('Y-m-d'); ?>"
-                               value="<?php echo isset($_POST['session_date']) ? $_POST['session_date'] : ''; ?>">
-                    </div>
-                    
-                    <div class="grid grid-cols-2" style="gap: 1rem;">
+                <?php else: ?>
+                    <form method="POST" action="">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        
                         <div class="form-group">
-                            <label for="start_time" class="form-label">Start Time</label>
-                            <input type="time" id="start_time" name="start_time" class="form-input" required
-                                   value="<?php echo isset($_POST['start_time']) ? $_POST['start_time'] : ''; ?>">
+                            <label for="match_id" class="form-label">Study Partner</label>
+                            <select id="match_id" name="match_id" class="form-select" required>
+                                <option value="">Select a partner</option>
+                                <?php foreach ($matches as $match): ?>
+                                    <option value="<?php echo $match['id']; ?>" 
+                                            <?php echo $match_id == $match['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($match['partner_name']); ?> - <?php echo htmlspecialchars($match['subject']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         
                         <div class="form-group">
-                            <label for="end_time" class="form-label">End Time</label>
-                            <input type="time" id="end_time" name="end_time" class="form-input" required
-                                   value="<?php echo isset($_POST['end_time']) ? $_POST['end_time'] : ''; ?>">
+                            <label for="session_date" class="form-label">Session Date</label>
+                            <input type="date" id="session_date" name="session_date" class="form-input" required
+                                   min="<?php echo date('Y-m-d'); ?>"
+                                   value="<?php echo isset($_POST['session_date']) ? $_POST['session_date'] : ''; ?>">
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="location" class="form-label">Location</label>
-                        <input type="text" id="location" name="location" class="form-input" 
-                               placeholder="e.g., Library, Online (Zoom), Coffee Shop"
-                               value="<?php echo isset($_POST['location']) ? htmlspecialchars($_POST['location']) : ''; ?>">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="notes" class="form-label">Session Notes (Optional)</label>
-                        <textarea id="notes" name="notes" class="form-input" rows="4" 
-                                  placeholder="What topics will you cover? Any materials to bring?"><?php echo isset($_POST['notes']) ? htmlspecialchars($_POST['notes']) : ''; ?></textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 1rem;">
-                        <button type="submit" class="btn btn-primary" style="flex: 1;">Schedule Session</button>
-                        <a href="index.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancel</a>
-                    </div>
-                </form>
+                        
+                        <div class="grid grid-cols-2" style="gap: 1rem;">
+                            <div class="form-group">
+                                <label for="start_time" class="form-label">Start Time</label>
+                                <input type="time" id="start_time" name="start_time" class="form-input" required
+                                       value="<?php echo isset($_POST['start_time']) ? $_POST['start_time'] : ''; ?>">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="end_time" class="form-label">End Time</label>
+                                <input type="time" id="end_time" name="end_time" class="form-input" required
+                                       value="<?php echo isset($_POST['end_time']) ? $_POST['end_time'] : ''; ?>">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" id="location" name="location" class="form-input" 
+                                   placeholder="e.g., Library, Online (Zoom), Coffee Shop"
+                                   value="<?php echo isset($_POST['location']) ? htmlspecialchars($_POST['location']) : ''; ?>">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="notes" class="form-label">Session Notes (Optional)</label>
+                            <textarea id="notes" name="notes" class="form-input" rows="4" 
+                                      placeholder="What topics will you cover? Any materials to bring?"><?php echo isset($_POST['notes']) ? htmlspecialchars($_POST['notes']) : ''; ?></textarea>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem;">
+                            <button type="submit" class="btn btn-primary" style="flex: 1;">Schedule Session</button>
+                            <a href="index.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancel</a>
+                        </div>
+                    </form>
+                <?php endif; ?>
             </div>
         </div>
     </main>
@@ -200,22 +210,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const startTime = document.getElementById('start_time');
             const endTime = document.getElementById('end_time');
             
-            if (!startTime.value) {
+            if (startTime && !startTime.value) {
                 startTime.value = '14:00'; // 2:00 PM
             }
             
-            if (!endTime.value) {
+            if (endTime && !endTime.value) {
                 endTime.value = '16:00'; // 4:00 PM
             }
             
             // Auto-adjust end time when start time changes
-            startTime.addEventListener('change', function() {
-                if (this.value && !endTime.value) {
-                    const start = new Date('2000-01-01 ' + this.value);
-                    start.setHours(start.getHours() + 2); // Default 2-hour session
-                    endTime.value = start.toTimeString().slice(0, 5);
-                }
-            });
+            if (startTime) {
+                startTime.addEventListener('change', function() {
+                    if (this.value && !endTime.value) {
+                        const start = new Date('2000-01-01 ' + this.value);
+                        start.setHours(start.getHours() + 2); // Default 2-hour session
+                        endTime.value = start.toTimeString().slice(0, 5);
+                    }
+                });
+            }
         });
     </script>
 </body>

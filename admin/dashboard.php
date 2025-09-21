@@ -105,141 +105,158 @@ $daily_active = $db->query("
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - StudyConnect</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <!-- Updated to use Bootstrap and purple admin theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
+        .main-content { margin-left: 250px; padding: 20px; }
+        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+    </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="dashboard.php" class="logo">StudyConnect Admin</a>
-                <ul class="nav-links">
-                    <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="users.php">Users</a></li>
-                    <li><a href="matches.php">Matches</a></li>
-                    <li><a href="sessions.php">Sessions</a></li>
-                    <li><a href="reports.php">Reports</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
-            </nav>
+    <!-- Replaced horizontal header with purple sidebar navigation -->
+    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
         </div>
-    </header>
+        <nav class="nav flex-column px-3">
+            <a class="nav-link active" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="monitoring.php">
+                <i class="fas fa-chart-line me-2"></i> System Monitoring
+            </a>
+            <a class="nav-link" href="reports-inbox.php">
+                <i class="fas fa-inbox me-2"></i> Reports & Feedback
+            </a>
+            <a class="nav-link" href="session-tracking.php">
+                <i class="fas fa-calendar-check me-2"></i> Session Tracking
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="reports.php">
+                <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+        </nav>
+        <div class="position-absolute bottom-0 w-100 p-3">
+            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
+                <i class="fas fa-sign-out-alt me-2"></i> Logout
+            </a>
+        </div>
+    </div>
 
-    <main style="padding: 2rem 0;">
-        <div class="container">
-            <div class="mb-4">
-                <h1>Admin Dashboard</h1>
-                <p class="text-secondary">Monitor platform performance and user activity.</p>
+    <!-- Updated main content area to work with sidebar layout -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">Admin Dashboard</h1>
+                    <p class="text-muted">Monitor platform performance and user activity.</p>
+                </div>
             </div>
 
             <!-- Key Metrics -->
-            <div class="grid grid-cols-4 mb-4">
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--primary-color); margin-bottom: 0.5rem;">
-                            <?php echo number_format($user_stats['total_users']); ?>
-                        </div>
-                        <div class="text-secondary">Total Users</div>
-                        <div class="text-sm text-success mt-1">
-                            +<?php echo $user_stats['new_users_7d']; ?> this week
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--success-color); margin-bottom: 0.5rem;">
-                            <?php echo number_format($match_stats['active_matches']); ?>
-                        </div>
-                        <div class="text-secondary">Active Matches</div>
-                        <div class="text-sm text-secondary mt-1">
-                            <?php echo $match_stats['pending_matches']; ?> pending
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Users</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($user_stats['total_users']); ?></div>
+                                    <div class="text-success small">+<?php echo $user_stats['new_users_7d']; ?> this week</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-users fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--warning-color); margin-bottom: 0.5rem;">
-                            <?php echo number_format($session_stats['completed_sessions']); ?>
-                        </div>
-                        <div class="text-secondary">Completed Sessions</div>
-                        <div class="text-sm text-secondary mt-1">
-                            <?php echo $session_stats['upcoming_sessions']; ?> upcoming
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Matches</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($match_stats['active_matches']); ?></div>
+                                    <div class="text-muted small"><?php echo $match_stats['pending_matches']; ?> pending</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-handshake fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--error-color); margin-bottom: 0.5rem;">
-                            <?php echo $rating_stats['avg_rating'] ? number_format($rating_stats['avg_rating'], 1) : 'N/A'; ?>
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Completed Sessions</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($session_stats['completed_sessions']); ?></div>
+                                    <div class="text-muted small"><?php echo $session_stats['upcoming_sessions']; ?> upcoming</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-secondary">Avg Rating</div>
-                        <div class="text-sm text-secondary mt-1">
-                            <?php echo $rating_stats['total_ratings']; ?> total ratings
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-info shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Rating</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $rating_stats['avg_rating'] ? number_format($rating_stats['avg_rating'], 1) : 'N/A'; ?></div>
+                                    <div class="text-muted small"><?php echo $rating_stats['total_ratings']; ?> total ratings</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-star fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-3" style="gap: 2rem;">
+            <div class="row">
                 <!-- Charts Column -->
-                <div style="grid-column: span 2;">
+                <div class="col-lg-8">
                     <!-- Daily Active Users Chart -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">Daily Active Users (Last 7 Days)</h3>
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Daily Active Users (Last 7 Days)</h6>
                         </div>
                         <div class="card-body">
                             <canvas id="dailyActiveChart" width="400" height="200"></canvas>
                         </div>
                     </div>
 
-                    <!-- Platform Activity -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">Platform Activity (Last 30 Days)</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="grid grid-cols-2" style="gap: 2rem;">
-                                <div>
-                                    <div class="mb-3">
-                                        <div class="font-semibold">User Logins</div>
-                                        <div style="font-size: 1.5rem; color: var(--primary-color);">
-                                            <?php echo number_format($activity_stats['logins']); ?>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <div class="font-semibold">Match Requests</div>
-                                        <div style="font-size: 1.5rem; color: var(--success-color);">
-                                            <?php echo number_format($activity_stats['match_requests']); ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="mb-3">
-                                        <div class="font-semibold">Messages Sent</div>
-                                        <div style="font-size: 1.5rem; color: var(--warning-color);">
-                                            <?php echo number_format($activity_stats['messages_sent']); ?>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <div class="font-semibold">Sessions Scheduled</div>
-                                        <div style="font-size: 1.5rem; color: var(--error-color);">
-                                            <?php echo number_format($activity_stats['sessions_scheduled']); ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Popular Subjects -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Most Popular Subjects</h3>
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Most Popular Subjects</h6>
                         </div>
                         <div class="card-body">
                             <canvas id="subjectsChart" width="400" height="300"></canvas>
@@ -248,86 +265,92 @@ $daily_active = $db->query("
                 </div>
 
                 <!-- Sidebar -->
-                <div>
-                    <!-- User Breakdown -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">User Breakdown</h3>
+                <div class="col-lg-4">
+                    <!-- Platform Activity -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Platform Activity (Last 30 Days)</h6>
                         </div>
                         <div class="card-body">
-                            <div class="mb-3">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <span>Students</span>
-                                    <span class="font-semibold"><?php echo $user_stats['students']; ?></span>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <div class="font-weight-bold">User Logins</div>
+                                        <div class="h5 text-primary"><?php echo number_format($activity_stats['logins']); ?></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="font-weight-bold">Match Requests</div>
+                                        <div class="h5 text-success"><?php echo number_format($activity_stats['match_requests']); ?></div>
+                                    </div>
                                 </div>
-                                <div style="background: #e5e7eb; height: 8px; border-radius: 4px;">
-                                    <div style="background: var(--primary-color); height: 100%; width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['students'] / $user_stats['total_users']) * 100 : 0; ?>%; border-radius: 4px;"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <span>Mentors</span>
-                                    <span class="font-semibold"><?php echo $user_stats['mentors']; ?></span>
-                                </div>
-                                <div style="background: #e5e7eb; height: 8px; border-radius: 4px;">
-                                    <div style="background: var(--success-color); height: 100%; width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['mentors'] / $user_stats['total_users']) * 100 : 0; ?>%; border-radius: 4px;"></div>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <span>Verified</span>
-                                    <span class="font-semibold"><?php echo $user_stats['verified_users']; ?></span>
-                                </div>
-                                <div style="background: #e5e7eb; height: 8px; border-radius: 4px;">
-                                    <div style="background: var(--warning-color); height: 100%; width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['verified_users'] / $user_stats['total_users']) * 100 : 0; ?>%; border-radius: 4px;"></div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <div class="font-weight-bold">Messages Sent</div>
+                                        <div class="h5 text-warning"><?php echo number_format($activity_stats['messages_sent']); ?></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="font-weight-bold">Sessions Scheduled</div>
+                                        <div class="h5 text-info"><?php echo number_format($activity_stats['sessions_scheduled']); ?></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Match Success Rate -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">Match Success Rate</h3>
+                    <!-- User Breakdown -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">User Breakdown</h6>
                         </div>
                         <div class="card-body">
-                            <?php 
-                            $total_responses = $match_stats['active_matches'] + $match_stats['rejected_matches'];
-                            $success_rate = $total_responses > 0 ? ($match_stats['active_matches'] / $total_responses) * 100 : 0;
-                            ?>
-                            <div class="text-center mb-3">
-                                <div style="font-size: 2rem; font-weight: 700; color: var(--success-color);">
-                                    <?php echo number_format($success_rate, 1); ?>%
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Students</span>
+                                    <span class="font-weight-bold"><?php echo $user_stats['students']; ?></span>
                                 </div>
-                                <div class="text-secondary">Success Rate</div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-primary" style="width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['students'] / $user_stats['total_users']) * 100 : 0; ?>%"></div>
+                                </div>
                             </div>
                             
-                            <div class="text-sm text-secondary">
-                                <div>Accepted: <?php echo $match_stats['active_matches']; ?></div>
-                                <div>Rejected: <?php echo $match_stats['rejected_matches']; ?></div>
-                                <div>Pending: <?php echo $match_stats['pending_matches']; ?></div>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Mentors</span>
+                                    <span class="font-weight-bold"><?php echo $user_stats['mentors']; ?></span>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-success" style="width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['mentors'] / $user_stats['total_users']) * 100 : 0; ?>%"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Verified</span>
+                                    <span class="font-weight-bold"><?php echo $user_stats['verified_users']; ?></span>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-warning" style="width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['verified_users'] / $user_stats['total_users']) * 100 : 0; ?>%"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Recent Activity -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Recent Activity</h3>
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
                         </div>
                         <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                             <?php foreach (array_slice($recent_activity, 0, 10) as $activity): ?>
-                                <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
-                                    <div class="text-sm">
+                                <div class="border-bottom py-2">
+                                    <div class="small">
                                         <strong><?php echo htmlspecialchars($activity['first_name'] . ' ' . $activity['last_name']); ?></strong>
-                                        <span class="text-secondary">(<?php echo ucfirst($activity['role']); ?>)</span>
+                                        <span class="text-muted">(<?php echo ucfirst($activity['role']); ?>)</span>
                                     </div>
-                                    <div class="text-sm text-secondary">
+                                    <div class="small text-muted">
                                         <?php echo ucfirst(str_replace('_', ' ', $activity['action'])); ?>
                                     </div>
-                                    <div class="text-sm text-secondary">
+                                    <div class="small text-muted">
                                         <?php echo date('M j, g:i A', strtotime($activity['created_at'])); ?>
                                     </div>
                                 </div>
@@ -337,8 +360,10 @@ $daily_active = $db->query("
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
+    <!-- Added Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Daily Active Users Chart
         const dailyActiveCtx = document.getElementById('dailyActiveChart').getContext('2d');

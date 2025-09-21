@@ -25,41 +25,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bio = sanitize_input($_POST['bio']);
         $subjects = $_POST['subjects'] ?? [];
         
-        if (empty($grade_level) || empty($location) || empty($bio)) {
-            $error = 'Please fill in all required fields.';
-        } elseif (empty($subjects)) {
-            $error = 'Please select at least one subject.';
-        } else {
-            try {
-                $db = getDB();
-                $db->beginTransaction();
+        $profile_picture_path = null;
+        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../uploads/profiles/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0755, true);
+            }
+            
+            $file = $_FILES['profile_picture'];
+            $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            $max_size = 5 * 1024 * 1024; // 5MB
+            
+            if (!in_array($file['type'], $allowed_types)) {
+                $error = 'Please upload a valid image file (JPG, PNG, or GIF).';
+            } elseif ($file['size'] > $max_size) {
+                $error = 'Image file size must be less than 5MB.';
+            } else {
+                $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $filename = 'profile_' . $user['id'] . '_' . time() . '.' . $file_extension;
+                $upload_path = $upload_dir . $filename;
                 
-                // Update user profile
-                $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ? WHERE id = ?");
-                $stmt->execute([$grade_level, $strand, $course, $location, $bio, $user['id']]);
-                
-                // Clear existing subjects
-                $clear_stmt = $db->prepare("DELETE FROM user_subjects WHERE user_id = ?");
-                $clear_stmt->execute([$user['id']]);
-                
-                // Add new subjects
-                $subject_stmt = $db->prepare("INSERT INTO user_subjects (user_id, subject_name, proficiency_level) VALUES (?, ?, ?)");
-                foreach ($subjects as $subject_data) {
-                    $subject_parts = explode('|', $subject_data);
-                    if (count($subject_parts) === 2) {
-                        $subject_stmt->execute([$user['id'], $subject_parts[0], $subject_parts[1]]);
-                    }
+                if (move_uploaded_file($file['tmp_name'], $upload_path)) {
+                    $profile_picture_path = 'uploads/profiles/' . $filename;
+                } else {
+                    $error = 'Failed to upload profile picture. Please try again.';
                 }
-                
-                $db->commit();
-                $success = 'Profile updated successfully!';
-                
-                // Redirect to dashboard after 2 seconds
-                header("refresh:2;url=" . BASE_URL . "dashboard.php");
-                
-            } catch (Exception $e) {
-                $db->rollBack();
-                $error = 'Failed to update profile. Please try again.';
+            }
+        }
+        
+        if (empty($error)) {
+            if (empty($grade_level) || empty($location) || empty($bio)) {
+                $error = 'Please fill in all required fields.';
+            } elseif (empty($subjects)) {
+                $error = 'Please select at least one subject.';
+            } else {
+                try {
+                    $db = getDB();
+                    $db->beginTransaction();
+                    
+                    if ($profile_picture_path) {
+                        $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ? WHERE id = ?");
+                        $stmt->execute([$grade_level, $strand, $course, $location, $bio, $profile_picture_path, $user['id']]);
+                    } else {
+                        $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ? WHERE id = ?");
+                        $stmt->execute([$grade_level, $strand, $course, $location, $bio, $user['id']]);
+                    }
+                    
+                    // Clear existing subjects
+                    $clear_stmt = $db->prepare("DELETE FROM user_subjects WHERE user_id = ?");
+                    $clear_stmt->execute([$user['id']]);
+                    
+                    // Add new subjects
+                    $subject_stmt = $db->prepare("INSERT INTO user_subjects (user_id, subject_name, proficiency_level) VALUES (?, ?, ?)");
+                    foreach ($subjects as $subject_data) {
+                        $subject_parts = explode('|', $subject_data);
+                        if (count($subject_parts) === 2) {
+                            $subject_stmt->execute([$user['id'], $subject_parts[0], $subject_parts[1]]);
+                        }
+                    }
+                    
+                    $db->commit();
+                    $success = 'Profile updated successfully!';
+                    
+                    // Redirect to dashboard after 2 seconds
+                    header("refresh:2;url=" . BASE_URL . "dashboard.php");
+                    
+                } catch (Exception $e) {
+                    $db->rollBack();
+                    $error = 'Failed to update profile. Please try again.';
+                }
             }
         }
     }
@@ -115,8 +149,26 @@ $common_subjects = [
                     <div class="alert alert-success"><?php echo $success; ?></div>
                 <?php endif; ?>
                 
-                <form method="POST" action="">
+                <!-- Added enctype for file upload support -->
+                <form method="POST" action="" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    
+                    <!-- Added profile picture upload section -->
+                    <div class="form-group">
+                        <label for="profile_picture" class="form-label">Profile Picture (Optional)</label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div id="current-picture" style="width: 80px; height: 80px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: #64748b;">
+                                <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                            </div>
+                            <div style="flex: 1;">
+                                <input type="file" id="profile_picture" name="profile_picture" class="form-input" accept="image/*">
+                                <p class="text-sm text-secondary mt-1">Upload a profile picture (JPG, PNG, or GIF, max 5MB)</p>
+                            </div>
+                        </div>
+                        <div id="image-preview" style="margin-top: 1rem; display: none;">
+                            <img id="preview-img" src="/placeholder.svg" alt="Preview" style="width: 150px; height: 150px; object-fit: cover; border-radius: 8px; border: 2px solid #e2e8f0;">
+                        </div>
+                    </div>
                     
                     <div class="form-group">
                         <label for="grade_level" class="form-label">Grade Level / Year Level</label>
@@ -215,6 +267,20 @@ $common_subjects = [
     </main>
 
     <script>
+        document.getElementById('profile_picture').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('image-preview');
+                    const previewImg = document.getElementById('preview-img');
+                    previewImg.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
         function addSubject() {
             const container = document.getElementById('subjects-container');
             const subjectRow = document.createElement('div');

@@ -116,60 +116,98 @@ $engagement_metrics = $db->query("
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics Reports - StudyConnect Admin</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <!-- Updated to use Bootstrap and purple admin theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
+        .main-content { margin-left: 250px; padding: 20px; }
+        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+    </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="dashboard.php" class="logo">StudyConnect Admin</a>
-                <ul class="nav-links">
-                    <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="users.php">Users</a></li>
-                    <li><a href="matches.php">Matches</a></li>
-                    <li><a href="sessions.php">Sessions</a></li>
-                    <li><a href="reports.php">Reports</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
-            </nav>
+    <!-- Replaced horizontal header with purple sidebar navigation -->
+    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
         </div>
-    </header>
+        <nav class="nav flex-column px-3">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="monitoring.php">
+                <i class="fas fa-chart-line me-2"></i> System Monitoring
+            </a>
+            <a class="nav-link" href="reports-inbox.php">
+                <i class="fas fa-inbox me-2"></i> Reports & Feedback
+            </a>
+            <a class="nav-link" href="session-tracking.php">
+                <i class="fas fa-calendar-check me-2"></i> Session Tracking
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link active" href="reports.php">
+                <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+        </nav>
+        <div class="position-absolute bottom-0 w-100 p-3">
+            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
+                <i class="fas fa-sign-out-alt me-2"></i> Logout
+            </a>
+        </div>
+    </div>
 
-    <main style="padding: 2rem 0;">
-        <div class="container">
-            <div class="mb-4">
-                <h1>Analytics Reports</h1>
-                <p class="text-secondary">Comprehensive platform analytics and insights.</p>
+    <!-- Updated main content area to work with sidebar layout -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">Analytics Reports</h1>
+                    <p class="text-muted">Comprehensive platform analytics and insights.</p>
+                </div>
             </div>
 
             <!-- User Engagement -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">User Engagement Metrics</h3>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">User Engagement Metrics</h6>
                 </div>
                 <div class="card-body">
-                    <div class="grid grid-cols-2" style="gap: 2rem;">
+                    <div class="row">
                         <?php foreach ($engagement_metrics as $metric): ?>
-                            <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
-                                <h4 class="font-semibold mb-3"><?php echo ucfirst($metric['role']); ?>s</h4>
-                                <div class="grid grid-cols-2" style="gap: 1rem;">
-                                    <div>
-                                        <div class="text-sm text-secondary">Total Users</div>
-                                        <div class="font-semibold"><?php echo $metric['total_users']; ?></div>
-                                    </div>
-                                    <div>
-                                        <div class="text-sm text-secondary">Active (7d)</div>
-                                        <div class="font-semibold"><?php echo $metric['active_7d']; ?></div>
-                                    </div>
-                                    <div>
-                                        <div class="text-sm text-secondary">Active (30d)</div>
-                                        <div class="font-semibold"><?php echo $metric['active_30d']; ?></div>
-                                    </div>
-                                    <div>
-                                        <div class="text-sm text-secondary">Avg Sessions</div>
-                                        <div class="font-semibold"><?php echo number_format($metric['avg_sessions_per_user'] ?? 0, 1); ?></div>
+                            <div class="col-md-6 mb-4">
+                                <div class="border rounded p-3">
+                                    <h6 class="font-weight-bold mb-3"><?php echo ucfirst($metric['role']); ?>s</h6>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="small text-muted">Total Users</div>
+                                            <div class="font-weight-bold"><?php echo $metric['total_users']; ?></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="small text-muted">Active (7d)</div>
+                                            <div class="font-weight-bold"><?php echo $metric['active_7d']; ?></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="small text-muted">Active (30d)</div>
+                                            <div class="font-weight-bold"><?php echo $metric['active_30d']; ?></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="small text-muted">Avg Sessions</div>
+                                            <div class="font-weight-bold"><?php echo number_format($metric['avg_sessions_per_user'] ?? 0, 1); ?></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -179,9 +217,9 @@ $engagement_metrics = $db->query("
             </div>
 
             <!-- Platform Growth Chart -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">Platform Growth (Last 12 Months)</h3>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Platform Growth (Last 12 Months)</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="growthChart" width="400" height="200"></canvas>
@@ -189,9 +227,9 @@ $engagement_metrics = $db->query("
             </div>
 
             <!-- Match Success Analysis -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">Match Success Analysis</h3>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Match Success Analysis</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="matchChart" width="400" height="200"></canvas>
@@ -199,14 +237,14 @@ $engagement_metrics = $db->query("
             </div>
 
             <!-- Subject Demand Analysis -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">Subject Demand vs Supply</h3>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Subject Demand vs Supply</h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table">
-                            <thead>
+                        <table class="table table-bordered">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Subject</th>
                                     <th>Student Demand</th>
@@ -220,10 +258,10 @@ $engagement_metrics = $db->query("
                                 <?php foreach ($subject_demand as $subject): 
                                     $ratio = $subject['mentor_supply'] > 0 ? $subject['student_demand'] / $subject['mentor_supply'] : 999;
                                     $status = $ratio > 3 ? 'High Demand' : ($ratio < 1.5 ? 'Well Supplied' : 'Balanced');
-                                    $statusClass = $ratio > 3 ? 'text-red-600' : ($ratio < 1.5 ? 'text-green-600' : 'text-yellow-600');
+                                    $statusClass = $ratio > 3 ? 'text-danger' : ($ratio < 1.5 ? 'text-success' : 'text-warning');
                                 ?>
                                     <tr>
-                                        <td class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></td>
+                                        <td class="font-weight-bold"><?php echo htmlspecialchars($subject['subject_name']); ?></td>
                                         <td><?php echo $subject['student_demand']; ?></td>
                                         <td><?php echo $subject['mentor_supply']; ?></td>
                                         <td><?php echo number_format($ratio, 1); ?>:1</td>
@@ -238,9 +276,9 @@ $engagement_metrics = $db->query("
             </div>
 
             <!-- Peak Activity Hours -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3 class="card-title">Peak Activity Hours (Last 30 Days)</h3>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Peak Activity Hours (Last 30 Days)</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="activityChart" width="400" height="200"></canvas>
@@ -248,17 +286,19 @@ $engagement_metrics = $db->query("
             </div>
 
             <!-- Session Analysis -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Session Completion Analysis</h3>
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Session Completion Analysis</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="sessionChart" width="400" height="200"></canvas>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
+    <!-- Added Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Platform Growth Chart
         const growthCtx = document.getElementById('growthChart').getContext('2d');

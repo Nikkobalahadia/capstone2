@@ -234,7 +234,9 @@ class MatchmakingEngine {
     }
     
     private function calculateRatingScore($avg_rating, $rating_count) {
-        if (!$avg_rating || $rating_count < 1) return 50; // Neutral score for new users
+        if (!isset($avg_rating) || !isset($rating_count) || !$avg_rating || $rating_count < 1) {
+            return 50; // Neutral score for new users
+        }
         
         // Base score from rating (0-5 scale converted to 0-100)
         $rating_score = ($avg_rating / 5) * 80;

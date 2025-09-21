@@ -26,13 +26,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $location = sanitize_input($_POST['location']);
         $bio = sanitize_input($_POST['bio']);
         
+        $profile_picture = $user['profile_picture']; // Keep existing if no new upload
+        
+        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../uploads/profiles/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0755, true);
+            }
+            
+            $file_info = pathinfo($_FILES['profile_picture']['name']);
+            $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
+            $file_extension = strtolower($file_info['extension']);
+            
+            if (in_array($file_extension, $allowed_types)) {
+                $max_size = 5 * 1024 * 1024; // 5MB
+                if ($_FILES['profile_picture']['size'] <= $max_size) {
+                    $new_filename = 'profile_' . $user['id'] . '_' . time() . '.' . $file_extension;
+                    $upload_path = $upload_dir . $new_filename;
+                    
+                    if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $upload_path)) {
+                        // Delete old profile picture if exists
+                        if ($user['profile_picture'] && file_exists('../' . $user['profile_picture'])) {
+                            unlink('../' . $user['profile_picture']);
+                        }
+                        $profile_picture = 'uploads/profiles/' . $new_filename;
+                    } else {
+                        $error = 'Failed to upload profile picture.';
+                    }
+                } else {
+                    $error = 'Profile picture must be less than 5MB.';
+                }
+            } else {
+                $error = 'Profile picture must be a JPG, PNG, or GIF file.';
+            }
+        }
+        
         if (empty($first_name) || empty($last_name) || empty($grade_level) || empty($location) || empty($bio)) {
             $error = 'Please fill in all required fields.';
-        } else {
+        } else if (empty($error)) {
             try {
                 $db = getDB();
-                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ? WHERE id = ?");
-                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $user['id']]);
+                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ? WHERE id = ?");
+                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $profile_picture, $user['id']]);
                 
                 $success = 'Profile updated successfully!';
                 
@@ -57,6 +92,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Edit Profile - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .profile-picture-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .profile-picture-preview {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #e5e7eb;
+            margin-bottom: 1rem;
+        }
+        .profile-picture-placeholder {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            border: 4px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 2rem;
+        }
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-input-label {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #3b82f6;
+            color: white;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .file-input-label:hover {
+            background: #2563eb;
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -85,8 +170,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="alert alert-success"><?php echo $success; ?></div>
                 <?php endif; ?>
                 
-                <form method="POST" action="">
+                <!-- Added profile picture upload section -->
+                <div class="profile-picture-section">
+                    <?php if ($user['profile_picture'] && file_exists('../' . $user['profile_picture'])): ?>
+                        <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                             alt="Profile Picture" class="profile-picture-preview" id="profilePreview">
+                    <?php else: ?>
+                        <div class="profile-picture-placeholder" id="profilePlaceholder">
+                            <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <form method="POST" action="" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    
+                    <!-- Added profile picture upload field -->
+                    <div class="form-group" style="text-align: center; margin-bottom: 2rem;">
+                        <label class="form-label">Profile Picture</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="profile_picture" name="profile_picture" 
+                                   class="file-input" accept="image/*" onchange="previewImage(this)">
+                            <label for="profile_picture" class="file-input-label">
+                                Choose Photo
+                            </label>
+                        </div>
+                        <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+                            JPG, PNG, or GIF. Max 5MB.
+                        </p>
+                    </div>
                     
                     <div class="grid grid-cols-2" style="gap: 1rem;">
                         <div class="form-group">
@@ -161,5 +273,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </main>
+
+    <!-- Added JavaScript for image preview -->
+    <script>
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('profilePreview');
+                    const placeholder = document.getElementById('profilePlaceholder');
+                    
+                    if (preview) {
+                        preview.src = e.target.result;
+                    } else if (placeholder) {
+                        placeholder.outerHTML = `<img src="${e.target.result}" alt="Profile Picture" class="profile-picture-preview" id="profilePreview">`;
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
 </body>
 </html>

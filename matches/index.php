@@ -93,6 +93,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     <title>My Matches - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <header class="header">
@@ -165,26 +166,69 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                             <?php endif; ?>
                                         </div>
                                         
-                                        <!-- Show response buttons only if the current user is the mentor (receiving the request) -->
+                                        <!-- Updated button layout to include Accept, Reject, and View Details buttons -->
                                         <?php if (($user['role'] === 'mentor' && $match['mentor_id'] == $user['id']) || 
                                                   ($user['role'] === 'student' && $match['student_id'] == $user['id'] && $match['mentor_id'] != $user['id'])): ?>
-                                            <div style="display: flex; gap: 0.5rem; margin-left: 2rem;">
+                                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
+                                                <!-- View Details Button -->
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                                    <i class="fas fa-eye"></i> View Details
+                                                </button>
+                                                
+                                                <!-- Accept Button -->
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="response" value="accepted">
-                                                    <button type="submit" class="btn btn-success">Accept</button>
+                                                    <button type="submit" class="btn btn-success btn-sm w-100">
+                                                        <i class="fas fa-check"></i> Accept
+                                                    </button>
                                                 </form>
+                                                
+                                                <!-- Reject Button -->
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="response" value="rejected">
-                                                    <button type="submit" class="btn btn-danger">Decline</button>
+                                                    <button type="submit" class="btn btn-danger btn-sm w-100" onclick="return confirm('Are you sure you want to reject this match?')">
+                                                        <i class="fas fa-times"></i> Reject
+                                                    </button>
                                                 </form>
                                             </div>
                                         <?php else: ?>
                                             <div style="margin-left: 2rem;">
-                                                <span class="text-warning font-medium">Awaiting Response</span>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                                    <i class="fas fa-eye"></i> View Details
+                                                </button>
+                                                <div class="mt-2">
+                                                    <span class="text-warning font-medium">Awaiting Response</span>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <!-- Added collapsible details section -->
+                                    <div id="details-<?php echo $match['id']; ?>" class="match-details" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6 class="font-semibold mb-2">Partner Information</h6>
+                                                <p><strong>Role:</strong> <?php echo ucfirst($match['partner_role']); ?></p>
+                                                <p><strong>Location:</strong> <?php echo htmlspecialchars($match['partner_location'] ?: 'Not specified'); ?></p>
+                                                <?php if ($match['partner_grade_level']): ?>
+                                                    <p><strong>Grade Level:</strong> <?php echo htmlspecialchars($match['partner_grade_level']); ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="font-semibold mb-2">Match Details</h6>
+                                                <p><strong>Subject:</strong> <?php echo htmlspecialchars($match['subject']); ?></p>
+                                                <p><strong>Match Score:</strong> <?php echo $match['match_score']; ?>%</p>
+                                                <p><strong>Requested:</strong> <?php echo date('M j, Y g:i A', strtotime($match['created_at'])); ?></p>
+                                            </div>
+                                        </div>
+                                        <?php if ($match['partner_bio']): ?>
+                                            <div class="mt-3">
+                                                <h6 class="font-semibold mb-2">About Partner</h6>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($match['partner_bio'])); ?></p>
                                             </div>
                                         <?php endif; ?>
                                     </div>
@@ -226,10 +270,44 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                             </div>
                                         </div>
                                         
-                                        <div style="display: flex; gap: 0.5rem; margin-left: 2rem;">
-                                            <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary">Message</a>
-                                            <a href="../sessions/schedule.php?match_id=<?php echo $match['id']; ?>" class="btn btn-secondary">Schedule</a>
+                                        <!-- Updated active match buttons to include View Details -->
+                                        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                                <i class="fas fa-eye"></i> View Details
+                                            </button>
+                                            <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-comment"></i> Message
+                                            </a>
+                                            <a href="../sessions/schedule.php?match_id=<?php echo $match['id']; ?>" class="btn btn-secondary btn-sm">
+                                                <i class="fas fa-calendar"></i> Schedule
+                                            </a>
                                         </div>
+                                    </div>
+                                    
+                                    <!-- Added details section for active matches -->
+                                    <div id="details-<?php echo $match['id']; ?>" class="match-details" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6 class="font-semibold mb-2">Partner Information</h6>
+                                                <p><strong>Role:</strong> <?php echo ucfirst($match['partner_role']); ?></p>
+                                                <p><strong>Location:</strong> <?php echo htmlspecialchars($match['partner_location'] ?: 'Not specified'); ?></p>
+                                                <?php if ($match['partner_grade_level']): ?>
+                                                    <p><strong>Grade Level:</strong> <?php echo htmlspecialchars($match['partner_grade_level']); ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="font-semibold mb-2">Partnership Details</h6>
+                                                <p><strong>Subject:</strong> <?php echo htmlspecialchars($match['subject']); ?></p>
+                                                <p><strong>Match Score:</strong> <?php echo $match['match_score']; ?>%</p>
+                                                <p><strong>Started:</strong> <?php echo date('M j, Y g:i A', strtotime($match['updated_at'])); ?></p>
+                                            </div>
+                                        </div>
+                                        <?php if ($match['partner_bio']): ?>
+                                            <div class="mt-3">
+                                                <h6 class="font-semibold mb-2">About Partner</h6>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($match['partner_bio'])); ?></p>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -276,5 +354,24 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             <?php endif; ?>
         </div>
     </main>
+    
+    <script>
+        function toggleDetails(matchId) {
+            const detailsElement = document.getElementById('details-' + matchId);
+            const button = event.target.closest('button');
+            
+            if (detailsElement.style.display === 'none' || detailsElement.style.display === '') {
+                detailsElement.style.display = 'block';
+                button.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Details';
+                button.classList.remove('btn-outline-primary');
+                button.classList.add('btn-outline-secondary');
+            } else {
+                detailsElement.style.display = 'none';
+                button.innerHTML = '<i class="fas fa-eye"></i> View Details';
+                button.classList.remove('btn-outline-secondary');
+                button.classList.add('btn-outline-primary');
+            }
+        }
+    </script>
 </body>
 </html>

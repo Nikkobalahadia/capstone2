@@ -88,7 +88,7 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                     <h1>My Sessions</h1>
                     <p class="text-secondary">Manage your study sessions and track your learning progress.</p>
                 </div>
-                <a href="schedule.php" class="btn btn-primary">Schedule New Session</a>
+                <a href="history.php" class="btn btn-primary">Schedule New Session</a>
             </div>
 
             <!-- Upcoming Sessions -->

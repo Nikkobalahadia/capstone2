@@ -1,0 +1,11 @@
+# Allow access to uploaded profile pictures
+<Files "*">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+# Prevent execution of PHP files in uploads directory
+<FilesMatch "\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>

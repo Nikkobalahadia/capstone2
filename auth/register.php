@@ -39,14 +39,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Validate referral code if provided
                 $referral_valid = true;
+                $referral_mentor_id = null;
                 if (!empty($referral_code)) {
-                    $ref_stmt = $db->prepare("SELECT id, max_uses, current_uses FROM referral_codes WHERE code = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())");
+                    $ref_stmt = $db->prepare("SELECT id, mentor_id, max_uses, current_uses FROM referral_codes WHERE code = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())");
                     $ref_stmt->execute([$referral_code]);
                     $referral = $ref_stmt->fetch();
                     
                     if (!$referral || $referral['current_uses'] >= $referral['max_uses']) {
                         $error = 'Invalid or expired referral code.';
                         $referral_valid = false;
+                    } else {
+                        $referral_mentor_id = $referral['mentor_id'];
                     }
                 }
                 
@@ -57,14 +60,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $db->beginTransaction();
                         
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $role, $first_name, $last_name]);
+                        $is_verified = !empty($referral_code) && $referral_mentor_id ? 1 : 0;
+                        
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $role, $first_name, $last_name, $is_verified]);
                         $user_id = $db->lastInsertId();
                         
                         // Update referral code usage if used
                         if (!empty($referral_code) && isset($referral)) {
-                            $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
+                            $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1, used_at = NOW() WHERE id = ?");
                             $update_ref->execute([$referral['id']]);
+                            
+                            $referral_log = $db->prepare("INSERT INTO referral_usage (referral_code_id, referred_user_id, used_at) VALUES (?, ?, NOW())");
+                            $referral_log->execute([$referral['id'], $user_id]);
                         }
                         
                         // Log registration
