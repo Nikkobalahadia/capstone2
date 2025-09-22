@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                 $log_stmt->execute([$user['id'], json_encode(['match_id' => $match_id, 'partner_id' => $match['partner_id']]), $_SERVER['REMOTE_ADDR']]);
                 
                 // Redirect to prevent resubmission
-                redirect("chat.php?match_id=$match_id");
+                redirect("messages/chat.php?match_id=$match_id");
                 
             } catch (Exception $e) {
                 $error = 'Failed to send message. Please try again.';
@@ -302,8 +302,8 @@ $messages = $messages_stmt->fetchAll();
         document.querySelector('input[name="message"]').focus();
         
         // Handle Enter key to send message
-        document.querySelector('input[name="message"]').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
+        document.querySelector('input[name="message"]').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.closest('form').submit();
             }

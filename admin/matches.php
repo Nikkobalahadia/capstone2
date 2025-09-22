@@ -87,9 +87,6 @@ $stats = $db->query("
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
             </a>
-            <a class="nav-link" href="reports-inbox.php">
-                <i class="fas fa-inbox me-2"></i> Reports & Feedback
-            </a>
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>
@@ -177,7 +174,7 @@ $stats = $db->query("
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
                                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Match Score</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['avg_match_score'] ? number_format($stats['avg_match_score'], 1) : '0'; ?>%</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['avg_match_score'] ? number_format($stats['avg_match_score'], 1) : '0.0'; ?>%</div>
                                 </div>
                                 <div class="col-auto">
                                     <i class="fas fa-percentage fa-2x text-gray-300"></i>
@@ -221,7 +218,7 @@ $stats = $db->query("
                                             <div class="small text-muted"><?php echo htmlspecialchars($match['mentor_email']); ?></div>
                                         </td>
                                         <td><?php echo htmlspecialchars($match['subject']); ?></td>
-                                        <td><?php echo number_format($match['match_score'], 1); ?>%</td>
+                                        <td><?php echo number_format($match['match_score'] ?? 0, 1); ?>%</td>
                                         <td>
                                             <span class="badge <?php echo $match['status'] === 'accepted' ? 'bg-success' : ($match['status'] === 'pending' ? 'bg-warning' : 'bg-danger'); ?>">
                                                 <?php echo ucfirst($match['status']); ?>

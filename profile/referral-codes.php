@@ -1,13 +1,13 @@
 <?php
 require_once '../config/config.php';
 
-// Check if user is logged in and is a verified mentor
+// Check if user is logged in and is a verified mentor or peer
 if (!is_logged_in()) {
     redirect('auth/login.php');
 }
 
 $user = get_logged_in_user();
-if (!$user || $user['role'] !== 'mentor' || !$user['is_verified']) {
+if (!$user || !in_array($user['role'], ['mentor', 'peer']) || !$user['is_verified']) {
     redirect('dashboard.php');
 }
 
@@ -31,7 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_code'])) {
             
             // Generate unique referral code
             do {
-                $code = 'MENTOR' . strtoupper(substr(uniqid(), -6));
+                $prefix = strtoupper($user['role']);
+                $code = $prefix . strtoupper(substr(uniqid(), -6));
                 $check_stmt = $db->prepare("SELECT id FROM referral_codes WHERE code = ?");
                 $check_stmt->execute([$code]);
             } while ($check_stmt->fetch());
@@ -131,7 +132,13 @@ $referred_users = $referred_stmt->fetchAll();
             <div class="mb-4">
                 <a href="index.php" class="text-primary" style="text-decoration: none;">← Back to Profile</a>
                 <h1 style="margin: 0.5rem 0;">Referral Codes</h1>
-                <p class="text-secondary">Generate referral codes to invite co-teachers and help them get verified faster.</p>
+                <p class="text-secondary">
+                    <?php if ($user['role'] === 'mentor'): ?>
+                        Generate referral codes to invite co-teachers and help them get verified faster.
+                    <?php else: ?>
+                        Generate referral codes to invite fellow students and peers to join the platform.
+                    <?php endif; ?>
+                </p>
             </div>
 
             <?php if ($error): ?>
@@ -303,7 +310,13 @@ $referred_users = $referred_stmt->fetchAll();
                         <div class="card-body">
                             <ol style="margin-left: 1rem; font-size: 0.875rem;">
                                 <li class="mb-2">Generate a unique referral code with custom usage limits and expiration</li>
-                                <li class="mb-2">Share the code with co-teachers you want to invite</li>
+                                <li class="mb-2">
+                                    <?php if ($user['role'] === 'mentor'): ?>
+                                        Share the code with co-teachers you want to invite
+                                    <?php else: ?>
+                                        Share the code with fellow students and peers you want to invite
+                                    <?php endif; ?>
+                                </li>
                                 <li class="mb-2">When they register using your code, they get auto-verified status</li>
                                 <li class="mb-2">You can track all your referrals and their verification status</li>
                                 <li>Codes expire automatically or when usage limit is reached</li>

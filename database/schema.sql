@@ -10,7 +10,7 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('student', 'mentor', 'admin') NOT NULL,
+    role ENUM('student', 'mentor', 'peer', 'admin') NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     grade_level VARCHAR(20),

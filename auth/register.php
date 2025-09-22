@@ -3,7 +3,7 @@ require_once '../config/config.php';
 
 $error = '';
 $success = '';
-$role = isset($_GET['role']) && in_array($_GET['role'], ['student', 'mentor']) ? $_GET['role'] : 'student';
+$role = isset($_GET['role']) && in_array($_GET['role'], ['student', 'mentor', 'peer']) ? $_GET['role'] : 'student';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
@@ -39,9 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Validate referral code if provided
                 $referral_valid = true;
-                $referral_mentor_id = null;
+                $referral_creator_id = null;
                 if (!empty($referral_code)) {
-                    $ref_stmt = $db->prepare("SELECT id, mentor_id, max_uses, current_uses FROM referral_codes WHERE code = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())");
+                    $ref_stmt = $db->prepare("SELECT id, created_by, max_uses, current_uses FROM referral_codes WHERE code = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())");
                     $ref_stmt->execute([$referral_code]);
                     $referral = $ref_stmt->fetch();
                     
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = 'Invalid or expired referral code.';
                         $referral_valid = false;
                     } else {
-                        $referral_mentor_id = $referral['mentor_id'];
+                        $referral_creator_id = $referral['created_by'];
                     }
                 }
                 
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $db->beginTransaction();
                         
-                        $is_verified = !empty($referral_code) && $referral_mentor_id ? 1 : 0;
+                        $is_verified = !empty($referral_code) && $referral_creator_id ? 1 : 0;
                         
                         $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$username, $email, $password_hash, $role, $first_name, $last_name, $is_verified]);
@@ -68,16 +68,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // Update referral code usage if used
                         if (!empty($referral_code) && isset($referral)) {
-                            $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1, used_at = NOW() WHERE id = ?");
+                            $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
                             $update_ref->execute([$referral['id']]);
                             
-                            $referral_log = $db->prepare("INSERT INTO referral_usage (referral_code_id, referred_user_id, used_at) VALUES (?, ?, NOW())");
-                            $referral_log->execute([$referral['id'], $user_id]);
+                            // Instead, log the referral usage in activity logs with more details
+                            $referral_details = json_encode([
+                                'role' => $role, 
+                                'referral_used' => true,
+                                'referral_code' => $referral_code,
+                                'referral_code_id' => $referral['id'],
+                                'referred_by' => $referral_creator_id
+                            ]);
+                        } else {
+                            $referral_details = json_encode(['role' => $role, 'referral_used' => false]);
                         }
                         
                         // Log registration
                         $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'register', ?, ?)");
-                        $log_stmt->execute([$user_id, json_encode(['role' => $role, 'referral_used' => !empty($referral_code)]), $_SERVER['REMOTE_ADDR']]);
+                        $log_stmt->execute([$user_id, $referral_details, $_SERVER['REMOTE_ADDR']]);
                         
                         $db->commit();
                         
@@ -145,7 +153,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <select id="role" name="role" class="form-select" required>
                         <option value="student" <?php echo $role === 'student' ? 'selected' : ''; ?>>Student (Looking for help)</option>
                         <option value="mentor" <?php echo $role === 'mentor' ? 'selected' : ''; ?>>Mentor (Ready to help others)</option>
+                        <option value="peer" <?php echo $role === 'peer' ? 'selected' : ''; ?>>Peer (Can both teach and learn)</option>
                     </select>
+                    <small class="text-secondary">
+                        <strong>Peer:</strong> Perfect if you're good at some subjects but need help with others. You can both teach and learn!
+                    </small>
                 </div>
                 
                 <div class="grid grid-cols-2" style="gap: 1rem;">

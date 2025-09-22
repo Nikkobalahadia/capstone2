@@ -46,9 +46,13 @@ $upcoming_sessions = array_filter($sessions, function($session) {
            (strtotime($session['session_date'] . ' ' . $session['start_time']) > time());
 });
 
-$past_sessions = array_filter($sessions, function($session) {
-    return $session['status'] === 'completed' || 
+$past_sessions_need_completion = array_filter($sessions, function($session) {
+    return $session['status'] === 'scheduled' && 
            (strtotime($session['session_date'] . ' ' . $session['start_time']) <= time());
+});
+
+$past_sessions = array_filter($sessions, function($session) {
+    return $session['status'] === 'completed';
 });
 
 $cancelled_sessions = array_filter($sessions, function($session) {
@@ -144,6 +148,47 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                 </div>
             <?php endif; ?>
 
+            <!-- Past Sessions That Need Completion -->
+            <?php if (!empty($past_sessions_need_completion)): ?>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Sessions Awaiting Completion (<?php echo count($past_sessions_need_completion); ?>)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <?php foreach ($past_sessions_need_completion as $session): ?>
+                                <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: #fff7ed;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <div style="flex: 1;">
+                                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                                <div style="width: 50px; height: 50px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                    <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-semibold"><?php echo htmlspecialchars($session['partner_name']); ?></h4>
+                                                    <div class="text-sm text-secondary">
+                                                        <?php echo ucfirst($session['partner_role']); ?> • <?php echo htmlspecialchars($session['subject']); ?>
+                                                    </div>
+                                                    <div class="text-sm font-medium" style="color: #f59e0b;">
+                                                        <?php echo date('M j, Y', strtotime($session['session_date'])); ?> • 
+                                                        <?php echo date('g:i A', strtotime($session['start_time'])) . ' - ' . date('g:i A', strtotime($session['end_time'])); ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="display: flex; gap: 0.5rem; margin-left: 2rem;">
+                                            <a href="complete.php?id=<?php echo $session['id']; ?>" class="btn btn-success">Mark Complete</a>
+                                            <a href="../messages/chat.php?match_id=<?php echo $session['match_id']; ?>" class="btn btn-outline">Message</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <!-- Past Sessions -->
             <?php if (!empty($past_sessions)): ?>
                 <div class="card mb-4">
@@ -181,7 +226,7 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                                             $has_rated = $rating_stmt->fetch();
                                             ?>
                                             
-                                            <?php if (!$has_rated && $session['status'] === 'completed'): ?>
+                                            <?php if (!$has_rated): ?>
                                                 <a href="rate.php?id=<?php echo $session['id']; ?>" class="btn btn-warning">Rate Session</a>
                                             <?php else: ?>
                                                 <span class="text-success font-medium">Completed</span>

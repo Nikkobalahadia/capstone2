@@ -6,7 +6,7 @@ if (!is_logged_in()) {
     redirect('auth/login.php');
 }
 
-$user = get_current_user();
+$user = get_logged_in_user();
 if (!$user) {
     redirect('auth/login.php');
 }
@@ -101,6 +101,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             } catch (Exception $e) {
                 $error = 'Failed to cancel session. Please try again.';
+            }
+        } elseif ($action === 'complete') {
+            try {
+                $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
+                $stmt->execute([$session_id]);
+                
+                // Log activity
+                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_completed', ?, ?)");
+                $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
+                
+                redirect('index.php');
+                
+            } catch (Exception $e) {
+                $error = 'Failed to mark session as completed. Please try again.';
             }
         }
     }
@@ -206,16 +220,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
                 
-                <!-- Cancel Session -->
+                <!-- Session Actions -->
                 <div class="mt-4" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                    <h4 class="mb-3">Cancel Session</h4>
-                    <p class="text-secondary mb-3">If you need to cancel this session, click the button below. Your partner will be notified.</p>
+                    <h4 class="mb-3">Session Actions</h4>
                     
-                    <form method="POST" action="" onsubmit="return confirm('Are you sure you want to cancel this session?');">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                        <input type="hidden" name="action" value="cancel">
-                        <button type="submit" class="btn btn-danger">Cancel Session</button>
-                    </form>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <!-- Added Mark Complete button -->
+                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to mark this session as completed?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="action" value="complete">
+                            <button type="submit" class="btn btn-success" style="width: 100%;">Mark as Complete</button>
+                        </form>
+                        
+                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to cancel this session?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="action" value="cancel">
+                            <button type="submit" class="btn btn-danger" style="width: 100%;">Cancel Session</button>
+                        </form>
+                    </div>
+                    
+                    <p class="text-secondary">Mark the session as complete once it has taken place, or cancel if it cannot happen as scheduled.</p>
                 </div>
             </div>
         </div>

@@ -28,16 +28,19 @@ $stats = $db->query("
 $codes_stmt = $db->query("
     SELECT rc.*, 
            u.first_name, u.last_name, u.email, u.is_verified,
-           COUNT(referred.id) as actual_referrals
+           COALESCE(referred_count.actual_referrals, 0) as actual_referrals
     FROM referral_codes rc
     JOIN users u ON rc.created_by = u.id
     LEFT JOIN (
-        SELECT ual.user_id, ual.created_at
+        SELECT 
+            JSON_EXTRACT(ual.details, '$.referral_code_id') as code_id,
+            COUNT(*) as actual_referrals
         FROM user_activity_logs ual
         WHERE ual.action = 'register' 
         AND JSON_EXTRACT(ual.details, '$.referral_used') = true
-    ) referred ON referred.created_at >= rc.created_at
-    GROUP BY rc.id
+        AND JSON_EXTRACT(ual.details, '$.referral_code_id') IS NOT NULL
+        GROUP BY JSON_EXTRACT(ual.details, '$.referral_code_id')
+    ) referred_count ON referred_count.code_id = rc.id
     ORDER BY rc.created_at DESC
 ");
 $referral_codes = $codes_stmt->fetchAll();
@@ -61,17 +64,19 @@ $top_referrers = $db->query("
         u.first_name, u.last_name, u.email,
         COUNT(rc.id) as codes_generated,
         SUM(rc.current_uses) as total_uses,
-        COUNT(referred.user_id) as actual_referrals
+        COALESCE(referred_count.actual_referrals, 0) as actual_referrals
     FROM users u
     JOIN referral_codes rc ON u.id = rc.created_by
     LEFT JOIN (
-        SELECT ual.user_id, ual.created_at
+        SELECT 
+            JSON_EXTRACT(ual.details, '$.referred_by') as referrer_id,
+            COUNT(*) as actual_referrals
         FROM user_activity_logs ual
         WHERE ual.action = 'register' 
         AND JSON_EXTRACT(ual.details, '$.referral_used') = true
-    ) referred ON referred.created_at >= (
-        SELECT MIN(created_at) FROM referral_codes WHERE created_by = u.id
-    )
+        AND JSON_EXTRACT(ual.details, '$.referred_by') IS NOT NULL
+        GROUP BY JSON_EXTRACT(ual.details, '$.referred_by')
+    ) referred_count ON referred_count.referrer_id = u.id
     GROUP BY u.id
     ORDER BY actual_referrals DESC, total_uses DESC
     LIMIT 10
@@ -112,9 +117,6 @@ $top_referrers = $db->query("
             </a>
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
-            </a>
-            <a class="nav-link" href="reports-inbox.php">
-                <i class="fas fa-inbox me-2"></i> Reports & Feedback
             </a>
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking

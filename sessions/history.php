@@ -1,5 +1,3 @@
-history.php
-
 
 <?php
 require_once '../config/config.php';
@@ -159,6 +157,7 @@ foreach ($monthly_sessions as $session) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        .swal2-html-container { text-align: left !important; }
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -488,10 +487,60 @@ foreach ($monthly_sessions as $session) {
     </main>
 
     <script>
-        function showDayDetails(date) {
-            // This could open a modal with detailed session information for the day
-            alert('Sessions for ' + date + ' - Feature coming soon!');
-        }
+// helper: escape text to avoid injection when rendering HTML
+function escapeHtml(unsafe) {
+    return unsafe ? String(unsafe).replace(/[&<>"'`]/g, function(m) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'})[m];
+    }) : '';
+}
+
+// helper: format "HH:MM:SS" or "HH:MM" to locale short time (e.g. 3:30 PM)
+function formatTimeHM(timeStr) {
+    if (!timeStr) return '';
+    const parts = String(timeStr).split(':');
+    const d = new Date();
+    d.setHours(parseInt(parts[0], 10) || 0);
+    d.setMinutes(parseInt(parts[1], 10) || 0);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function showDayDetails(date) {
+    const sessions = calendarData[date] || [];
+
+    if (sessions.length > 0) {
+        // build HTML list of sessions for the SweetAlert
+        let html = '<ul style="padding-left:1.1em;margin:0;">';
+        sessions.forEach(s => {
+            html += '<li style="margin-bottom:6px;">' +
+                    '<strong>' + escapeHtml(s.subject) + '</strong>' +
+                    ' with ' + escapeHtml(s.partner_name) +
+                    ' &nbsp;(' + formatTimeHM(s.start_time) + ' - ' + formatTimeHM(s.end_time) + ')' +
+                    ' <span style="color:#6b7280"> — ' + escapeHtml(s.status) + '</span>' +
+                    '</li>';
+        });
+        html += '</ul>';
+
+        // show SweetAlert
+        Swal.fire({
+            title: `Sessions on ${date}`,
+            html: html,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Add New Schedule',
+            cancelButtonText: 'Close',
+            width: '600px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // user chose to view the schedule -> redirect to schedule.php with date
+                window.location.href = 'schedule.php?date=' + encodeURIComponent(date);
+            }
+        });
+    } else {
+        // no sessions -> go directly to scheduling page with the date
+        window.location.href = 'schedule.php?date=' + encodeURIComponent(date);
+    }
+}
+
 
         function exportToCalendar() {
             // Generate ICS file for calendar import
@@ -557,6 +606,8 @@ foreach ($monthly_sessions as $session) {
             window.URL.revokeObjectURL(url);
         }
 
+        const calendarData = <?php echo json_encode($calendar_data); ?> || {};
+
         function generateReport() {
             const stats = <?php echo json_encode($stats); ?>;
             let reportContent = `
@@ -579,6 +630,9 @@ foreach ($monthly_sessions as $session) {
                 </html>
             `);
         }
+
+        
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </body>
 </html>

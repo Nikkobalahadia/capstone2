@@ -6,7 +6,7 @@ if (!is_logged_in()) {
     redirect('auth/login.php');
 }
 
-$user = get_current_user();
+$user = get_logged_in_user();
 if (!$user) {
     redirect('auth/login.php');
 }
@@ -72,10 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     VALUES (?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([$session_id, $user['id'], $session['partner_id'], $rating, $feedback]);
-                
-                // Update session status to completed if not already
-                $update_stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ? AND status = 'scheduled'");
-                $update_stmt->execute([$session_id]);
                 
                 // Log activity
                 $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_rated', ?, ?)");

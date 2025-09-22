@@ -147,9 +147,6 @@ $engagement_metrics = $db->query("
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
             </a>
-            <a class="nav-link" href="reports-inbox.php">
-                <i class="fas fa-inbox me-2"></i> Reports & Feedback
-            </a>
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>

@@ -11,6 +11,9 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
+// Add this right after
+$user_role = $user['role']; // 'student', 'mentor', or 'peer'
+
 $error = '';
 $success = '';
 

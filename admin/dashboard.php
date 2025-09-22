@@ -22,6 +22,7 @@ $user_stats = $db->query("
         COUNT(*) as total_users,
         COUNT(CASE WHEN role = 'student' THEN 1 END) as students,
         COUNT(CASE WHEN role = 'mentor' THEN 1 END) as mentors,
+        COUNT(CASE WHEN role = 'peer' THEN 1 END) as peers,
         COUNT(CASE WHEN is_verified = 1 THEN 1 END) as verified_users,
         COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as new_users_30d,
         COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as new_users_7d
@@ -136,6 +137,10 @@ $daily_active = $db->query("
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
             </a>
+            <!-- Added Advanced Analytics link -->
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
             <a class="nav-link" href="reports-inbox.php">
                 <i class="fas fa-inbox me-2"></i> Reports & Feedback
             </a>
@@ -149,7 +154,11 @@ $daily_active = $db->query("
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
             <a class="nav-link" href="reports.php">
-                <i class="fas fa-chart-bar me-2"></i> Reports
+                <i class="fas fa-file-alt me-2"></i> Reports
+            </a>
+            <!-- Added Referral Audit link -->
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
             </a>
         </nav>
         <div class="position-absolute bottom-0 w-100 p-3">
@@ -320,6 +329,16 @@ $daily_active = $db->query("
                                 </div>
                                 <div class="progress" style="height: 8px;">
                                     <div class="progress-bar bg-success" style="width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['mentors'] / $user_stats['total_users']) * 100 : 0; ?>%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Peers</span>
+                                    <span class="font-weight-bold"><?php echo $user_stats['peers']; ?></span>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-info" style="width: <?php echo $user_stats['total_users'] > 0 ? ($user_stats['peers'] / $user_stats['total_users']) * 100 : 0; ?>%"></div>
                                 </div>
                             </div>
                             
