@@ -167,14 +167,12 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                         </div>
                                         
                                         <!-- Updated button layout to include Accept, Reject, and View Details buttons -->
-                                        <?php if (($user['role'] === 'mentor' && $match['mentor_id'] == $user['id']) || 
-                                                  ($user['role'] === 'student' && $match['student_id'] == $user['id'] && $match['mentor_id'] != $user['id'])): ?>
+                                        <?php if ($match['mentor_id'] == $user['id']): ?>
                                             <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
                                                 <!-- View Details Button -->
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </button>
-                                                
                                                 <!-- Accept Button -->
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
@@ -184,7 +182,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                                         <i class="fas fa-check"></i> Accept
                                                     </button>
                                                 </form>
-                                                
                                                 <!-- Reject Button -->
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">

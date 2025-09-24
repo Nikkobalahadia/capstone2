@@ -19,7 +19,6 @@ class HybridMatchmakingEngine extends MatchmakingEngine {
      */
     public function createHybridMatch($student_id, $mentor_id, $subject, $message = '') {
         try {
-            $this->db->beginTransaction();
             
             // Create the match using parent method
             $match_id = parent::createMatch($student_id, $mentor_id, $subject, $message);
@@ -66,7 +65,6 @@ class HybridMatchmakingEngine extends MatchmakingEngine {
                 ]);
             }
             
-            $this->db->commit();
             return [
                 'match_id' => $match_id,
                 'delivery_method' => $is_mentor_online ? 'realtime' : 'pending',
@@ -74,7 +72,6 @@ class HybridMatchmakingEngine extends MatchmakingEngine {
             ];
             
         } catch (Exception $e) {
-            $this->db->rollBack();
             throw $e;
         }
     }

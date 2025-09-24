@@ -16,6 +16,8 @@ $error = '';
 $success = '';
 $matches = [];
 
+$help_mode = isset($_GET['mode']) && in_array($_GET['mode'], ['seeking', 'offering']) ? $_GET['mode'] : 'seeking';
+
 // Initialize matchmaking engine
 $db = getDB();
 $matchmaker = new MatchmakingEngine($db);
@@ -30,10 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_match'])) {
         $message = sanitize_input($_POST['message']);
         
         try {
-            $match_id = $matchmaker->createMatch($user['id'], $mentor_id, $subject, $message);
-            $success = 'Match request sent successfully!';
+            require_once '../includes/hybrid_matchmaking.php';
+            $hybridMatcher = new HybridMatchmakingEngine($db);
+            
+            $result = $hybridMatcher->createHybridMatch($user['id'], $mentor_id, $subject, $message);
+            
+            if ($result['delivery_method'] === 'realtime') {
+                $success = 'Match request sent and delivered instantly!';
+            } else {
+                $success = 'Match request sent! They will see it when they log in.';
+            }
         } catch (Exception $e) {
-            $error = 'Failed to send match request. Please try again.';
+            error_log("Match request error: " . $e->getMessage());
+            $error = 'Failed to send match request: ' . htmlspecialchars($e->getMessage());
         }
     }
 }
@@ -43,7 +54,11 @@ $subject_filter = isset($_GET['subject']) ? sanitize_input($_GET['subject']) : '
 $search_performed = !empty($subject_filter) || isset($_GET['search']);
 
 if ($search_performed) {
-    $matches = $matchmaker->findMatches($user['id'], $subject_filter, 20);
+    if ($help_mode === 'offering' && ($user['role'] === 'mentor' || $user['role'] === 'peer')) {
+        $matches = $matchmaker->findStudentsNeedingHelp($user['id'], $subject_filter, 20);
+    } else {
+        $matches = $matchmaker->findMatches($user['id'], $subject_filter, 20);
+    }
 }
 
 // Get user's subjects for filter dropdown
@@ -56,6 +71,7 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo generate_csrf_token(); ?>">
     <title>Find Study Partners - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -81,7 +97,13 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
         <div class="container">
             <div class="mb-4">
                 <h1>Find Study Partners</h1>
-                <p class="text-secondary">Discover mentors and study partners that match your learning needs.</p>
+                <p class="text-secondary">
+                    <?php if ($user['role'] === 'peer'): ?>
+                        Find classmates who can help you with subjects you're learning.
+                    <?php else: ?>
+                        Discover mentors and study partners that match your learning needs.
+                    <?php endif; ?>
+                </p>
             </div>
 
             <?php if ($error): ?>
@@ -92,10 +114,37 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div class="alert alert-success"><?php echo $success; ?></div>
             <?php endif; ?>
 
-            <!-- Search Form -->
+            <!-- Added help mode toggle buttons for mentors and peers -->
+            <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;">
+                            <a href="?mode=seeking<?php echo $subject_filter ? '&subject=' . urlencode($subject_filter) : ''; ?>" 
+                               class="btn <?php echo $help_mode === 'seeking' ? 'btn-primary' : 'btn-outline'; ?>" 
+                               style="display: flex; align-items: center; gap: 0.5rem;">
+                                🙋 Looking for Help
+                            </a>
+                            <a href="?mode=offering<?php echo $subject_filter ? '&subject=' . urlencode($subject_filter) : ''; ?>" 
+                               class="btn <?php echo $help_mode === 'offering' ? 'btn-primary' : 'btn-outline'; ?>" 
+                               style="display: flex; align-items: center; gap: 0.5rem;">
+                                ✅ Offering Help
+                            </a>
+                        </div>
+                        <p class="text-center text-secondary text-sm">
+                            <?php if ($help_mode === 'seeking'): ?>
+                                Find people who can help you learn new subjects
+                            <?php else: ?>
+                                Find students who need help with subjects you know well
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <div class="card mb-4">
                 <div class="card-body">
                     <form method="GET" action="" style="display: flex; gap: 1rem; align-items: end;">
+                        <input type="hidden" name="mode" value="<?php echo $help_mode; ?>">
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
                             <label for="subject" class="form-label">Subject (Optional)</label>
                             <select id="subject" name="subject" class="form-select">
@@ -118,7 +167,13 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                     <div class="card">
                         <div class="card-body text-center">
                             <h3>No matches found</h3>
-                            <p class="text-secondary">Try adjusting your search criteria or check back later for new members.</p>
+                            <p class="text-secondary">
+                                <?php if ($help_mode === 'offering'): ?>
+                                    No students currently need help with your subjects. Check back later!
+                                <?php else: ?>
+                                    Try adjusting your search criteria or check back later for new members.
+                                <?php endif; ?>
+                            </p>
                             <a href="../profile/subjects.php" class="btn btn-secondary">Update Your Subjects</a>
                         </div>
                     </div>
@@ -136,7 +191,8 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                                                 <div>
                                                     <h4 class="font-semibold"><?php echo htmlspecialchars($match['first_name'] . ' ' . $match['last_name']); ?></h4>
                                                     <div class="text-sm text-secondary">
-                                                        <?php echo ucfirst($match['role']); ?> • <?php echo htmlspecialchars($match['grade_level'] ?? 'Grade not set'); ?>
+                                                        <?php echo $match['role'] === 'peer' ? '🤝 Peer' : ucfirst($match['role']); ?> • 
+                                                        <?php echo htmlspecialchars($match['grade_level'] ?? 'Grade not set'); ?>
                                                         <?php if ($match['location']): ?>
                                                             • <?php echo htmlspecialchars($match['location']); ?>
                                                         <?php endif; ?>
@@ -156,7 +212,13 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                                             
                                             <?php if ($match['subjects']): ?>
                                                 <div class="mb-3">
-                                                    <strong>Subjects:</strong>
+                                                    <strong>
+                                                        <?php if ($help_mode === 'offering'): ?>
+                                                            <?php echo $match['role'] === 'peer' ? 'Learning:' : 'Needs help with:'; ?>
+                                                        <?php else: ?>
+                                                            <?php echo $match['role'] === 'peer' ? 'Subjects:' : ($match['role'] === 'mentor' ? 'Teaches:' : 'Learning:'); ?>
+                                                        <?php endif; ?>
+                                                    </strong>
                                                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
                                                         <?php 
                                                         $subjects = explode(',', $match['subjects']);
@@ -184,7 +246,7 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                                         
                                         <div style="margin-left: 2rem;">
                                             <button type="button" class="btn btn-primary" onclick="openMatchModal(<?php echo $match['id']; ?>, '<?php echo htmlspecialchars($match['first_name'] . ' ' . $match['last_name']); ?>')">
-                                                Send Request
+                                                <?php echo $help_mode === 'offering' ? 'Offer Help' : 'Send Request'; ?>
                                             </button>
                                         </div>
                                     </div>
@@ -197,7 +259,15 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div class="card">
                     <div class="card-body text-center">
                         <h3>Ready to find your study partner?</h3>
-                        <p class="text-secondary">Use the search form above to discover mentors and study partners that match your learning needs.</p>
+                        <p class="text-secondary">
+                            <?php if ($help_mode === 'offering'): ?>
+                                Use the search form above to find students who need help with subjects you know well.
+                            <?php else: ?>
+                                Use the search form above to discover 
+                                <?php echo $user['role'] === 'peer' ? 'mentors, students, and fellow peers' : 'mentors and study partners'; ?> 
+                                that match your learning needs.
+                            <?php endif; ?>
+                        </p>
                     </div>
                 </div>
             <?php endif; ?>
@@ -207,13 +277,18 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
     <!-- Match Request Modal -->
     <div id="matchModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
-            <h3 class="mb-4">Send Match Request</h3>
+            <h3 class="mb-4">
+                <?php echo $help_mode === 'offering' ? 'Offer Help' : 'Send Match Request'; ?>
+            </h3>
             <form method="POST" action="">
                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                 <input type="hidden" name="mentor_id" id="modal_mentor_id">
                 
                 <div class="form-group">
-                    <label class="form-label">Requesting match with: <span id="modal_mentor_name" class="font-semibold"></span></label>
+                    <label class="form-label">
+                        <?php echo $help_mode === 'offering' ? 'Offering help to:' : 'Requesting match with:'; ?>
+                        <span id="modal_mentor_name" class="font-semibold"></span>
+                    </label>
                 </div>
                 
                 <div class="form-group">
@@ -229,11 +304,13 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div class="form-group">
                     <label for="modal_message" class="form-label">Message (Optional)</label>
                     <textarea id="modal_message" name="message" class="form-input" rows="3" 
-                              placeholder="Introduce yourself and explain what you'd like help with..."></textarea>
+                              placeholder="<?php echo $help_mode === 'offering' ? 'Let them know how you can help...' : 'Introduce yourself and explain what you\'d like help with...'; ?>"></textarea>
                 </div>
                 
                 <div style="display: flex; gap: 1rem;">
-                    <button type="submit" name="request_match" class="btn btn-primary" style="flex: 1;">Send Request</button>
+                    <button type="submit" name="request_match" class="btn btn-primary" style="flex: 1;">
+                        <?php echo $help_mode === 'offering' ? 'Offer Help' : 'Send Request'; ?>
+                    </button>
                     <button type="button" class="btn btn-secondary" onclick="closeMatchModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
@@ -258,5 +335,7 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
             }
         });
     </script>
+
+    <script src="../assets/js/hybrid-notifications.js"></script>
 </body>
 </html>

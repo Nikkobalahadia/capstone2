@@ -314,7 +314,7 @@ $recent_activity = $activity_stmt->fetchAll();
                                                     <td style="padding: 0.75rem;">
                                                         <a href="../uploads/verification/<?php echo $doc['filename']; ?>" target="_blank" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; text-decoration: none;">View</a>
                                                     </td>
-                                                </tr>
+                                                </tr>   
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>

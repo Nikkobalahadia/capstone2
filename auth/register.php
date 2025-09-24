@@ -28,6 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Password must be at least 8 characters long.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
+        } elseif (!in_array($role, ['student', 'mentor', 'peer'])) {
+            $error = 'Invalid role selected.';
         } else {
             $db = getDB();
             
@@ -71,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
                             $update_ref->execute([$referral['id']]);
                             
-                            // Instead, log the referral usage in activity logs with more details
+                            // Log the referral usage in activity logs with more details
                             $referral_details = json_encode([
                                 'role' => $role, 
                                 'referral_used' => true,
@@ -153,11 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <select id="role" name="role" class="form-select" required>
                         <option value="student" <?php echo $role === 'student' ? 'selected' : ''; ?>>Student (Looking for help)</option>
                         <option value="mentor" <?php echo $role === 'mentor' ? 'selected' : ''; ?>>Mentor (Ready to help others)</option>
-                        <option value="peer" <?php echo $role === 'peer' ? 'selected' : ''; ?>>Peer (Can both teach and learn)</option>
+                        <option value="peer" <?php echo $role === 'peer' ? 'selected' : ''; ?>>Peer (Learn & Teach)</option>
                     </select>
-                    <small class="text-secondary">
-                        <strong>Peer:</strong> Perfect if you're good at some subjects but need help with others. You can both teach and learn!
-                    </small>
                 </div>
                 
                 <div class="grid grid-cols-2" style="gap: 1rem;">

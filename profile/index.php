@@ -31,6 +31,24 @@ $stats_stmt = $db->prepare("
 ");
 $stats_stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $stats = $stats_stmt->fetch();
+
+$role_info = [];
+if ($user['role'] === 'student') {
+    // Get student-specific information
+    $student_stmt = $db->prepare("SELECT learning_goals, preferred_learning_style FROM users WHERE id = ?");
+    $student_stmt->execute([$user['id']]);
+    $role_info = $student_stmt->fetch();
+} elseif ($user['role'] === 'mentor') {
+    // Get mentor-specific information  
+    $mentor_stmt = $db->prepare("SELECT teaching_style FROM users WHERE id = ?");
+    $mentor_stmt->execute([$user['id']]);
+    $role_info = $mentor_stmt->fetch();
+} elseif ($user['role'] === 'peer') {
+    // Get peer-specific information (both learning and teaching)
+    $peer_stmt = $db->prepare("SELECT learning_goals, preferred_learning_style, teaching_style FROM users WHERE id = ?");
+    $peer_stmt->execute([$user['id']]);
+    $role_info = $peer_stmt->fetch();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,7 +103,9 @@ $stats = $stats_stmt->fetch();
                                 <div>
                                     <h2 style="margin: 0 0 0.5rem 0; font-size: 1.75rem; font-weight: 700;"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h2>
                                     <p style="margin: 0 0 0.5rem 0; color: var(--text-secondary); font-size: 1.1rem;">@<?php echo htmlspecialchars($user['username']); ?></p>
-                                    <span class="badge badge-primary"><?php echo ucfirst($user['role']); ?></span>
+                                    <span class="badge <?php echo $user['role'] === 'peer' ? 'badge-warning' : 'badge-primary'; ?>">
+                                        <?php echo $user['role'] === 'peer' ? '🤝 Peer (Learn & Teach)' : ucfirst($user['role']); ?>
+                                    </span>
                                     <?php if ($user['is_verified']): ?>
                                         <span class="badge badge-success">Verified</span>
                                     <?php endif; ?>
@@ -127,6 +147,50 @@ $stats = $stats_stmt->fetch();
                                 <div>
                                     <h4 class="font-semibold mb-2">About Me</h4>
                                     <p class="text-secondary"><?php echo nl2br(htmlspecialchars($user['bio'] ?? 'No bio provided yet.')); ?></p>
+                                    
+                                    <?php if ($user['role'] === 'student' && $role_info): ?>
+                                        <?php if (!empty($role_info['learning_goals'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">Learning Goals</h5>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
+                                            </div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (!empty($role_info['preferred_learning_style'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">Preferred Learning Style</h5>
+                                                <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php elseif ($user['role'] === 'mentor' && $role_info): ?>
+                                        <?php if (!empty($role_info['teaching_style'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">Teaching Style</h5>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php elseif ($user['role'] === 'peer' && $role_info): ?>
+                                        <?php if (!empty($role_info['learning_goals'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">🎓 Learning Goals</h5>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
+                                            </div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (!empty($role_info['preferred_learning_style'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">Learning Style</h5>
+                                                <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (!empty($role_info['teaching_style'])): ?>
+                                            <div class="mt-4">
+                                                <h5 class="font-semibold mb-2">👩‍🏫 Teaching Approach</h5>
+                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -135,18 +199,39 @@ $stats = $stats_stmt->fetch();
                     <!-- Subject Expertise -->
                     <div class="card mb-4">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="card-title">Subject Expertise</h3>
+                            <h3 class="card-title">
+                                <?php if ($user['role'] === 'peer'): ?>
+                                    My Subjects (Learning & Teaching)
+                                <?php else: ?>
+                                    <?php echo $user['role'] === 'mentor' ? 'Subjects I Teach' : 'Subjects I Want to Learn'; ?>
+                                <?php endif; ?>
+                            </h3>
                             <a href="subjects.php" class="btn btn-secondary">Manage Subjects</a>
                         </div>
                         <div class="card-body">
                             <?php if (empty($user_subjects)): ?>
-                                <p class="text-secondary text-center">No subjects added yet. <a href="subjects.php" class="text-primary">Add subjects</a> to get matched with study partners.</p>
+                                <p class="text-secondary text-center">
+                                    No subjects added yet. 
+                                    <a href="subjects.php" class="text-primary">Add subjects</a> 
+                                    to get matched with 
+                                    <?php echo $user['role'] === 'mentor' ? 'students' : ($user['role'] === 'peer' ? 'other learners and students' : 'mentors'); ?>.
+                                </p>
                             <?php else: ?>
                                 <div class="grid grid-cols-2" style="gap: 1rem;">
                                     <?php foreach ($user_subjects as $subject): ?>
                                         <div style="padding: 1rem; background: #f8fafc; border-radius: 6px; border-left: 4px solid var(--primary-color);">
                                             <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                            <div class="text-sm text-secondary"><?php echo ucfirst($subject['proficiency_level']); ?></div>
+                                            <div class="text-sm text-secondary">
+                                                <?php 
+                                                if ($user['role'] === 'mentor') {
+                                                    echo 'Can teach: ' . ucfirst($subject['proficiency_level']);
+                                                } elseif ($user['role'] === 'peer') {
+                                                    echo 'Level: ' . ucfirst($subject['proficiency_level']);
+                                                } else {
+                                                    echo 'Current level: ' . ucfirst($subject['proficiency_level']);
+                                                }
+                                                ?>
+                                            </div>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
@@ -155,32 +240,41 @@ $stats = $stats_stmt->fetch();
                     </div>
 
                     <!-- Availability -->
-                    <div class="card">
-                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="card-title">Availability Schedule</h3>
-                            <a href="availability.php" class="btn btn-secondary">Update Schedule</a>
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                        <div class="card">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 class="card-title">
+                                    <?php echo $user['role'] === 'peer' ? 'Study/Teaching Availability' : 'Teaching Availability'; ?>
+                                </h3>
+                                <a href="availability.php" class="btn btn-secondary">Update Schedule</a>
+                            </div>
+                            <div class="card-body">
+                                <?php if (empty($availability)): ?>
+                                    <p class="text-secondary text-center">
+                                        No availability set yet. <a href="availability.php" class="text-primary">Set your schedule</a> 
+                                        to help <?php echo $user['role'] === 'peer' ? 'others' : 'students'; ?> know when you're available for sessions.
+                                    </p>
+                                <?php else: ?>
+                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                        <?php foreach ($availability as $slot): ?>
+                                            <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
+                                                <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
+                                                <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <?php if (empty($availability)): ?>
-                                <p class="text-secondary text-center">No availability set yet. <a href="availability.php" class="text-primary">Set your schedule</a> to help others know when you're free.</p>
-                            <?php else: ?>
-                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                    <?php foreach ($availability as $slot): ?>
-                                        <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
-                                            <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
-                                            <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                    <?php endif; ?>
 
                     <!-- Mentor Verification -->
-                    <?php if ($user['role'] === 'mentor'): ?>
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
                         <div class="card mb-4">
                             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h3 class="card-title">Mentor Verification</h3>
+                                <h3 class="card-title">
+                                    <?php echo $user['role'] === 'peer' ? 'Peer Verification' : 'Mentor Verification'; ?>
+                                </h3>
                                 <a href="verification.php" class="btn btn-secondary">Manage Documents</a>
                             </div>
                             <div class="card-body">
@@ -188,8 +282,12 @@ $stats = $stats_stmt->fetch();
                                     <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 0.5rem; border: 1px solid #bbf7d0;">
                                         <div style="color: var(--success-color); font-size: 1.5rem;">✓</div>
                                         <div>
-                                            <div class="font-medium" style="color: var(--success-color);">Verified Mentor</div>
-                                            <div class="text-sm text-secondary">Your mentor status has been verified by our admin team.</div>
+                                            <div class="font-medium" style="color: var(--success-color);">
+                                                <?php echo $user['role'] === 'peer' ? 'Verified Peer' : 'Verified Mentor'; ?>
+                                            </div>
+                                            <div class="text-sm text-secondary">
+                                                Your <?php echo $user['role']; ?> status has been verified by our admin team.
+                                            </div>
                                         </div>
                                     </div>
                                 <?php else: ?>
@@ -197,7 +295,9 @@ $stats = $stats_stmt->fetch();
                                         <div style="color: var(--warning-color); font-size: 1.5rem;">⚠</div>
                                         <div>
                                             <div class="font-medium" style="color: var(--warning-color);">Verification Pending</div>
-                                            <div class="text-sm text-secondary">Upload verification documents to become a verified mentor.</div>
+                                            <div class="text-sm text-secondary">
+                                                Upload verification documents to become a verified <?php echo $user['role']; ?>.
+                                            </div>
                                         </div>
                                     </div>
                                 <?php endif; ?>
@@ -216,7 +316,10 @@ $stats = $stats_stmt->fetch();
                                         <div style="color: var(--primary-color); font-size: 1.5rem;">🎯</div>
                                         <div>
                                             <div class="font-medium" style="color: var(--primary-color);">Share Your Expertise</div>
-                                            <div class="text-sm text-secondary">Generate referral codes to invite co-teachers and help them get verified instantly.</div>
+                                            <div class="text-sm text-secondary">
+                                                Generate referral codes to invite <?php echo $user['role'] === 'peer' ? 'other peers and co-teachers' : 'co-teachers'; ?> 
+                                                and help them get verified instantly.
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

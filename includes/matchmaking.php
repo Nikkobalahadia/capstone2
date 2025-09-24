@@ -14,12 +14,22 @@ class MatchmakingEngine {
         $user = $this->getUserProfile($user_id);
         if (!$user) return [];
         
-        // Determine search criteria based on user role
-        $target_role = ($user['role'] === 'student') ? 'mentor' : 'student';
+        if ($user['role'] === 'student') {
+            // Students looking for help can only match with mentors and peers
+            $target_roles = ['mentor', 'peer'];
+        } elseif ($user['role'] === 'peer') {
+            // Peers looking for help can match with mentors and other peers
+            $target_roles = ['mentor', 'peer'];
+        } else {
+            // Mentors looking for students can match with students and peers
+            $target_roles = ['student', 'peer'];
+        }
         
         $limit = max(1, min(100, (int)$limit)); // Clamp between 1 and 100 for security
         
-        // Build the query
+        // Build the query with support for multiple target roles
+        $role_placeholders = str_repeat('?,', count($target_roles) - 1) . '?';
+        
         $query = "
             SELECT DISTINCT u.*, 
                    GROUP_CONCAT(DISTINCT us.subject_name) as subjects,
@@ -31,7 +41,7 @@ class MatchmakingEngine {
             LEFT JOIN user_subjects us ON u.id = us.user_id
             LEFT JOIN user_availability ua ON u.id = ua.user_id AND ua.is_active = 1
             LEFT JOIN session_ratings sr ON u.id = sr.rated_id
-            WHERE u.role = ? 
+            WHERE u.role IN ($role_placeholders)
             AND u.id != ? 
             AND u.is_active = 1
             AND u.id NOT IN (
@@ -45,11 +55,75 @@ class MatchmakingEngine {
             )
         ";
         
-        $params = [$target_role, $user_id, $user_id, $user_id, $user_id];
+        $params = array_merge($target_roles, [$user_id, $user_id, $user_id, $user_id]);
         
         // Add subject filter if specified
         if ($subject) {
             $query .= " AND us.subject_name = ?";
+            $params[] = $subject;
+        }
+        
+        $query .= " GROUP BY u.id ORDER BY u.created_at DESC LIMIT " . $limit;
+        
+        $stmt = $this->db->prepare($query);
+        $stmt->execute($params);
+        $potential_matches = $stmt->fetchAll();
+        
+        // Calculate match scores for each potential match
+        $scored_matches = [];
+        foreach ($potential_matches as $match) {
+            $score = $this->calculateMatchScore($user, $match, $subject);
+            $match['match_score'] = $score;
+            $scored_matches[] = $match;
+        }
+        
+        // Sort by match score (highest first)
+        usort($scored_matches, function($a, $b) {
+            return $b['match_score'] <=> $a['match_score'];
+        });
+        
+        return $scored_matches;
+    }
+    
+    /**
+     * Find students who need help (for mentors/peers offering help)
+     */
+    public function findStudentsNeedingHelp($user_id, $subject = null, $limit = 10) {
+        $user = $this->getUserProfile($user_id);
+        if (!$user || !in_array($user['role'], ['mentor', 'peer'])) return [];
+        
+        $limit = max(1, min(100, (int)$limit));
+        
+        $query = "
+            SELECT DISTINCT u.*, 
+                   GROUP_CONCAT(DISTINCT us.subject_name) as subjects,
+                   GROUP_CONCAT(DISTINCT us.proficiency_level) as proficiency_levels,
+                   COUNT(DISTINCT ua.id) as availability_slots,
+                   AVG(sr.rating) as avg_rating,
+                   COUNT(DISTINCT sr.id) as rating_count
+            FROM users u
+            LEFT JOIN user_subjects us ON u.id = us.user_id
+            LEFT JOIN user_availability ua ON u.id = ua.user_id AND ua.is_active = 1
+            LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+            WHERE u.role IN ('student', 'peer')
+            AND u.id != ? 
+            AND u.is_active = 1
+            AND u.id NOT IN (
+                SELECT CASE 
+                    WHEN student_id = ? THEN mentor_id 
+                    ELSE student_id 
+                END
+                FROM matches 
+                WHERE (student_id = ? OR mentor_id = ?) 
+                AND status IN ('pending', 'accepted')
+            )
+        ";
+        
+        $params = [$user_id, $user_id, $user_id, $user_id];
+        
+        // Add subject filter if specified - find users who need help with this subject
+        if ($subject) {
+            $query .= " AND us.subject_name = ? AND us.proficiency_level IN ('beginner', 'intermediate')";
             $params[] = $subject;
         }
         
@@ -273,9 +347,17 @@ class MatchmakingEngine {
         try {
             $this->db->beginTransaction();
             
-            // Calculate match score
+            // Get user profiles to determine roles
             $student = $this->getUserProfile($student_id);
             $mentor = $this->getUserProfile($mentor_id);
+            
+            // For peer-to-peer matches, we need to determine who is the "student" and who is the "mentor" for this specific subject
+            if ($student['role'] === 'peer' && $mentor['role'] === 'peer') {
+                // Both are peers - the one requesting help becomes the "student" for this match
+                // This is handled by the calling code passing the correct IDs
+            }
+            
+            // Calculate match score
             $match_score = $this->calculateMatchScore($student, $mentor, $subject);
             
             // Insert match
@@ -293,7 +375,13 @@ class MatchmakingEngine {
             ");
             $log_stmt->execute([
                 $student_id, 
-                json_encode(['match_id' => $match_id, 'mentor_id' => $mentor_id, 'subject' => $subject]), 
+                json_encode([
+                    'match_id' => $match_id, 
+                    'mentor_id' => $mentor_id, 
+                    'subject' => $subject,
+                    'student_role' => $student['role'],
+                    'mentor_role' => $mentor['role']
+                ]), 
                 $_SERVER['REMOTE_ADDR']
             ]);
             

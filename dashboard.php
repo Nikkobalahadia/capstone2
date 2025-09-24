@@ -85,10 +85,15 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         <div class="container">
             <div class="mb-4">
                 <h1>Welcome back, <?php echo htmlspecialchars($user['first_name']); ?>!</h1>
-                <p class="text-secondary">Here's what's happening with your learning journey.</p>
+                <p class="text-secondary">
+                    <?php if ($user['role'] === 'peer'): ?>
+                        Here's what's happening with your learning and teaching journey.
+                    <?php else: ?>
+                        Here's what's happening with your learning journey.
+                    <?php endif; ?>
+                </p>
             </div>
 
-            <!-- Stats Cards -->
             <div class="grid grid-cols-3 mb-4">
                 <div class="card">
                     <div class="card-body text-center">
@@ -109,7 +114,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 <div class="card">
                     <div class="card-body text-center">
                         <div style="font-size: 2rem; font-weight: 700; color: var(--warning-color); margin-bottom: 0.5rem;">
-                            <?php echo ucfirst($user['role']); ?>
+                            <?php echo $user['role'] === 'peer' ? '🤝 Peer' : ucfirst($user['role']); ?>
                         </div>
                         <div class="text-secondary">Your Role</div>
                     </div>
@@ -117,7 +122,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             </div>
 
             <div class="grid grid-cols-2" style="gap: 2rem;">
-                <!-- Quick Actions -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Quick Actions</h3>
@@ -127,6 +131,10 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                             <?php if ($user['role'] === 'student'): ?>
                                 <a href="matches/find.php" class="btn btn-primary">Find a Mentor</a>
                                 <a href="sessions/schedule.php" class="btn btn-secondary">Schedule Session</a>
+                            <?php elseif ($user['role'] === 'peer'): ?>
+                                <a href="matches/find.php" class="btn btn-primary">Find Study Partners</a>
+                                <a href="matches/index.php" class="btn btn-secondary">View Match Requests</a>
+                                <a href="profile/availability.php" class="btn btn-outline">Update Availability</a>
                             <?php else: ?>
                                 <a href="matches/index.php" class="btn btn-primary">View Match Requests</a>
                                 <a href="profile/availability.php" class="btn btn-secondary">Update Availability</a>
@@ -136,7 +144,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     </div>
                 </div>
 
-                <!-- Recent Activity -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Recent Matches</h3>
@@ -150,7 +157,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
                                         <div>
                                             <div class="font-medium"><?php echo htmlspecialchars($match['partner_name']); ?></div>
-                                            <div class="text-sm text-secondary"><?php echo htmlspecialchars($match['subject']); ?> • <?php echo ucfirst($match['partner_role']); ?></div>
+                                            <div class="text-sm text-secondary">
+                                                <?php echo htmlspecialchars($match['subject']); ?> • 
+                                                 Updated partner role display with emoji for peer 
+                                                <?php echo $match['partner_role'] === 'peer' ? '🤝 Peer' : ucfirst($match['partner_role']); ?>
+                                            </div>
                                         </div>
                                         <span class="text-sm <?php echo $match['status'] === 'accepted' ? 'text-success' : ($match['status'] === 'pending' ? 'text-warning' : 'text-secondary'); ?>">
                                             <?php echo ucfirst($match['status']); ?>
