@@ -173,6 +173,10 @@ $users = $stmt->fetchAll();
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
             </a>
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>
@@ -184,6 +188,9 @@ $users = $stmt->fetchAll();
             </a>
             <a class="nav-link" href="reports.php">
                 <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
             </a>
         </nav>
         <div class="position-absolute bottom-0 w-100 p-3">
@@ -228,6 +235,7 @@ $users = $stmt->fetchAll();
                                 <option value="">All Roles</option>
                                 <option value="student" <?php echo $role_filter === 'student' ? 'selected' : ''; ?>>Students</option>
                                 <option value="mentor" <?php echo $role_filter === 'mentor' ? 'selected' : ''; ?>>Mentors</option>
+                                <option value="peer" <?php echo $role_filter === 'peer' ? 'selected' : ''; ?>>Peers</option>
                             </select>
                         </div>
                         
@@ -280,7 +288,7 @@ $users = $stmt->fetchAll();
                                             <div class="small text-muted">@<?php echo htmlspecialchars($u['username']); ?></div>
                                         </td>
                                         <td>
-                                            <span class="badge <?php echo $u['role'] === 'student' ? 'bg-primary' : 'bg-success'; ?>">
+                                            <span class="badge <?php echo $u['role'] === 'student' ? 'bg-primary' : ($u['role'] === 'mentor' ? 'bg-success' : 'bg-info'); ?>">
                                                 <?php echo ucfirst($u['role']); ?>
                                             </span>
                                         </td>

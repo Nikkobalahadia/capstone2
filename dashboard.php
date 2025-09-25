@@ -87,9 +87,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 <h1>Welcome back, <?php echo htmlspecialchars($user['first_name']); ?>!</h1>
                 <p class="text-secondary">
                     <?php if ($user['role'] === 'peer'): ?>
-                        Here's what's happening with your learning and teaching journey.
                     <?php else: ?>
-                        Here's what's happening with your learning journey.
                     <?php endif; ?>
                 </p>
             </div>
@@ -159,7 +157,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                                             <div class="font-medium"><?php echo htmlspecialchars($match['partner_name']); ?></div>
                                             <div class="text-sm text-secondary">
                                                 <?php echo htmlspecialchars($match['subject']); ?> • 
-                                                 Updated partner role display with emoji for peer 
                                                 <?php echo $match['partner_role'] === 'peer' ? '🤝 Peer' : ucfirst($match['partner_role']); ?>
                                             </div>
                                         </div>

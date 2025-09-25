@@ -25,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bio = sanitize_input($_POST['bio']);
         $subjects = $_POST['subjects'] ?? [];
         
+        $latitude = !empty($_POST['latitude']) ? (float)$_POST['latitude'] : null;
+        $longitude = !empty($_POST['longitude']) ? (float)$_POST['longitude'] : null;
+        $location_accuracy = !empty($_POST['location_accuracy']) ? (int)$_POST['location_accuracy'] : null;
+        
         // Role-specific fields
         if ($role === 'student' || $role === 'peer') {
             $grade_level = sanitize_input($_POST['grade_level']);
@@ -102,19 +106,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if ($role === 'student') {
                         if ($profile_picture_path) {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, profile_picture = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $bio, $learning_goals, $preferred_learning_style, $profile_picture_path, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, profile_picture = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $profile_picture_path, $user['id']]);
                         } else {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, learning_goals = ?, preferred_learning_style = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $bio, $learning_goals, $preferred_learning_style, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $user['id']]);
                         }
                     } elseif ($role === 'mentor') {
                         if ($profile_picture_path) {
-                            $stmt = $db->prepare("UPDATE users SET location = ?, bio = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
-                            $stmt->execute([$location, $bio, $teaching_style, $profile_picture_path, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
+                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $profile_picture_path, $user['id']]);
                         } else {
-                            $stmt = $db->prepare("UPDATE users SET location = ?, bio = ?, teaching_style = ? WHERE id = ?");
-                            $stmt->execute([$location, $bio, $teaching_style, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ? WHERE id = ?");
+                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $user['id']]);
                         }
                         
                         if (!empty($availability)) {
@@ -133,11 +137,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     } elseif ($role === 'peer') {
                         if ($profile_picture_path) {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $profile_picture_path, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $profile_picture_path, $user['id']]);
                         } else {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $user['id']]);
                         }
                         
                         if (!empty($availability)) {
@@ -172,13 +176,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->commit();
                     $success = 'Profile updated successfully!';
                     
+                    if ($latitude && $longitude) {
+                        try {
+                            require_once '../includes/matchmaking.php';
+                            $matchmaker = new MatchmakingEngine($db);
+                            
+                            // Find nearest matches based on location
+                            $nearest_matches = $matchmaker->findNearestMatches($user['id'], 5); // Find 5 nearest matches
+                            
+                            if (!empty($nearest_matches)) {
+                                $success .= ' Found ' . count($nearest_matches) . ' nearby study partners!';
+                                
+                                // Log the automatic matching
+                                $match_details = json_encode([
+                                    'auto_match' => true,
+                                    'location_based' => true,
+                                    'matches_found' => count($nearest_matches),
+                                    'coordinates' => ['lat' => $latitude, 'lng' => $longitude]
+                                ]);
+                                
+                                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'auto_location_match', ?, ?)");
+                                $log_stmt->execute([$user['id'], $match_details, $_SERVER['REMOTE_ADDR']]);
+                            }
+                        } catch (Exception $e) {
+                            error_log("Auto-matching error: " . $e->getMessage());
+                            // Don't fail the profile save if matching fails
+                        }
+                    }
+                    
                     // Redirect to dashboard after 2 seconds
                     header("refresh:2;url=" . BASE_URL . "dashboard.php");
                     
                 } catch (Exception $e) {
                     $db->rollBack();
                     $error = 'Failed to update profile. Please try again.';
+                    echo '<pre>' . $e->getMessage() . '</pre>'; // Add this line for debugging
                 }
+                
             }
         }
     }
@@ -253,6 +287,7 @@ $common_subjects = [
                 <form method="POST" action="" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     
+                     Profile picture upload section 
                     <div class="form-group">
                         <label for="profile_picture" class="form-label">Profile Picture (Optional)</label>
                         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -428,6 +463,7 @@ $common_subjects = [
                     <?php endif; ?>
                 </div>
                 
+                 Added mentor/peer availability and teaching style sections 
                 <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
                     <div class="form-group">
                         <label class="form-label">Availability (days & times)</label>
@@ -485,9 +521,20 @@ $common_subjects = [
                 
                 <div class="form-group">
                     <label for="location" class="form-label">Location</label>
-                    <input type="text" id="location" name="location" class="form-input" required
-                           placeholder="e.g., Quezon City, Metro Manila"
-                           value="<?php echo htmlspecialchars($user['location'] ?? ''); ?>">
+                    <div class="location-input-container" style="position: relative;">
+                        <input type="text" id="location" name="location" class="form-input" required
+                               placeholder="Start typing your location..."
+                               value="<?php echo htmlspecialchars($user['location'] ?? ''); ?>">
+                        <button type="button" id="detect-location" class="btn btn-secondary" 
+                                style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 0.5rem 1rem;">
+                            📍 Use My Location
+                        </button>
+                    </div>
+                    <!-- Added hidden fields for coordinates -->
+                    <input type="hidden" id="latitude" name="latitude">
+                    <input type="hidden" id="longitude" name="longitude">
+                    <input type="hidden" id="location_accuracy" name="location_accuracy">
+                    <div id="location-status" class="text-sm text-secondary mt-2" style="display: none;"></div>
                 </div>
                 
                 <div class="form-group">
@@ -611,6 +658,92 @@ $common_subjects = [
         if (container.children.length > 1) {
             button.parentElement.remove();
         }
+    }
+
+    document.getElementById('detect-location').addEventListener('click', function() {
+        const button = this;
+        const statusDiv = document.getElementById('location-status');
+        
+        if (!navigator.geolocation) {
+            statusDiv.textContent = 'Geolocation is not supported by this browser.';
+            statusDiv.style.display = 'block';
+            statusDiv.style.color = 'var(--error-color)';
+            return;
+        }
+        
+        button.disabled = true;
+        button.textContent = '📍 Getting location...';
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = 'Getting your location...';
+        statusDiv.style.color = 'var(--primary-color)';
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+                
+                document.getElementById('latitude').value = lat;
+                document.getElementById('longitude').value = lng;
+                document.getElementById('location_accuracy').value = accuracy;
+                
+                // Reverse geocode to get readable address
+                reverseGeocode(lat, lng);
+                
+                button.disabled = false;
+                button.textContent = '📍 Location detected';
+                button.style.backgroundColor = 'var(--success-color)';
+                statusDiv.textContent = `Location detected with ${Math.round(accuracy)}m accuracy`;
+                statusDiv.style.color = 'var(--success-color)';
+            },
+            function(error) {
+                let errorMessage = 'Unable to get your location. ';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage += 'Please allow location access and try again.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage += 'Location information is unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage += 'Location request timed out.';
+                        break;
+                    default:
+                        errorMessage += 'An unknown error occurred.';
+                        break;
+                }
+                
+                button.disabled = false;
+                button.textContent = '📍 Use My Location';
+                statusDiv.textContent = errorMessage;
+                statusDiv.style.color = 'var(--error-color)';
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000 // 5 minutes
+            }
+        );
+    });
+    
+    function reverseGeocode(lat, lng) {
+        // Using a simple reverse geocoding approach
+        // In production, you might want to use Google Maps API or similar
+        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.city && data.principalSubdivision) {
+                    const locationText = `${data.city}, ${data.principalSubdivision}`;
+                    document.getElementById('location').value = locationText;
+                    
+                    const statusDiv = document.getElementById('location-status');
+                    statusDiv.textContent = `Location set to: ${locationText}`;
+                }
+            })
+            .catch(error => {
+                console.log('Reverse geocoding failed:', error);
+                // Don't show error to user, coordinates are still captured
+            });
     }
 </script>
 </body>

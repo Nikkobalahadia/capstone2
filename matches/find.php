@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_match'])) {
             }
         } catch (Exception $e) {
             error_log("Match request error: " . $e->getMessage());
-            $error = 'Failed to send match request: ' . htmlspecialchars($e->getMessage());
+            $error = 'Failed to send match request. Please try again.';
         }
     }
 }
@@ -115,7 +115,7 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
             <?php endif; ?>
 
             <!-- Added help mode toggle buttons for mentors and peers -->
-            <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+            <?php if ($user['role'] === 'peer'): ?>
                 <div class="card mb-4">
                     <div class="card-body">
                         <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;">
@@ -245,9 +245,15 @@ $user_subjects = $subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
                                         </div>
                                         
                                         <div style="margin-left: 2rem;">
-                                            <button type="button" class="btn btn-primary" onclick="openMatchModal(<?php echo $match['id']; ?>, '<?php echo htmlspecialchars($match['first_name'] . ' ' . $match['last_name']); ?>')">
-                                                <?php echo $help_mode === 'offering' ? 'Offer Help' : 'Send Request'; ?>
-                                            </button>
+                                            <?php if ($help_mode === 'offering' && $user['role'] === 'peer'): ?>
+    <button type="button" class="btn btn-primary" onclick="openMatchModal(<?php echo $match['id']; ?>, '<?php echo htmlspecialchars($match['first_name'] . ' ' . $match['last_name']); ?>')">
+        Offer Help
+    </button>
+<?php elseif ($help_mode !== 'offering'): ?>
+    <button type="button" class="btn btn-primary" onclick="openMatchModal(<?php echo $match['id']; ?>, '<?php echo htmlspecialchars($match['first_name'] . ' ' . $match['last_name']); ?>')">
+        Send Request
+    </button>
+<?php endif; ?>
                                         </div>
                                     </div>
                                 </div>

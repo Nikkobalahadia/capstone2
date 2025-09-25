@@ -87,6 +87,9 @@ $stats = $db->query("
             <a class="nav-link" href="monitoring.php">
                 <i class="fas fa-chart-line me-2"></i> System Monitoring
             </a>
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>
@@ -98,6 +101,9 @@ $stats = $db->query("
             </a>
             <a class="nav-link" href="reports.php">
                 <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
             </a>
         </nav>
         <div class="position-absolute bottom-0 w-100 p-3">

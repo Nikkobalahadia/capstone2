@@ -18,7 +18,7 @@ if (is_logged_in()) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StudyConnect - Peer-to-Peer Learning Platform</title>
     <link rel="stylesheet" href="assets/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="header">
@@ -36,76 +36,193 @@ if (is_logged_in()) {
     </header>
 
     <main>
-        <!-- Hero Section -->
-        <section class="hero" style="padding: 4rem 0; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <!-- Enhanced hero section with modern design and animations -->
+        <section class="hero-modern">
             <div class="container">
-                <h1 style="font-size: 3rem; font-weight: 700; margin-bottom: 1rem;">Connect. Learn. Grow Together.</h1>
-                <p style="font-size: 1.25rem; margin-bottom: 2rem; opacity: 0.9;">Join thousands of students and mentors in our peer-to-peer learning community</p>
-                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                    <a href="auth/register.php?role=student" class="btn btn-primary" style="background: white; color: #667eea;">Join as Student</a>
-                    <a href="auth/register.php?role=mentor" class="btn btn-outline" style="border-color: white; color: white;">Become a Mentor</a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Features Section -->
-        <section id="features" style="padding: 4rem 0;">
-            <div class="container">
-                <h2 class="text-center" style="font-size: 2.5rem; margin-bottom: 3rem;">Platform Features</h2>
-                <div class="grid grid-cols-3">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">🎯</div>
-                            <h3 class="card-title">Smart Matching</h3>
-                            <p>Our algorithm matches you with the perfect study partner or mentor based on your subjects, schedule, and learning style.</p>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">💬</div>
-                            <h3 class="card-title">Real-time Chat</h3>
-                            <p>Stay connected with your study partners through our built-in messaging system and coordinate sessions easily.</p>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">📅</div>
-                            <h3 class="card-title">Session Scheduling</h3>
-                            <p>Schedule study sessions with integrated calendar sync and automatic reminders for both parties.</p>
-                        </div>
+                <div class="hero-content">
+                    <h1 class="hero-title">The Complete Platform for Peer Learning</h1>
+                    <p class="hero-subtitle">Connect with thousands of students and mentors. Share knowledge, accelerate learning, and build meaningful academic relationships.</p>
+                    <div class="hero-buttons">
+                        <a href="auth/register.php?role=student" class="btn btn-primary">Start Learning</a>
+                        <a href="auth/register.php?role=mentor" class="btn btn-outline">Become a Mentor</a>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- About Section -->
-        <section id="about" style="padding: 4rem 0; background-color: #f8fafc;">
+        <!-- Added interactive stats section -->
+        <section class="stats-section">
             <div class="container">
-                <div class="grid grid-cols-2" style="align-items: center; gap: 3rem;">
-                    <div>
-                        <h2 style="font-size: 2.5rem; margin-bottom: 1.5rem;">Empowering Collaborative Learning</h2>
-                        <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">StudyConnect bridges the gap between students seeking help and those ready to share their knowledge. Our platform creates meaningful connections that enhance academic success.</p>
-                        <ul style="list-style: none; padding: 0;">
-                            <li style="margin-bottom: 0.5rem;">✅ Verified mentors and students</li>
-                            <li style="margin-bottom: 0.5rem;">✅ Location-based matching</li>
-                            <li style="margin-bottom: 0.5rem;">✅ Session tracking and analytics</li>
-                            <li style="margin-bottom: 0.5rem;">✅ Rating and feedback system</li>
-                        </ul>
+                <h2 class="section-title">Trusted by Students Worldwide</h2>
+                <p class="section-subtitle">Join thousands of learners who have transformed their academic journey through peer-to-peer connections</p>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-number" data-count="15000">0</span>
+                        <span class="stat-label">Active Students</span>
                     </div>
-                    <div style="text-align: center;">
-                        <div style="width: 300px; height: 200px; background: #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
-                            <span style="color: #64748b; font-size: 1.125rem;">Platform Preview</span>
-                        </div>
+                    <div class="stat-card">
+                        <span class="stat-number" data-count="2500">0</span>
+                        <span class="stat-label">Expert Mentors</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" data-count="50000">0</span>
+                        <span class="stat-label">Study Sessions</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" data-count="98">0</span>
+                        <span class="stat-label">Success Rate %</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Enhanced features section with interactive cards -->
+        <section id="features" class="features-modern">
+            <div class="container">
+                <h2 class="section-title">Everything You Need to Excel</h2>
+                <p class="section-subtitle">Powerful tools and features designed to make peer learning seamless and effective</p>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <span class="feature-icon">🎯</span>
+                        <h3 class="feature-title">Smart Matching System</h3>
+                        <p class="feature-description">Connect with study partners based on subjects, proficiency levels, availability, and academic goals for effective peer learning.</p>
+                    </div>
+                    <div class="feature-card">
+                        <span class="feature-icon">💬</span>
+                        <h3 class="feature-title">Real-time Messaging</h3>
+                        <p class="feature-description">Built-in messaging system to communicate with your study partners, coordinate sessions, and share resources seamlessly.</p>
+                    </div>
+                    <div class="feature-card">
+                        <span class="feature-icon">📅</span>
+                        <h3 class="feature-title">Session Scheduling</h3>
+                        <p class="feature-description">Easy session scheduling with your matched partners. Set dates, times, locations, and session notes to organize your study sessions.</p>
+                    </div>
+                    <div class="feature-card">
+                        <span class="feature-icon">⭐</span>
+                        <h3 class="feature-title">Rating & Feedback System</h3>
+                        <p class="feature-description">Rate your study sessions and provide feedback to help build a trusted community of learners and mentors.</p>
+                    </div>
+                    <div class="feature-card">
+                        <span class="feature-icon">👥</span>
+                        <h3 class="feature-title">Multi-Role Support</h3>
+                        <p class="feature-description">Join as a student, mentor, or peer. Peers can both teach subjects they know well and learn new topics from others.</p>
+                    </div>
+                    <div class="feature-card">
+                        <span class="feature-icon">🔒</span>
+                        <h3 class="feature-title">Safe & Verified</h3>
+                        <p class="feature-description">All mentors are verified, with rating systems and safety features to ensure a secure and trustworthy learning environment.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Enhanced CTA section with interactive background -->
+        <section class="cta-section">
+            <div class="container">
+                <div class="cta-content">
+                    <h2 class="cta-title">Ready to Transform Your Learning?</h2>
+                    <p class="cta-subtitle">Join thousands of students and mentors who are already experiencing the power of peer learning</p>
+                    <div class="hero-buttons">
+                        <a href="auth/register.php?role=student" class="btn btn-primary">Get Started Free</a>
+                        <a href="auth/register.php?role=peer" class="btn btn-outline">Join as Peer</a>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer style="background: #1e293b; color: white; padding: 2rem 0; text-align: center;">
+    <footer style="background: var(--background-dark); color: var(--text-white); padding: 3rem 0; text-align: center;">
         <div class="container">
-            <p>&copy; 2024 StudyConnect. All rights reserved.</p>
+            <div style="margin-bottom: 2rem;">
+                <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">StudyConnect</h3>
+                <p style="color: var(--text-light); max-width: 400px; margin: 0 auto;">Empowering students worldwide through peer-to-peer learning and meaningful academic connections.</p>
+            </div>
+            <div style="border-top: 1px solid #334155; padding-top: 2rem;">
+                <p style="color: var(--text-light);">&copy; 2025 StudyConnect. All rights reserved.</p>
+            </div>
         </div>
     </footer>
+
+    <!-- Added JavaScript for interactive elements -->
+    <script>
+        // Animated counter for stats
+        function animateCounters() {
+            const counters = document.querySelectorAll('.stat-number');
+            
+            counters.forEach(counter => {
+                const target = parseInt(counter.getAttribute('data-count'));
+                const duration = 2000;
+                const increment = target / (duration / 16);
+                let current = 0;
+                
+                const updateCounter = () => {
+                    if (current < target) {
+                        current += increment;
+                        counter.textContent = Math.floor(current).toLocaleString();
+                        requestAnimationFrame(updateCounter);
+                    } else {
+                        counter.textContent = target.toLocaleString();
+                    }
+                };
+                
+                updateCounter();
+            });
+        }
+
+        // Intersection Observer for animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    if (entry.target.classList.contains('stats-section')) {
+                        animateCounters();
+                    }
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Observe sections for scroll animations
+        document.addEventListener('DOMContentLoaded', () => {
+            const sections = document.querySelectorAll('.stats-section, .features-modern, .cta-section');
+            sections.forEach(section => {
+                section.style.opacity = '0';
+                section.style.transform = 'translateY(30px)';
+                section.style.transition = 'all 0.8s ease-out';
+                observer.observe(section);
+            });
+
+            // Add smooth hover effects to feature cards
+            const featureCards = document.querySelectorAll('.feature-card');
+            featureCards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-8px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+        });
+
+        // Add loading states to buttons
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                if (this.href && !this.href.includes('#')) {
+                    this.style.opacity = '0.7';
+                    this.style.pointerEvents = 'none';
+                    setTimeout(() => {
+                        this.style.opacity = '1';
+                        this.style.pointerEvents = 'auto';
+                    }, 1000);
+                }
+            });
+        });
+    </script>
 </body>
 </html>

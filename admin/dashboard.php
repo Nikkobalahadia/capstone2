@@ -141,9 +141,7 @@ $daily_active = $db->query("
             <a class="nav-link" href="analytics.php">
                 <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
-            <a class="nav-link" href="reports-inbox.php">
-                <i class="fas fa-inbox me-2"></i> Reports & Feedback
-            </a>
+
             <a class="nav-link" href="session-tracking.php">
                 <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>

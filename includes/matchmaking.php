@@ -1,33 +1,35 @@
 <?php
-// Matchmaking Algorithm Class
+// Enhanced Matchmaking Algorithm Class with Rule-Based Weighted Criteria Scoring
 class MatchmakingEngine {
     private $db;
+    
+    private $weights = [
+        'role_compatibility' => 25,    // 25% - Role-based matching rules
+        'subject_expertise' => 20,     // 20% - Subject knowledge alignment
+        'location_proximity' => 15,    // 15% - Geographic proximity
+        'grade_level' => 12,          // 12% - Academic level compatibility
+        'strand_course' => 10,        // 10% - Academic track alignment
+        'time_availability' => 10,    // 10% - Schedule compatibility
+        'user_rating' => 5,           // 5% - Historical performance
+        'activity_level' => 3         // 3% - Platform engagement
+    ];
     
     public function __construct($database) {
         $this->db = $database;
     }
     
     /**
-     * Find potential matches for a user based on weighted criteria
+     * Find nearest matches based on location proximity using Haversine formula
      */
-    public function findMatches($user_id, $subject = null, $limit = 10) {
+    public function findNearestMatches($user_id, $limit = 5) {
         $user = $this->getUserProfile($user_id);
-        if (!$user) return [];
-        
-        if ($user['role'] === 'student') {
-            // Students looking for help can only match with mentors and peers
-            $target_roles = ['mentor', 'peer'];
-        } elseif ($user['role'] === 'peer') {
-            // Peers looking for help can match with mentors and other peers
-            $target_roles = ['mentor', 'peer'];
-        } else {
-            // Mentors looking for students can match with students and peers
-            $target_roles = ['student', 'peer'];
+        if (!$user || !$user['latitude'] || !$user['longitude']) {
+            return [];
         }
         
-        $limit = max(1, min(100, (int)$limit)); // Clamp between 1 and 100 for security
+        $target_roles = $this->getTargetRoles($user['role']);
+        $limit = max(1, min(50, (int)$limit));
         
-        // Build the query with support for multiple target roles
         $role_placeholders = str_repeat('?,', count($target_roles) - 1) . '?';
         
         $query = "
@@ -35,12 +37,95 @@ class MatchmakingEngine {
                    GROUP_CONCAT(DISTINCT us.subject_name) as subjects,
                    GROUP_CONCAT(DISTINCT us.proficiency_level) as proficiency_levels,
                    COUNT(DISTINCT ua.id) as availability_slots,
-                   AVG(sr.rating) as avg_rating,
-                   COUNT(DISTINCT sr.id) as rating_count
+                   COALESCE(AVG(sr.rating), 0) as avg_rating,
+                   COALESCE(COUNT(DISTINCT sr.id), 0) as rating_count,
+                   COALESCE(COUNT(DISTINCT ual.id), 0) as activity_count,
+                   COALESCE(MAX(ual.created_at), '1970-01-01 00:00:00') as last_activity,
+                   (6371 * acos(cos(radians(?)) * cos(radians(u.latitude)) * 
+                    cos(radians(u.longitude) - radians(?)) + 
+                    sin(radians(?)) * sin(radians(u.latitude)))) AS distance_km
             FROM users u
             LEFT JOIN user_subjects us ON u.id = us.user_id
             LEFT JOIN user_availability ua ON u.id = ua.user_id AND ua.is_active = 1
             LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+            LEFT JOIN user_activity_logs ual ON u.id = ual.user_id 
+                AND ual.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            WHERE u.role IN ($role_placeholders)
+            AND u.id != ? 
+            AND u.is_active = 1
+            AND u.latitude IS NOT NULL 
+            AND u.longitude IS NOT NULL
+            AND u.id NOT IN (
+                SELECT CASE 
+                    WHEN student_id = ? THEN mentor_id 
+                    ELSE student_id 
+                END
+                FROM matches 
+                WHERE (student_id = ? OR mentor_id = ?) 
+                AND status IN ('pending', 'accepted')
+            )
+            GROUP BY u.id 
+            HAVING distance_km <= 100
+            ORDER BY distance_km ASC 
+            LIMIT " . $limit;
+        
+        $params = array_merge(
+            [$user['latitude'], $user['longitude'], $user['latitude']], // Haversine formula params
+            $target_roles, 
+            [$user_id, $user_id, $user_id, $user_id]
+        );
+        
+        $stmt = $this->db->prepare($query);
+        $stmt->execute($params);
+        $potential_matches = $stmt->fetchAll();
+        
+        // Calculate enhanced match scores for each potential match
+        $scored_matches = [];
+        foreach ($potential_matches as $match) {
+            $score = $this->calculateEnhancedMatchScore($user, $match);
+            $match['match_score'] = $score;
+            $match['distance_km'] = round($match['distance_km'], 2);
+            $scored_matches[] = $match;
+        }
+        
+        // Sort by combined score (distance + compatibility)
+        usort($scored_matches, function($a, $b) {
+            // Prioritize closer matches with good compatibility
+            $score_a = $a['match_score'] - ($a['distance_km'] * 0.5); // Distance penalty
+            $score_b = $b['match_score'] - ($b['distance_km'] * 0.5);
+            return $score_b <=> $score_a;
+        });
+        
+        return $scored_matches;
+    }
+    
+    /**
+     * Enhanced matching algorithm with comprehensive criteria
+     */
+    public function findMatches($user_id, $subject = null, $limit = 10) {
+        $user = $this->getUserProfile($user_id);
+        if (!$user) return [];
+        
+        $target_roles = $this->getTargetRoles($user['role']);
+        $limit = max(1, min(100, (int)$limit));
+        
+        $role_placeholders = str_repeat('?,', count($target_roles) - 1) . '?';
+
+        $query = "
+            SELECT DISTINCT u.*, 
+                   GROUP_CONCAT(DISTINCT us.subject_name) as subjects,
+                   GROUP_CONCAT(DISTINCT us.proficiency_level) as proficiency_levels,
+                   COUNT(DISTINCT ua.id) as availability_slots,
+                   COALESCE(AVG(sr.rating), 0) as avg_rating,
+                   COALESCE(COUNT(DISTINCT sr.id), 0) as rating_count,
+                   COALESCE(COUNT(DISTINCT ual.id), 0) as activity_count,
+                   COALESCE(MAX(ual.created_at), '1970-01-01 00:00:00') as last_activity
+            FROM users u
+            LEFT JOIN user_subjects us ON u.id = us.user_id
+            LEFT JOIN user_availability ua ON u.id = ua.user_id AND ua.is_active = 1
+            LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+            LEFT JOIN user_activity_logs ual ON u.id = ual.user_id 
+                AND ual.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             WHERE u.role IN ($role_placeholders)
             AND u.id != ? 
             AND u.is_active = 1
@@ -57,7 +142,6 @@ class MatchmakingEngine {
         
         $params = array_merge($target_roles, [$user_id, $user_id, $user_id, $user_id]);
         
-        // Add subject filter if specified
         if ($subject) {
             $query .= " AND us.subject_name = ?";
             $params[] = $subject;
@@ -69,11 +153,11 @@ class MatchmakingEngine {
         $stmt->execute($params);
         $potential_matches = $stmt->fetchAll();
         
-        // Calculate match scores for each potential match
         $scored_matches = [];
         foreach ($potential_matches as $match) {
-            $score = $this->calculateMatchScore($user, $match, $subject);
+            $score = $this->calculateEnhancedMatchScore($user, $match, $subject);
             $match['match_score'] = $score;
+            $match['score_breakdown'] = $this->getScoreBreakdown($user, $match, $subject);
             $scored_matches[] = $match;
         }
         
@@ -85,6 +169,399 @@ class MatchmakingEngine {
         return $scored_matches;
     }
     
+    private function getTargetRoles($user_role) {
+        switch ($user_role) {
+            case 'student':
+                return ['mentor', 'peer'];
+            case 'peer':
+                return ['mentor', 'peer'];
+            case 'mentor':
+                return ['student', 'peer'];
+            default:
+                return ['student', 'mentor', 'peer'];
+        }
+    }
+    
+    private function calculateEnhancedMatchScore($user, $potential_match, $subject = null) {
+        $total_score = 0;
+        
+        // 1. Role Compatibility Score (25%)
+        $role_score = $this->calculateRoleCompatibilityScore($user['role'], $potential_match['role']);
+        $total_score += ($role_score / 100) * $this->weights['role_compatibility'];
+        
+        // 2. Subject Expertise Score (20%)
+        $subject_score = $this->calculateSubjectExpertiseScore($user['id'], $potential_match['id'], $subject);
+        $total_score += ($subject_score / 100) * $this->weights['subject_expertise'];
+        
+        // 3. Location Proximity Score (15%) - Enhanced with coordinates
+        $user_coords = null;
+        $match_coords = null;
+        
+        if ($user['latitude'] && $user['longitude']) {
+            $user_coords = ['lat' => $user['latitude'], 'lng' => $user['longitude']];
+        }
+        if ($potential_match['latitude'] && $potential_match['longitude']) {
+            $match_coords = ['lat' => $potential_match['latitude'], 'lng' => $potential_match['longitude']];
+        }
+        
+        $location_score = $this->calculateLocationProximityScore(
+            $user['location'], 
+            $potential_match['location'],
+            $user_coords,
+            $match_coords
+        );
+        $total_score += ($location_score / 100) * $this->weights['location_proximity'];
+        
+        // 4. Grade Level Compatibility Score (12%)
+        $grade_score = $this->calculateGradeLevelCompatibilityScore($user['grade_level'], $potential_match['grade_level']);
+        $total_score += ($grade_score / 100) * $this->weights['grade_level'];
+        
+        // 5. Strand & Course Alignment Score (10%)
+        $strand_course_score = $this->calculateStrandCourseScore($user, $potential_match);
+        $total_score += ($strand_course_score / 100) * $this->weights['strand_course'];
+        
+        // 6. Time Availability Score (10%)
+        $availability_score = $this->calculateTimeAvailabilityScore($user['id'], $potential_match['id']);
+        $total_score += ($availability_score / 100) * $this->weights['time_availability'];
+        
+        // 7. User Rating Score (5%)
+        $rating_score = $this->calculateUserRatingScore(
+    $potential_match['avg_rating'] ?? null,
+    $potential_match['rating_count'] ?? null
+);
+        $total_score += ($rating_score / 100) * $this->weights['user_rating'];
+        
+        // 8. Activity Level Score (3%)
+
+$activity_score = $this->calculateActivityLevelScore(
+    $potential_match['activity_count'] ?? null,
+    $potential_match['last_activity'] ?? null
+);
+        $total_score += ($activity_score / 100) * $this->weights['activity_level'];
+        
+        return round($total_score, 2);
+    }
+    
+    private function calculateRoleCompatibilityScore($user_role, $match_role) {
+        $compatibility_matrix = [
+            'student' => ['mentor' => 100, 'peer' => 85, 'student' => 0],
+            'peer' => ['mentor' => 95, 'peer' => 90, 'student' => 80],
+            'mentor' => ['student' => 100, 'peer' => 90, 'mentor' => 70]
+        ];
+        
+        return $compatibility_matrix[$user_role][$match_role] ?? 50;
+    }
+    
+    private function calculateSubjectExpertiseScore($user_id, $match_id, $target_subject = null) {
+        $user_subjects = $this->getUserSubjects($user_id);
+        $match_subjects = $this->getUserSubjects($match_id);
+        
+        if (empty($user_subjects) || empty($match_subjects)) {
+            return 20; // Low score for missing subject data
+        }
+        
+        $max_score = 0;
+        $subject_matches = 0;
+        $total_user_subjects = count($user_subjects);
+        
+        foreach ($user_subjects as $user_subject) {
+            foreach ($match_subjects as $match_subject) {
+                if ($user_subject['subject_name'] === $match_subject['subject_name']) {
+                    $subject_matches++;
+                    $base_score = 60;
+                    
+                    // Target subject bonus
+                    if ($target_subject && $user_subject['subject_name'] === $target_subject) {
+                        $base_score += 25;
+                    }
+                    
+                    // Proficiency complementarity
+                    $proficiency_score = $this->calculateProficiencyComplementarity(
+                        $user_subject['proficiency_level'], 
+                        $match_subject['proficiency_level']
+                    );
+                    
+                    $subject_score = $base_score + $proficiency_score;
+                    $max_score = max($max_score, $subject_score);
+                }
+            }
+        }
+        
+        // Bonus for multiple subject matches
+        $overlap_bonus = min(($subject_matches / $total_user_subjects) * 15, 15);
+        
+        return min($max_score + $overlap_bonus, 100);
+    }
+    
+    private function calculateProficiencyComplementarity($user_level, $match_level) {
+        $levels = ['beginner' => 1, 'intermediate' => 2, 'advanced' => 3, 'expert' => 4];
+        $user_num = $levels[$user_level] ?? 1;
+        $match_num = $levels[$match_level] ?? 1;
+        
+        $diff = $match_num - $user_num;
+        
+        // Ideal: helper should be 1-2 levels higher
+        if ($diff === 1) return 15; // Perfect mentoring gap
+        if ($diff === 2) return 12; // Good mentoring gap
+        if ($diff === 0) return 8;  // Peer level
+        if ($diff === -1) return 5; // Reverse mentoring possible
+        return 2; // Large gap or reverse gap
+    }
+    
+    private function calculateLocationProximityScore($user_location, $match_location, $user_coords = null, $match_coords = null) {
+        // If coordinates are available, use distance-based matching
+        if ($user_coords && $match_coords && 
+            isset($user_coords['lat'], $user_coords['lng'], $match_coords['lat'], $match_coords['lng'])) {
+            
+            $distance = $this->calculateDistance(
+                $user_coords['lat'], $user_coords['lng'],
+                $match_coords['lat'], $match_coords['lng']
+            );
+            
+            // Distance-based scoring (in kilometers)
+            if ($distance <= 5) return 100;      // Within 5km - excellent
+            if ($distance <= 10) return 90;     // Within 10km - very good
+            if ($distance <= 25) return 75;     // Within 25km - good
+            if ($distance <= 50) return 60;     // Within 50km - fair
+            if ($distance <= 100) return 40;    // Within 100km - acceptable
+            return 20; // Beyond 100km - poor
+        }
+        
+        // Fallback to existing text-based matching
+        return $this->calculateTextLocationScore($user_location, $match_location);
+    }
+    
+    private function calculateDistance($lat1, $lng1, $lat2, $lng2) {
+        $earthRadius = 6371; // Earth's radius in kilometers
+        
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        
+        $a = sin($dLat/2) * sin($dLat/2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($dLng/2) * sin($dLng/2);
+        
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        
+        return $earthRadius * $c;
+    }
+    
+    private function calculateTextLocationScore($user_location, $match_location) {
+        if (empty($user_location) || empty($match_location)) return 40;
+        
+        $user_location = strtolower(trim($user_location));
+        $match_location = strtolower(trim($match_location));
+        
+        // Exact match
+        if ($user_location === $match_location) return 100;
+        
+        // City/region matching
+        $user_parts = explode(',', $user_location);
+        $match_parts = explode(',', $match_location);
+        
+        $max_similarity = 0;
+        foreach ($user_parts as $user_part) {
+            foreach ($match_parts as $match_part) {
+                $similarity = 0;
+                similar_text(trim($user_part), trim($match_part), $similarity);
+                $max_similarity = max($max_similarity, $similarity);
+            }
+        }
+        
+        // Distance-based scoring (simplified)
+        if ($max_similarity > 80) return 90; // Same city/area
+        if ($max_similarity > 60) return 70; // Same region
+        if ($max_similarity > 40) return 50; // Same province/state
+        return 30; // Different regions
+    }
+    
+    private function calculateGradeLevelCompatibilityScore($user_grade, $match_grade) {
+        if (empty($user_grade) || empty($match_grade)) return 50;
+        
+        $user_num = $this->normalizeGradeLevel($user_grade);
+        $match_num = $this->normalizeGradeLevel($match_grade);
+        
+        $diff = abs($user_num - $match_num);
+        
+        // Grade level compatibility matrix
+        if ($diff === 0) return 100; // Same grade
+        if ($diff === 1) return 85;  // Adjacent grades
+        if ($diff === 2) return 70;  // Two grades apart
+        if ($diff === 3) return 55;  // Three grades apart
+        if ($diff <= 5) return 40;   // Within reasonable range
+        return 25; // Large grade gap
+    }
+    
+    private function calculateStrandCourseScore($user, $match) {
+        $strand_score = 0;
+        $course_score = 0;
+        
+        // Strand alignment
+        if (!empty($user['strand']) && !empty($match['strand'])) {
+            if (strtolower($user['strand']) === strtolower($match['strand'])) {
+                $strand_score = 100;
+            } else {
+                // Check for related strands (STEM, ABM, HUMSS, etc.)
+                $strand_similarity = $this->calculateStrandSimilarity($user['strand'], $match['strand']);
+                $strand_score = $strand_similarity;
+            }
+        } else {
+            $strand_score = 50; // Neutral for missing data
+        }
+        
+        // Course alignment
+        if (!empty($user['course']) && !empty($match['course'])) {
+            $similarity = 0;
+            similar_text(strtolower($user['course']), strtolower($match['course']), $similarity);
+            $course_score = $similarity;
+        } else {
+            $course_score = 50; // Neutral for missing data
+        }
+        
+        // Weighted combination (strand 60%, course 40%)
+        return ($strand_score * 0.6) + ($course_score * 0.4);
+    }
+    
+    private function calculateStrandSimilarity($strand1, $strand2) {
+        $strand_groups = [
+            'stem' => ['stem', 'science', 'technology', 'engineering', 'mathematics'],
+            'abm' => ['abm', 'business', 'management', 'accounting', 'entrepreneurship'],
+            'humss' => ['humss', 'humanities', 'social sciences', 'psychology', 'sociology'],
+            'gas' => ['gas', 'general academic', 'liberal arts'],
+            'tvl' => ['tvl', 'technical', 'vocational', 'livelihood']
+        ];
+        
+        $strand1_lower = strtolower($strand1);
+        $strand2_lower = strtolower($strand2);
+        
+        foreach ($strand_groups as $group => $keywords) {
+            $in_group1 = false;
+            $in_group2 = false;
+            
+            foreach ($keywords as $keyword) {
+                if (strpos($strand1_lower, $keyword) !== false) $in_group1 = true;
+                if (strpos($strand2_lower, $keyword) !== false) $in_group2 = true;
+            }
+            
+            if ($in_group1 && $in_group2) return 75; // Same strand group
+        }
+        
+        return 25; // Different strand groups
+    }
+    
+    private function calculateTimeAvailabilityScore($user_id, $match_id) {
+        $user_availability = $this->getUserAvailability($user_id);
+        $match_availability = $this->getUserAvailability($match_id);
+        
+        if (empty($user_availability) || empty($match_availability)) return 40;
+        
+        $total_overlap_hours = 0;
+        $total_user_hours = 0;
+        
+        foreach ($user_availability as $user_slot) {
+            $user_duration = $this->calculateSlotDuration($user_slot);
+            $total_user_hours += $user_duration;
+            
+            foreach ($match_availability as $match_slot) {
+                if ($user_slot['day_of_week'] === $match_slot['day_of_week']) {
+                    $overlap = $this->calculateTimeOverlap($user_slot, $match_slot);
+                    $total_overlap_hours += $overlap;
+                }
+            }
+        }
+        
+        if ($total_user_hours === 0) return 0;
+        
+        $overlap_percentage = ($total_overlap_hours / $total_user_hours) * 100;
+        
+        // Bonus for having substantial overlap
+        if ($overlap_percentage > 50) return min($overlap_percentage + 10, 100);
+        return $overlap_percentage;
+    }
+    
+    private function calculateActivityLevelScore($activity_count, $last_activity) {
+        if (!isset($activity_count) || $activity_count === null || $activity_count == 0) {
+            return 30; // Low score for inactive users
+        }
+        
+        $base_score = min(($activity_count / 20) * 60, 60); // Up to 60 points for activity
+        
+        // Recency bonus
+        if ($last_activity && $last_activity !== '1970-01-01 00:00:00') {
+            $days_since = (time() - strtotime($last_activity)) / (24 * 60 * 60);
+            if ($days_since <= 1) $base_score += 40;      // Very recent
+            elseif ($days_since <= 3) $base_score += 30;  // Recent
+            elseif ($days_since <= 7) $base_score += 20;  // This week
+            elseif ($days_since <= 14) $base_score += 10; // This fortnight
+        }
+        
+        return min($base_score, 100);
+    }
+    
+    public function getScoreBreakdown($user, $match, $subject = null) {
+        $user_coords = null;
+        $match_coords = null;
+        
+        if ($user['latitude'] && $user['longitude']) {
+            $user_coords = ['lat' => $user['latitude'], 'lng' => $user['longitude']];
+        }
+        if ($match['latitude'] && $match['longitude']) {
+            $match_coords = ['lat' => $match['latitude'], 'lng' => $match['longitude']];
+        }
+        
+        return [
+            'role_compatibility' => $this->calculateRoleCompatibilityScore($user['role'], $match['role']),
+            'subject_expertise' => $this->calculateSubjectExpertiseScore($user['id'], $match['id'], $subject),
+            'location_proximity' => $this->calculateLocationProximityScore($user['location'], $match['location'], $user_coords, $match_coords),
+            'grade_level' => $this->calculateGradeLevelCompatibilityScore($user['grade_level'], $match['grade_level']),
+            'strand_course' => $this->calculateStrandCourseScore($user, $match),
+            'time_availability' => $this->calculateTimeAvailabilityScore($user['id'], $match['id']),
+            'user_rating' => $this->calculateUserRatingScore($match['avg_rating'], $match['rating_count']),
+            'activity_level' => $this->calculateActivityLevelScore($match['activity_count'], $match['last_activity'])
+        ];
+    }
+    
+    private function normalizeGradeLevel($grade) {
+        if (empty($grade)) return 10;
+        
+        // Extract numbers from grade strings
+        if (preg_match('/(\\d+)/', $grade, $matches)) {
+            $num = (int)$matches[1];
+            
+            // Handle different grade systems
+            if (strpos(strtolower($grade), 'college') !== false || 
+                strpos(strtolower($grade), 'university') !== false) {
+                return 12 + $num; // College years start after grade 12
+            }
+            
+            return $num;
+        }
+        
+        return 10; // Default fallback
+    }
+    
+    private function calculateSlotDuration($slot) {
+        $start = strtotime($slot['start_time']);
+        $end = strtotime($slot['end_time']);
+        return ($end - $start) / 3600; // Convert to hours
+    }
+    
+    private function calculateTimeOverlap($slot1, $slot2) {
+        $start1 = strtotime($slot1['start_time']);
+        $end1 = strtotime($slot1['end_time']);
+        $start2 = strtotime($slot2['start_time']);
+        $end2 = strtotime($slot2['end_time']);
+        
+        $overlap_start = max($start1, $start2);
+        $overlap_end = min($end1, $end2);
+        
+        if ($overlap_start < $overlap_end) {
+            return ($overlap_end - $overlap_start) / 3600; // Return hours of overlap
+        }
+        
+        return 0;
+    }
+
     /**
      * Find students who need help (for mentors/peers offering help)
      */
@@ -93,18 +570,22 @@ class MatchmakingEngine {
         if (!$user || !in_array($user['role'], ['mentor', 'peer'])) return [];
         
         $limit = max(1, min(100, (int)$limit));
-        
+
         $query = "
             SELECT DISTINCT u.*, 
                    GROUP_CONCAT(DISTINCT us.subject_name) as subjects,
                    GROUP_CONCAT(DISTINCT us.proficiency_level) as proficiency_levels,
                    COUNT(DISTINCT ua.id) as availability_slots,
-                   AVG(sr.rating) as avg_rating,
-                   COUNT(DISTINCT sr.id) as rating_count
+                   COALESCE(AVG(sr.rating), 0) as avg_rating,
+                   COALESCE(COUNT(DISTINCT sr.id), 0) as rating_count,
+                   COALESCE(COUNT(DISTINCT ual.id), 0) as activity_count,
+                   COALESCE(MAX(ual.created_at), '1970-01-01 00:00:00') as last_activity
             FROM users u
             LEFT JOIN user_subjects us ON u.id = us.user_id
             LEFT JOIN user_availability ua ON u.id = ua.user_id AND ua.is_active = 1
             LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+            LEFT JOIN user_activity_logs ual ON u.id = ual.user_id 
+                AND ual.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             WHERE u.role IN ('student', 'peer')
             AND u.id != ? 
             AND u.is_active = 1
@@ -136,7 +617,7 @@ class MatchmakingEngine {
         // Calculate match scores for each potential match
         $scored_matches = [];
         foreach ($potential_matches as $match) {
-            $score = $this->calculateMatchScore($user, $match, $subject);
+            $score = $this->calculateEnhancedMatchScore($user, $match, $subject);
             $match['match_score'] = $score;
             $scored_matches[] = $match;
         }
@@ -308,7 +789,7 @@ class MatchmakingEngine {
     }
     
     private function calculateRatingScore($avg_rating, $rating_count) {
-        if (!isset($avg_rating) || !isset($rating_count) || !$avg_rating || $rating_count < 1) {
+        if (!isset($avg_rating) || !isset($rating_count) || $avg_rating === null || $rating_count === null || !$avg_rating || $rating_count < 1) {
             return 50; // Neutral score for new users
         }
         
@@ -358,7 +839,7 @@ class MatchmakingEngine {
             }
             
             // Calculate match score
-            $match_score = $this->calculateMatchScore($student, $mentor, $subject);
+            $match_score = $this->calculateEnhancedMatchScore($student, $mentor, $subject);
             
             // Insert match
             $stmt = $this->db->prepare("
@@ -436,6 +917,20 @@ class MatchmakingEngine {
             $this->db->rollBack();
             throw $e;
         }
+    }
+    
+    private function calculateUserRatingScore($avg_rating, $rating_count) {
+        if (!isset($avg_rating) || !isset($rating_count) || $avg_rating === null || $rating_count === null || $avg_rating == 0 || $rating_count < 1) {
+            return 50; // Neutral score for new users
+        }
+        
+        // Base score from rating (0-5 scale converted to 0-100)
+        $rating_score = ($avg_rating / 5) * 80;
+        
+        // Reliability bonus based on number of ratings
+        $reliability_bonus = min(($rating_count / 10) * 20, 20);
+        
+        return min($rating_score + $reliability_bonus, 100);
     }
 }
 ?>

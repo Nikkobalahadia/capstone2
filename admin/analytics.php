@@ -234,11 +234,7 @@ $user_journey = $db->query("
                                 <i class="fas fa-analytics me-2"></i>Advanced Analytics
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="reports-inbox.php">
-                                <i class="fas fa-inbox me-2"></i>Reports & Feedback
-                            </a>
-                        </li>
+                        
                         <li class="nav-item">
                             <a class="nav-link" href="session-tracking.php">
                                 <i class="fas fa-calendar-check me-2"></i>Session Tracking
