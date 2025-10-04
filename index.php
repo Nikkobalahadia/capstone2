@@ -122,26 +122,20 @@ if (is_logged_in()) {
                 <div class="cta-content">
                     <h2 class="cta-title">Ready to Transform Your Learning?</h2>
                     <p class="cta-subtitle">Join thousands of students and mentors who are already experiencing the power of peer learning</p>
+                    <!-- Removed peer registration button, students can upgrade to peer later -->
                     <div class="hero-buttons">
                         <a href="auth/register.php?role=student" class="btn btn-primary">Get Started Free</a>
-                        <a href="auth/register.php?role=peer" class="btn btn-outline">Join as Peer</a>
+                        <a href="auth/register.php?role=mentor" class="btn btn-outline">Become a Mentor</a>
                     </div>
+                    <p class="text-sm text-secondary" style="margin-top: 1rem; text-align: center;">
+                        Students can upgrade to Peer status later from their profile
+                    </p>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer style="background: var(--background-dark); color: var(--text-white); padding: 3rem 0; text-align: center;">
-        <div class="container">
-            <div style="margin-bottom: 2rem;">
-                <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">StudyConnect</h3>
-                <p style="color: var(--text-light); max-width: 400px; margin: 0 auto;">Empowering students worldwide through peer-to-peer learning and meaningful academic connections.</p>
-            </div>
-            <div style="border-top: 1px solid #334155; padding-top: 2rem;">
-                <p style="color: var(--text-light);">&copy; 2025 StudyConnect. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
+    <?php include 'includes/footer.php'; ?>
 
     <!-- Added JavaScript for interactive elements -->
     <script>

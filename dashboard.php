@@ -81,21 +81,22 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         </div>
     </header>
 
-    <main style="padding: 2rem 0;">
+    <main class="py-8">
         <div class="container">
-            <div class="mb-4">
-                <h1>Welcome back, <?php echo htmlspecialchars($user['first_name']); ?>!</h1>
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold mb-2">Welcome back, <?php echo htmlspecialchars($user['first_name']); ?>!</h1>
                 <p class="text-secondary">
                     <?php if ($user['role'] === 'peer'): ?>
+                        Here's what's happening with your learning and teaching journey.
                     <?php else: ?>
                     <?php endif; ?>
                 </p>
             </div>
 
-            <div class="grid grid-cols-3 mb-4">
+            <div class="grid grid-cols-3 gap-6 mb-8">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 0.5rem;">
+                        <div class="text-3xl font-bold text-primary mb-2">
                             <?php echo $match_count; ?>
                         </div>
                         <div class="text-secondary">Active Matches</div>
@@ -103,7 +104,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </div>
                 <div class="card">
                     <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--success-color); margin-bottom: 0.5rem;">
+                        <div class="text-3xl font-bold text-success mb-2">
                             <?php echo $session_count; ?>
                         </div>
                         <div class="text-secondary">Completed Sessions</div>
@@ -111,7 +112,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </div>
                 <div class="card">
                     <div class="card-body text-center">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--warning-color); margin-bottom: 0.5rem;">
+                        <div class="text-3xl font-bold text-warning mb-2">
                             <?php echo $user['role'] === 'peer' ? '🤝 Peer' : ucfirst($user['role']); ?>
                         </div>
                         <div class="text-secondary">Your Role</div>
@@ -119,13 +120,13 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </div>
             </div>
 
-            <div class="grid grid-cols-2" style="gap: 2rem;">
+            <div class="grid grid-cols-2 gap-8">
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Quick Actions</h3>
                     </div>
                     <div class="card-body">
-                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="flex flex-col gap-3">
                             <?php if ($user['role'] === 'student'): ?>
                                 <a href="matches/find.php" class="btn btn-primary">Find a Mentor</a>
                                 <a href="sessions/schedule.php" class="btn btn-secondary">Schedule Session</a>
@@ -148,19 +149,19 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     </div>
                     <div class="card-body">
                         <?php if (empty($recent_matches)): ?>
-                            <p class="text-secondary text-center">No matches yet. Start connecting with others!</p>
+                            <p class="text-secondary text-center py-4">No matches yet. Start connecting with others!</p>
                         <?php else: ?>
-                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div class="flex flex-col gap-3">
                                 <?php foreach ($recent_matches as $match): ?>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
                                         <div>
-                                            <div class="font-medium"><?php echo htmlspecialchars($match['partner_name']); ?></div>
+                                            <div class="font-medium text-primary"><?php echo htmlspecialchars($match['partner_name']); ?></div>
                                             <div class="text-sm text-secondary">
                                                 <?php echo htmlspecialchars($match['subject']); ?> • 
                                                 <?php echo $match['partner_role'] === 'peer' ? '🤝 Peer' : ucfirst($match['partner_role']); ?>
                                             </div>
                                         </div>
-                                        <span class="text-sm <?php echo $match['status'] === 'accepted' ? 'text-success' : ($match['status'] === 'pending' ? 'text-warning' : 'text-secondary'); ?>">
+                                        <span class="text-sm px-2 py-1 rounded-full <?php echo $match['status'] === 'accepted' ? 'bg-green-100 text-green-800' : ($match['status'] === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'); ?>">
                                             <?php echo ucfirst($match['status']); ?>
                                         </span>
                                     </div>
@@ -172,5 +173,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             </div>
         </div>
     </main>
+
+    <?php include 'includes/footer.php'; ?>
 </body>
 </html>

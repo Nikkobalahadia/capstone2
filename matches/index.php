@@ -62,7 +62,11 @@ $matches_query = "
            CASE 
                WHEN m.student_id = ? THEN u2.id
                ELSE u1.id
-           END as partner_id
+           END as partner_id,
+           CASE 
+               WHEN m.student_id = ? THEN u2.profile_picture
+               ELSE u1.profile_picture
+           END as partner_profile_picture
     FROM matches m
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
@@ -77,7 +81,7 @@ $matches_query = "
 ";
 
 $stmt = $db->prepare($matches_query);
-$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
+$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $matches = $stmt->fetchAll();
 
 // Separate matches by status
@@ -143,9 +147,15 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                                <div style="width: 50px; height: 50px; background: var(--warning-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                                                    <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
-                                                </div>
+                                                <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($match['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 50px; height: 50px; background: var(--warning-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                        <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div>
                                                     <h4 class="font-semibold"><?php echo htmlspecialchars($match['partner_name']); ?></h4>
                                                     <div class="text-sm text-secondary">
@@ -249,9 +259,15 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                                <div style="width: 50px; height: 50px; background: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                                                    <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
-                                                </div>
+                                                <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($match['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 50px; height: 50px; background: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                        <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div>
                                                     <h4 class="font-semibold"><?php echo htmlspecialchars($match['partner_name']); ?></h4>
                                                     <div class="text-sm text-secondary">

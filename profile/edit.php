@@ -1,5 +1,6 @@
 <?php
 require_once '../config/config.php';
+require_once '../includes/subjects_hierarchy.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -25,6 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $course = sanitize_input($_POST['course']);
         $location = sanitize_input($_POST['location']);
         $bio = sanitize_input($_POST['bio']);
+        
+        $latitude = isset($_POST['latitude']) ? floatval($_POST['latitude']) : null;
+        $longitude = isset($_POST['longitude']) ? floatval($_POST['longitude']) : null;
+        $location_accuracy = isset($_POST['location_accuracy']) ? floatval($_POST['location_accuracy']) : null;
         
         $profile_picture = $user['profile_picture']; // Keep existing if no new upload
         
@@ -66,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else if (empty($error)) {
             try {
                 $db = getDB();
-                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ? WHERE id = ?");
-                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $profile_picture, $user['id']]);
+                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ?, latitude = ?, longitude = ?, location_accuracy = ? WHERE id = ?");
+                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $profile_picture, $latitude, $longitude, $location_accuracy, $user['id']]);
                 
                 $success = 'Profile updated successfully!';
                 
@@ -82,6 +87,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+}
+
+$user_subjects = [];
+try {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT main_subject, subtopic, proficiency_level FROM user_subjects WHERE user_id = ?");
+    $stmt->execute([$user['id']]);
+    $user_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Handle error silently
 }
 ?>
 <!DOCTYPE html>
@@ -140,6 +155,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .file-input-label:hover {
             background: #2563eb;
+        }
+        /* Added styles for location and subjects sections */
+        .location-section, .subjects-section {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .subjects-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .subject-tag {
+            background: #3b82f6;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+        }
+        .location-status {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+        }
+        .location-status.success {
+            color: #059669;
         }
     </style>
 </head>
@@ -200,6 +243,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </p>
                     </div>
                     
+                    <!-- Added hidden fields for location coordinates -->
+                    <input type="hidden" id="latitude" name="latitude" value="<?php echo htmlspecialchars($user['latitude'] ? (string)$user['latitude'] : ''); ?>">
+                    <input type="hidden" id="longitude" name="longitude" value="<?php echo htmlspecialchars($user['longitude'] ? (string)$user['longitude'] : ''); ?>">
+                    <input type="hidden" id="location_accuracy" name="location_accuracy" value="<?php echo htmlspecialchars($user['location_accuracy'] ? (string)$user['location_accuracy'] : ''); ?>">
+                    
                     <div class="grid grid-cols-2" style="gap: 1rem;">
                         <div class="form-group">
                             <label for="first_name" class="form-label">First Name</label>
@@ -216,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="form-group">
                         <label for="grade_level" class="form-label">Grade Level / Year Level</label>
-                        <select id="grade_level" name="grade_level" class="form-select" required>
+                        <select id="grade_level" name="grade_level" class="form-select" required onchange="updateFormFields()">
                             <option value="">Select Grade Level</option>
                             <option value="Grade 7" <?php echo $user['grade_level'] === 'Grade 7' ? 'selected' : ''; ?>>Grade 7</option>
                             <option value="Grade 8" <?php echo $user['grade_level'] === 'Grade 8' ? 'selected' : ''; ?>>Grade 8</option>
@@ -248,21 +296,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label for="course" class="form-label">Course (if College)</label>
                             <input type="text" id="course" name="course" class="form-input" 
                                    placeholder="e.g., BS Computer Science"
-                                   value="<?php echo htmlspecialchars($user['course'] ?? ''); ?>">
+                                   value="<?php echo htmlspecialchars($user['course'] ? $user['course'] : ''); ?>">
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="location" class="form-label">Location</label>
-                        <input type="text" id="location" name="location" class="form-input" required
-                               placeholder="e.g., Quezon City, Metro Manila"
-                               value="<?php echo htmlspecialchars($user['location'] ?? ''); ?>">
+                    <!-- Enhanced location section with GPS coordinates -->
+                    <div class="location-section">
+                        <h3 style="margin-bottom: 1rem; color: #374151;">📍 Location Information</h3>
+                        <div class="form-group">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" id="location" name="location" class="form-input" required
+                                   placeholder="e.g., Quezon City, Metro Manila"
+                                   value="<?php echo htmlspecialchars($user['location'] ? $user['location'] : ''); ?>">
+                        </div>
+                        
+                        <div class="location-status" id="locationStatus">
+                            <?php if ($user['latitude'] && $user['longitude']): ?>
+                                <span class="success">✓ GPS coordinates saved (Accuracy: <?php echo round($user['location_accuracy'] ?? 0); ?>m)</span>
+                            <?php else: ?>
+                                <span>📍 Click "Update GPS Location" to enable location-based matching</span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <button type="button" id="updateLocationBtn" class="btn btn-secondary" style="margin-top: 1rem;">
+                            Update GPS Location
+                        </button>
+                    </div>
+                    
+                    <!-- Added current subjects display section -->
+                    <div class="subjects-section">
+                        <h3 style="margin-bottom: 1rem; color: #374151;">📚 Your Subjects</h3>
+                        <?php if (!empty($user_subjects)): ?>
+                            <div class="subjects-list">
+                                <?php foreach ($user_subjects as $subject): ?>
+                                    <span class="subject-tag">
+                                        <?php echo htmlspecialchars($subject['main_subject']); ?>
+                                        <?php if ($subject['subtopic']): ?>
+                                            - <?php echo htmlspecialchars($subject['subtopic']); ?>
+                                        <?php endif; ?>
+                                        (<?php echo htmlspecialchars($subject['proficiency_level']); ?>)
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <p style="color: #6b7280;">No subjects added yet.</p>
+                        <?php endif; ?>
+                        <a href="subjects.php" class="btn btn-secondary" style="margin-top: 1rem; display: inline-block;">
+                            Manage Subjects
+                        </a>
                     </div>
                     
                     <div class="form-group">
                         <label for="bio" class="form-label">Bio</label>
                         <textarea id="bio" name="bio" class="form-input" rows="4" required
-                                  placeholder="Tell others about yourself, your learning goals, and what you can help with..."><?php echo htmlspecialchars($user['bio'] ?? ''); ?></textarea>
+                                  placeholder="Tell others about yourself, your learning goals, and what you can help with..."><?php echo htmlspecialchars($user['bio'] ? $user['bio'] : ''); ?></textarea>
                     </div>
                     
                     <div style="display: flex; gap: 1rem;">
@@ -292,6 +379,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 reader.readAsDataURL(input.files[0]);
             }
         }
+        
+        function updateFormFields() {
+            const gradeLevel = document.getElementById('grade_level').value;
+            const strandField = document.getElementById('strand');
+            const courseField = document.getElementById('course');
+            
+            // Default: disable both if no grade level selected
+            if (!gradeLevel || gradeLevel === '') {
+                strandField.disabled = true;
+                courseField.disabled = true;
+                strandField.value = '';
+                courseField.value = '';
+                return;
+            }
+            
+            // Grade 7-10: disable both strand and course
+            if (gradeLevel === 'Grade 7' || gradeLevel === 'Grade 8' || 
+                gradeLevel === 'Grade 9' || gradeLevel === 'Grade 10') {
+                strandField.disabled = true;
+                courseField.disabled = true;
+                strandField.value = '';
+                courseField.value = '';
+            }
+            // Grade 11-12: enable strand, disable course
+            else if (gradeLevel === 'Grade 11' || gradeLevel === 'Grade 12') {
+                strandField.disabled = false;
+                courseField.disabled = true;
+                courseField.value = '';
+            }
+            // College: enable course, disable strand
+            else if (gradeLevel.includes('College')) {
+                strandField.disabled = true;
+                courseField.disabled = false;
+                strandField.value = '';
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFormFields();
+            
+            // Add event listener for grade level changes
+            document.getElementById('grade_level').addEventListener('change', updateFormFields);
+        });
+        
+        document.getElementById('updateLocationBtn').addEventListener('click', function() {
+            if (navigator.geolocation) {
+                this.textContent = 'Getting location...';
+                this.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        document.getElementById('latitude').value = position.coords.latitude;
+                        document.getElementById('longitude').value = position.coords.longitude;
+                        document.getElementById('location_accuracy').value = position.coords.accuracy;
+                        
+                        document.getElementById('locationStatus').innerHTML = 
+                            '<span class="success">✓ GPS coordinates updated (Accuracy: ' + 
+                            Math.round(position.coords.accuracy) + 'm)</span>';
+                        
+                        document.getElementById('updateLocationBtn').textContent = 'Location Updated!';
+                        document.getElementById('updateLocationBtn').disabled = false;
+                        
+                        // Reverse geocode to get readable address
+                        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&localityLanguage=en`)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.city && data.countryName) {
+                                    const address = `${data.city}, ${data.principalSubdivision}, ${data.countryName}`;
+                                    document.getElementById('location').value = address;
+                                }
+                            })
+                            .catch(error => console.log('Geocoding failed:', error));
+                    },
+                    function(error) {
+                        document.getElementById('locationStatus').innerHTML = 
+                            '<span style="color: #dc2626;">❌ Location access denied or unavailable</span>';
+                        document.getElementById('updateLocationBtn').textContent = 'Try Again';
+                        document.getElementById('updateLocationBtn').disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        });
     </script>
 </body>
 </html>

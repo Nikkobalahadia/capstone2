@@ -62,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_document'])) {
 // Get user details with extended information
 $user_query = "
     SELECT u.*,
+           u.profile_picture,
            COUNT(DISTINCT m1.id) as matches_as_student,
            COUNT(DISTINCT m2.id) as matches_as_mentor,
            COUNT(DISTINCT s.id) as completed_sessions,
@@ -126,7 +127,6 @@ $recent_activity = $activity_stmt->fetchAll();
                     <li><a href="users.php">Users</a></li>
                     <li><a href="matches.php">Matches</a></li>
                     <li><a href="sessions.php">Sessions</a></li>
-                    <li><a href="reports.php">Reports</a></li>
                     <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
                 </ul>
             </nav>
@@ -158,6 +158,19 @@ $recent_activity = $activity_stmt->fetchAll();
                             <h3 class="card-title">User Information</h3>
                         </div>
                         <div class="card-body">
+                            <!-- Profile Picture Display -->
+                            <div style="text-align: center; margin-bottom: 2rem;">
+                                <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                                    <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                         alt="<?php echo htmlspecialchars($user['first_name']); ?>" 
+                                         style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary-color);">
+                                <?php else: ?>
+                                    <div style="width: 120px; height: 120px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 2.5rem; margin: 0 auto; border: 4px solid var(--border-color);">
+                                        <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            
                             <div class="grid grid-cols-2" style="gap: 2rem;">
                                 <div>
                                     <div class="mb-3">
@@ -314,7 +327,7 @@ $recent_activity = $activity_stmt->fetchAll();
                                                     <td style="padding: 0.75rem;">
                                                         <a href="../uploads/verification/<?php echo $doc['filename']; ?>" target="_blank" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; text-decoration: none;">View</a>
                                                     </td>
-                                                </tr>   
+                                                </tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>

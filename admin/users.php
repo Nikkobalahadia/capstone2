@@ -116,6 +116,7 @@ $where_clause = implode(' AND ', $where_conditions);
 // Get users with statistics
 $users_query = "
     SELECT u.*,
+           u.profile_picture,
            COUNT(DISTINCT m1.id) as matches_as_student,
            COUNT(DISTINCT m2.id) as matches_as_mentor,
            COUNT(DISTINCT s.id) as completed_sessions,
@@ -170,24 +171,16 @@ $users = $stmt->fetchAll();
             <a class="nav-link active" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link" href="monitoring.php">
-                <i class="fas fa-chart-line me-2"></i> System Monitoring
-            </a>
-            <a class="nav-link" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-
-            <a class="nav-link" href="session-tracking.php">
-                <i class="fas fa-calendar-check me-2"></i> Session Tracking
-            </a>
+            <li class="nav-item">
+                            <a class="nav-link active" href="analytics.php">
+                                <i class="fas fa-analytics me-2"></i>Advanced Analytics
+                            </a>
+                        </li>
             <a class="nav-link" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
-            </a>
-            <a class="nav-link" href="reports.php">
-                <i class="fas fa-chart-bar me-2"></i> Reports
             </a>
             <a class="nav-link" href="referral-audit.php">
                 <i class="fas fa-link me-2"></i> Referral Audit
@@ -235,7 +228,6 @@ $users = $stmt->fetchAll();
                                 <option value="">All Roles</option>
                                 <option value="student" <?php echo $role_filter === 'student' ? 'selected' : ''; ?>>Students</option>
                                 <option value="mentor" <?php echo $role_filter === 'mentor' ? 'selected' : ''; ?>>Mentors</option>
-                                <option value="peer" <?php echo $role_filter === 'peer' ? 'selected' : ''; ?>>Peers</option>
                             </select>
                         </div>
                         
@@ -283,12 +275,25 @@ $users = $stmt->fetchAll();
                                 <?php foreach ($users as $u): ?>
                                     <tr>
                                         <td>
-                                            <div class="fw-bold"><?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?></div>
-                                            <div class="small text-muted"><?php echo htmlspecialchars($u['email']); ?></div>
-                                            <div class="small text-muted">@<?php echo htmlspecialchars($u['username']); ?></div>
+                                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                <?php if (!empty($u['profile_picture']) && file_exists('../' . $u['profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($u['profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($u['first_name']); ?>" 
+                                                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 40px; height: 40px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
+                                                        <?php echo strtoupper(substr($u['first_name'], 0, 1) . substr($u['last_name'], 0, 1)); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div>
+                                                    <div class="fw-bold"><?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?></div>
+                                                    <div class="small text-muted"><?php echo htmlspecialchars($u['email']); ?></div>
+                                                    <div class="small text-muted">@<?php echo htmlspecialchars($u['username']); ?></div>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td>
-                                            <span class="badge <?php echo $u['role'] === 'student' ? 'bg-primary' : ($u['role'] === 'mentor' ? 'bg-success' : 'bg-info'); ?>">
+                                            <span class="badge <?php echo $u['role'] === 'student' ? 'bg-primary' : 'bg-success'; ?>">
                                                 <?php echo ucfirst($u['role']); ?>
                                             </span>
                                         </td>

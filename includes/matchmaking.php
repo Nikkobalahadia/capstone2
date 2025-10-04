@@ -449,7 +449,10 @@ $activity_score = $this->calculateActivityLevelScore(
         return 25; // Different strand groups
     }
     
-    private function calculateTimeAvailabilityScore($user_id, $match_id) {
+    /**
+     * Calculate match score using weighted criteria
+     */
+    public function calculateTimeAvailabilityScore($user_id, $match_id) {
         $user_availability = $this->getUserAvailability($user_id);
         $match_availability = $this->getUserAvailability($match_id);
         
@@ -604,7 +607,12 @@ $activity_score = $this->calculateActivityLevelScore(
         
         // Add subject filter if specified - find users who need help with this subject
         if ($subject) {
-            $query .= " AND us.subject_name = ? AND us.proficiency_level IN ('beginner', 'intermediate')";
+            $query .= " AND EXISTS (
+                SELECT 1 FROM user_subjects us2 
+                WHERE us2.user_id = u.id 
+                AND us2.subject_name = ? 
+                AND us2.proficiency_level IN ('beginner', 'intermediate')
+            )";
             $params[] = $subject;
         }
         

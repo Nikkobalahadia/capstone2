@@ -84,23 +84,14 @@ $stats = $db->query("
             <a class="nav-link" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link" href="monitoring.php">
-                <i class="fas fa-chart-line me-2"></i> System Monitoring
-            </a>
             <a class="nav-link" href="analytics.php">
                 <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link" href="session-tracking.php">
-                <i class="fas fa-calendar-check me-2"></i> Session Tracking
             </a>
             <a class="nav-link active" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
-            </a>
-            <a class="nav-link" href="reports.php">
-                <i class="fas fa-chart-bar me-2"></i> Reports
             </a>
             <a class="nav-link" href="referral-audit.php">
                 <i class="fas fa-link me-2"></i> Referral Audit

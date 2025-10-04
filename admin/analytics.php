@@ -41,9 +41,8 @@ $popular_subjects = $db->query("
         us.subject_name,
         COUNT(CASE WHEN u.role = 'student' THEN 1 END) as student_demand,
         COUNT(CASE WHEN u.role = 'mentor' THEN 1 END) as mentor_supply,
-        COUNT(CASE WHEN u.role = 'peer' THEN 1 END) as peer_count,
         COUNT(*) as total_count,
-        ROUND(COUNT(CASE WHEN u.role = 'student' THEN 1 END) / NULLIF(COUNT(CASE WHEN u.role IN ('mentor', 'peer') THEN 1 END), 0), 2) as demand_supply_ratio
+        ROUND(COUNT(CASE WHEN u.role = 'student' THEN 1 END) / NULLIF(COUNT(CASE WHEN u.role = 'mentor' THEN 1 END), 0), 2) as demand_supply_ratio
     FROM user_subjects us
     JOIN users u ON us.user_id = u.id
     WHERE u.role != 'admin'
@@ -130,6 +129,18 @@ $session_cancellation_stats = $db->query("
     FROM sessions
     GROUP BY status
     ORDER BY count DESC
+")->fetchAll();
+
+$cancellation_reasons = $db->query("
+    SELECT 
+        cancellation_reason,
+        COUNT(*) as count,
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM sessions WHERE status = 'cancelled'), 2) as percentage
+    FROM sessions 
+    WHERE status = 'cancelled' AND cancellation_reason IS NOT NULL
+    GROUP BY cancellation_reason
+    ORDER BY count DESC
+    LIMIT 10
 ")->fetchAll();
 
 $inactive_users = $db->query("
@@ -225,19 +236,8 @@ $user_journey = $db->query("
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="monitoring.php">
-                                <i class="fas fa-chart-line me-2"></i>System Monitoring
-                            </a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link active" href="analytics.php">
                                 <i class="fas fa-analytics me-2"></i>Advanced Analytics
-                            </a>
-                        </li>
-                        
-                        <li class="nav-item">
-                            <a class="nav-link" href="session-tracking.php">
-                                <i class="fas fa-calendar-check me-2"></i>Session Tracking
                             </a>
                         </li>
                         <li class="nav-item">
@@ -248,11 +248,6 @@ $user_journey = $db->query("
                         <li class="nav-item">
                             <a class="nav-link" href="sessions.php">
                                 <i class="fas fa-calendar me-2"></i>Sessions
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="reports.php">
-                                <i class="fas fa-chart-bar me-2"></i>Reports
                             </a>
                         </li>
                         <li class="nav-item">
@@ -438,6 +433,42 @@ $user_journey = $db->query("
                         </div>
                     </div>
 
+                    <!-- Session Cancellation Reasons -->
+                    <div class="row">
+                        <div class="col-lg-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Session Cancellation Reasons</h6>
+                                    <small class="text-muted">Understanding why sessions are cancelled</small>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="cancellationReasonsChart" width="400" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Cancellation Trends</h6>
+                                </div>
+                                <div class="card-body">
+                                    <?php foreach ($cancellation_reasons as $reason): ?>
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span><?php echo htmlspecialchars($reason['cancellation_reason']); ?></span>
+                                                <span class="font-weight-bold"><?php echo $reason['count']; ?> (<?php echo $reason['percentage']; ?>%)</span>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-danger" style="width: <?php echo $reason['percentage']; ?>%"></div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Optimal Time Slots -->
                     <div class="row">
                         <div class="col-lg-8 mb-4">
@@ -524,10 +555,6 @@ $user_journey = $db->query("
                     label: 'Mentor Supply',
                     data: demandSupplyData.map(d => d.mentor_supply),
                     backgroundColor: 'rgba(16, 185, 129, 0.8)'
-                }, {
-                    label: 'Peer Count',
-                    data: demandSupplyData.map(d => d.peer_count),
-                    backgroundColor: 'rgba(59, 130, 246, 0.8)'
                 }]
             },
             options: {
@@ -598,6 +625,34 @@ $user_journey = $db->query("
                         grid: {
                             drawOnChartArea: false,
                         },
+                    }
+                }
+            }
+        });
+
+        // Cancellation Reasons Chart
+        const cancellationReasonsCtx = document.getElementById('cancellationReasonsChart').getContext('2d');
+        const cancellationReasonsData = <?php echo json_encode($cancellation_reasons); ?>;
+        
+        new Chart(cancellationReasonsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: cancellationReasonsData.map(d => d.cancellation_reason),
+                datasets: [{
+                    data: cancellationReasonsData.map(d => d.count),
+                    backgroundColor: [
+                        '#ef4444', '#f97316', '#f59e0b', '#eab308', 
+                        '#84cc16', '#22c55e', '#10b981', '#14b8a6',
+                        '#06b6d4', '#0ea5e9'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
                     }
                 }
             }

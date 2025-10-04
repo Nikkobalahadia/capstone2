@@ -28,6 +28,10 @@ $conversations_query = "
                WHEN m.student_id = ? THEN u2.role
                ELSE u1.role
            END as partner_role,
+           CASE 
+               WHEN m.student_id = ? THEN u2.profile_picture
+               ELSE u1.profile_picture
+           END as partner_profile_picture,
            (SELECT msg.message FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_message,
            (SELECT msg.created_at FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_message_time,
            (SELECT msg.sender_id FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_sender_id,
@@ -44,7 +48,7 @@ $conversations_query = "
 ";
 
 $stmt = $db->prepare($conversations_query);
-$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
+$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $conversations = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -102,14 +106,27 @@ $conversations = $stmt->fetchAll();
                                    onmouseout="this.style.backgroundColor='transparent'">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-                                            <div style="width: 50px; height: 50px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; position: relative;">
-                                                <?php echo strtoupper(substr($conversation['partner_name'], 0, 2)); ?>
-                                                <?php if ($conversation['unread_count'] > 0): ?>
-                                                    <div style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
-                                                        <?php echo min($conversation['unread_count'], 9); ?><?php echo $conversation['unread_count'] > 9 ? '+' : ''; ?>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </div>
+                                            <?php if (!empty($conversation['partner_profile_picture']) && file_exists('../' . $conversation['partner_profile_picture'])): ?>
+                                                <div style="width: 50px; height: 50px; position: relative;">
+                                                    <img src="../<?php echo htmlspecialchars($conversation['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($conversation['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                    <?php if ($conversation['unread_count'] > 0): ?>
+                                                        <div style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                                                            <?php echo min($conversation['unread_count'], 9); ?><?php echo $conversation['unread_count'] > 9 ? '+' : ''; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <div style="width: 50px; height: 50px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; position: relative;">
+                                                    <?php echo strtoupper(substr($conversation['partner_name'], 0, 2)); ?>
+                                                    <?php if ($conversation['unread_count'] > 0): ?>
+                                                        <div style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                                                            <?php echo min($conversation['unread_count'], 9); ?><?php echo $conversation['unread_count'] > 9 ? '+' : ''; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endif; ?>
                                             <div style="flex: 1; min-width: 0;">
                                                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                                     <h4 class="font-semibold" style="margin: 0;"><?php echo htmlspecialchars($conversation['partner_name']); ?></h4>

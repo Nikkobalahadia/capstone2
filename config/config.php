@@ -24,10 +24,13 @@ header('X-XSS-Protection: 1; mode=block');
 
 // Helper functions
 function sanitize_input($data) {
+    if ($data === null) {
+        return '';
+    }
     $data = trim($data);
     $data = stripslashes($data);
     $data = htmlspecialchars($data);
-        return trim($data ?? '');
+    return $data;
 }
 
 function is_logged_in() {

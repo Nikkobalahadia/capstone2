@@ -105,6 +105,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
             </form>
             
+            <div class="text-center mt-3">
+                <p class="text-secondary">Or</p>
+                <a href="login-otp.php" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">
+                    Sign In with Email Code
+                </a>
+            </div>
+            
             <div class="text-center mt-4">
                 <p class="text-secondary">Don't have an account? <a href="register.php" class="text-primary">Sign up here</a></p>
                 <p class="text-secondary mt-2"><a href="forgot-password.php" class="text-primary">Forgot your password?</a></p>

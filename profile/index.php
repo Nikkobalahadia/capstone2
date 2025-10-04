@@ -13,9 +13,22 @@ if (!$user) {
 
 // Get user subjects
 $db = getDB();
-$subjects_stmt = $db->prepare("SELECT subject_name, proficiency_level FROM user_subjects WHERE user_id = ?");
-$subjects_stmt->execute([$user['id']]);
-$user_subjects = $subjects_stmt->fetchAll();
+if ($user['role'] === 'peer') {
+    // Learning subjects (beginner/intermediate)
+    $learning_stmt = $db->prepare("SELECT id, subject_name, proficiency_level, main_subject, subtopic FROM user_subjects WHERE user_id = ? AND proficiency_level IN ('beginner', 'intermediate') ORDER BY main_subject, subtopic");
+    $learning_stmt->execute([$user['id']]);
+    $learning_subjects = $learning_stmt->fetchAll();
+    
+    // Teaching subjects (advanced/expert)
+    $teaching_stmt = $db->prepare("SELECT id, subject_name, proficiency_level, main_subject, subtopic FROM user_subjects WHERE user_id = ? AND proficiency_level IN ('advanced', 'expert') ORDER BY main_subject, subtopic");
+    $teaching_stmt->execute([$user['id']]);
+    $teaching_subjects = $teaching_stmt->fetchAll();
+} else {
+    // For students and mentors, keep original query
+    $subjects_stmt = $db->prepare("SELECT id, subject_name, proficiency_level, main_subject, subtopic FROM user_subjects WHERE user_id = ? ORDER BY main_subject, subtopic");
+    $subjects_stmt->execute([$user['id']]);
+    $user_subjects = $subjects_stmt->fetchAll();
+}
 
 // Get user availability
 $availability_stmt = $db->prepare("SELECT day_of_week, start_time, end_time FROM user_availability WHERE user_id = ? AND is_active = 1 ORDER BY FIELD(day_of_week, 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')");
@@ -31,6 +44,22 @@ $stats_stmt = $db->prepare("
 ");
 $stats_stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $stats = $stats_stmt->fetch();
+
+$feedback_stmt = $db->prepare("
+    SELECT sr.*, 
+           u.first_name, u.last_name, u.username, u.role,
+           s.session_date,
+           m.subject
+    FROM session_ratings sr
+    JOIN users u ON sr.rater_id = u.id
+    JOIN sessions s ON sr.session_id = s.id
+    JOIN matches m ON s.match_id = m.id
+    WHERE sr.rated_id = ?
+    ORDER BY sr.created_at DESC
+    LIMIT 10
+");
+$feedback_stmt->execute([$user['id']]);
+$feedbacks = $feedback_stmt->fetchAll();
 
 $role_info = [];
 if ($user['role'] === 'student') {
@@ -58,6 +87,23 @@ if ($user['role'] === 'student') {
     <title>My Profile - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Added Font Awesome for star icons -->
+    <style>
+        .star-rating {
+            color: #fbbf24;
+            display: inline-flex;
+            gap: 0.125rem;
+        }
+        .star-rating .star {
+            font-size: 1rem;
+        }
+        .star-rating .star.filled {
+            color: #f59e0b;
+        }
+        .star-rating .star.empty {
+            color: #e5e7eb;
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -90,8 +136,8 @@ if ($user['role'] === 'student') {
                             <!-- Add profile picture display section -->
                             <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border-color);">
                                 <div style="position: relative;">
-                                    <?php if (!empty($user['profile_picture']) && file_exists('../uploads/profiles/' . $user['profile_picture'])): ?>
-                                        <img src="../uploads/profiles/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                    <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                                        <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" 
                                              alt="Profile Picture" 
                                              style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary-color);">
                                     <?php else: ?>
@@ -201,40 +247,180 @@ if ($user['role'] === 'student') {
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 class="card-title">
                                 <?php if ($user['role'] === 'peer'): ?>
-                                    My Subjects (Learning & Teaching)
+                                    My Subjects
+                                <?php elseif ($user['role'] === 'student'): ?>
+                                    Subjects I Want to Learn
                                 <?php else: ?>
-                                    <?php echo $user['role'] === 'mentor' ? 'Subjects I Teach' : 'Subjects I Want to Learn'; ?>
+                                    Subjects I Teach
                                 <?php endif; ?>
                             </h3>
                             <a href="subjects.php" class="btn btn-secondary">Manage Subjects</a>
                         </div>
                         <div class="card-body">
-                            <?php if (empty($user_subjects)): ?>
+                            <?php if ($user['role'] === 'peer'): ?>
+                                <!-- Learning Subjects Section -->
+                                <div style="margin-bottom: 2rem;">
+                                    <h4 class="font-semibold mb-3" style="color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem;">
+                                        <span style="font-size: 1.25rem;">📚</span>
+                                        Subjects I Want to Learn
+                                    </h4>
+                                    <?php if (empty($learning_subjects)): ?>
+                                        <p class="text-secondary" style="padding: 1rem; background: #f8fafc; border-radius: 6px; font-style: italic;">
+                                            No learning subjects added yet. Add beginner or intermediate level subjects to find mentors and peers who can help you learn.
+                                        </p>
+                                    <?php else: ?>
+                                        <div class="grid grid-cols-2" style="gap: 1rem;">
+                                            <?php foreach ($learning_subjects as $subject): ?>
+                                                <div style="padding: 1rem; background: #eff6ff; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                                                    <div class="font-medium" style="color: #1e40af;"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                                    <?php if (!empty($subject['subtopic'])): ?>
+                                                        <div class="text-xs text-secondary mb-1">
+                                                            <?php echo htmlspecialchars($subject['main_subject']); ?> → <?php echo htmlspecialchars($subject['subtopic']); ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <div class="text-sm" style="color: #60a5fa;">
+                                                        Learning: <?php echo ucfirst($subject['proficiency_level']); ?> level
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Teaching Subjects Section -->
+                                <div>
+                                    <h4 class="font-semibold mb-3" style="color: var(--success-color); display: flex; align-items: center; gap: 0.5rem;">
+                                        <span style="font-size: 1.25rem;">👨‍🏫</span>
+                                        Subjects I Can Teach
+                                    </h4>
+                                    <?php if (empty($teaching_subjects)): ?>
+                                        <p class="text-secondary" style="padding: 1rem; background: #f8fafc; border-radius: 6px; font-style: italic;">
+                                            No teaching subjects added yet. Add advanced or expert level subjects to help other students and peers learn.
+                                        </p>
+                                    <?php else: ?>
+                                        <div class="grid grid-cols-2" style="gap: 1rem;">
+                                            <?php foreach ($teaching_subjects as $subject): ?>
+                                                <div style="padding: 1rem; background: #f0fdf4; border-radius: 6px; border-left: 4px solid #22c55e;">
+                                                    <div class="font-medium" style="color: #15803d;"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                                    <?php if (!empty($subject['subtopic'])): ?>
+                                                        <div class="text-xs text-secondary mb-1">
+                                                            <?php echo htmlspecialchars($subject['main_subject']); ?> → <?php echo htmlspecialchars($subject['subtopic']); ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <div class="text-sm" style="color: #4ade80;">
+                                                        Teaching: <?php echo ucfirst($subject['proficiency_level']); ?> level
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                            <?php else: ?>
+                                <!-- Original display for students and mentors -->
+                                <?php if (empty($user_subjects)): ?>
+                                    <p class="text-secondary text-center">
+                                        No subjects added yet. 
+                                        <a href="subjects.php" class="text-primary">Add subjects</a> 
+                                        to get matched with 
+                                        <?php if ($user['role'] === 'student'): ?>
+                                            mentors and peers who can help you learn.
+                                        <?php else: ?>
+                                            students who need help.
+                                        <?php endif; ?>
+                                    </p>
+                                <?php else: ?>
+                                    <div class="grid grid-cols-2" style="gap: 1rem;">
+                                        <?php foreach ($user_subjects as $subject): ?>
+                                            <div style="padding: 1rem; background: #f8fafc; border-radius: 6px; border-left: 4px solid var(--primary-color);">
+                                                <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                                <?php if (!empty($subject['subtopic'])): ?>
+                                                    <div class="text-xs text-secondary mb-1">
+                                                        <?php echo htmlspecialchars($subject['main_subject']); ?> → <?php echo htmlspecialchars($subject['subtopic']); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div class="text-sm text-secondary">
+                                                    <?php 
+                                                    if ($user['role'] === 'mentor') {
+                                                        echo 'Can teach: ' . ucfirst($subject['proficiency_level']);
+                                                    } else {
+                                                        echo 'Want to learn: ' . ucfirst($subject['proficiency_level']) . ' level';
+                                                    }
+                                                    ?>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Feedback & Reviews Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Feedback & Reviews</h3>
+                        </div>
+                        <div class="card-body">
+                            <?php if (empty($feedbacks)): ?>
                                 <p class="text-secondary text-center">
-                                    No subjects added yet. 
-                                    <a href="subjects.php" class="text-primary">Add subjects</a> 
-                                    to get matched with 
-                                    <?php echo $user['role'] === 'mentor' ? 'students' : ($user['role'] === 'peer' ? 'other learners and students' : 'mentors'); ?>.
+                                    No feedback received yet. Complete sessions to receive reviews from your study partners.
                                 </p>
                             <?php else: ?>
-                                <div class="grid grid-cols-2" style="gap: 1rem;">
-                                    <?php foreach ($user_subjects as $subject): ?>
-                                        <div style="padding: 1rem; background: #f8fafc; border-radius: 6px; border-left: 4px solid var(--primary-color);">
-                                            <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                            <div class="text-sm text-secondary">
-                                                <?php 
-                                                if ($user['role'] === 'mentor') {
-                                                    echo 'Can teach: ' . ucfirst($subject['proficiency_level']);
-                                                } elseif ($user['role'] === 'peer') {
-                                                    echo 'Level: ' . ucfirst($subject['proficiency_level']);
-                                                } else {
-                                                    echo 'Current level: ' . ucfirst($subject['proficiency_level']);
-                                                }
-                                                ?>
+                                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                                    <?php foreach ($feedbacks as $feedback): ?>
+                                        <div style="padding: 1.5rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                                            <!-- Reviewer Info and Rating -->
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                                    <div style="width: 48px; height: 48px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.1rem;">
+                                                        <?php echo strtoupper(substr($feedback['first_name'], 0, 1) . substr($feedback['last_name'], 0, 1)); ?>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-semibold">
+                                                            <?php echo htmlspecialchars($feedback['first_name'] . ' ' . $feedback['last_name']); ?>
+                                                        </div>
+                                                        <div class="text-sm text-secondary">
+                                                            <?php echo ucfirst($feedback['role']); ?> • <?php echo htmlspecialchars($feedback['subject']); ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Star Rating Display -->
+                                                <div style="text-align: right;">
+                                                    <div class="star-rating">
+                                                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                            <span class="star <?php echo $i <= $feedback['rating'] ? 'filled' : 'empty'; ?>">★</span>
+                                                        <?php endfor; ?>
+                                                    </div>
+                                                    <div class="text-sm text-secondary" style="margin-top: 0.25rem;">
+                                                        <?php echo date('M j, Y', strtotime($feedback['created_at'])); ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Feedback Text -->
+                                            <?php if (!empty($feedback['feedback'])): ?>
+                                                <div style="padding: 1rem; background: white; border-radius: 6px; margin-top: 0.75rem;">
+                                                    <p style="margin: 0; color: #374151; line-height: 1.6;">
+                                                        "<?php echo nl2br(htmlspecialchars($feedback['feedback'])); ?>"
+                                                    </p>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <!-- Session Date -->
+                                            <div class="text-sm text-secondary" style="margin-top: 0.75rem;">
+                                                Session Date: <?php echo date('F j, Y', strtotime($feedback['session_date'])); ?>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
+                                
+                                <?php if (count($feedbacks) >= 10): ?>
+                                    <div class="text-center" style="margin-top: 1rem;">
+                                        <p class="text-secondary text-sm">Showing 10 most recent reviews</p>
+                                    </div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -325,6 +511,27 @@ if ($user['role'] === 'student') {
                                 </div>
                             </div>
                         <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <!-- Added "Become a Peer" section for students -->
+                    <?php if ($user['role'] === 'student'): ?>
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h3 class="card-title">🤝 Become a Peer</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 0.5rem; border: 1px solid #bae6fd;">
+                                    <div style="color: var(--primary-color); font-size: 1.5rem;">🎓</div>
+                                    <div style="flex: 1;">
+                                        <div class="font-medium" style="color: var(--primary-color);">Ready to Help Others?</div>
+                                        <div class="text-sm text-secondary">
+                                            Upgrade to Peer status to both learn and teach. You'll need a referral code from a verified mentor.
+                                        </div>
+                                    </div>
+                                    <a href="become-peer.php" class="btn btn-primary">Upgrade Now</a>
+                                </div>
+                            </div>
+                        </div>
                     <?php endif; ?>
                 </div>
 

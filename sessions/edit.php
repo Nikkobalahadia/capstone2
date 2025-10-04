@@ -89,13 +89,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'cancel') {
+            $cancellation_reason = sanitize_input($_POST['cancellation_reason'] ?? 'User cancelled session');
+            
             try {
-                $stmt = $db->prepare("UPDATE sessions SET status = 'cancelled' WHERE id = ?");
-                $stmt->execute([$session_id]);
+                $stmt = $db->prepare("
+                    UPDATE sessions 
+                    SET status = 'cancelled', 
+                        cancellation_reason = ?, 
+                        cancelled_by = ?, 
+                        cancelled_at = NOW() 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$cancellation_reason, $user['id'], $session_id]);
                 
                 // Log activity
                 $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_cancelled', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
+                $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id, 'reason' => $cancellation_reason]), $_SERVER['REMOTE_ADDR']]);
                 
                 redirect('index.php');
                 
@@ -225,18 +234,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <h4 class="mb-3">Session Actions</h4>
                     
                     <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                        <!-- Added Mark Complete button -->
+                        <!-- Mark Complete button -->
                         <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to mark this session as completed?');">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="action" value="complete">
                             <button type="submit" class="btn btn-success" style="width: 100%;">Mark as Complete</button>
                         </form>
                         
-                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to cancel this session?');">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="action" value="cancel">
-                            <button type="submit" class="btn btn-danger" style="width: 100%;">Cancel Session</button>
-                        </form>
+                        <!-- Enhanced cancel form with reason selection -->
+                        <div style="flex: 1;">
+                            <button type="button" class="btn btn-danger" style="width: 100%;" onclick="showCancelModal()">Cancel Session</button>
+                        </div>
                     </div>
                     
                     <p class="text-secondary">Mark the session as complete once it has taken place, or cancel if it cannot happen as scheduled.</p>
@@ -244,5 +252,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </main>
+
+    <!-- Added cancellation reason modal -->
+    <div id="cancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%;">
+            <h3 style="margin-bottom: 1rem;">Cancel Session</h3>
+            <form method="POST" action="">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="action" value="cancel">
+                
+                <div class="form-group">
+                    <label for="cancellation_reason" class="form-label">Reason for cancellation:</label>
+                    <select id="cancellation_reason" name="cancellation_reason" class="form-input" required>
+                        <option value="">Select a reason...</option>
+                        <option value="Student unavailable">Student unavailable</option>
+                        <option value="Mentor unavailable">Mentor unavailable</option>
+                        <option value="Technical issues">Technical issues</option>
+                        <option value="Emergency">Emergency</option>
+                        <option value="Rescheduling needed">Rescheduling needed</option>
+                        <option value="Personal reasons">Personal reasons</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-danger" style="flex: 1;">Cancel Session</button>
+                    <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="hideCancelModal()">Keep Session</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function showCancelModal() {
+            document.getElementById('cancelModal').style.display = 'block';
+        }
+        
+        function hideCancelModal() {
+            document.getElementById('cancelModal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('cancelModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideCancelModal();
+            }
+        });
+    </script>
 </body>
 </html>

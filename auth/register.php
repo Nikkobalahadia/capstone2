@@ -3,7 +3,7 @@ require_once '../config/config.php';
 
 $error = '';
 $success = '';
-$role = isset($_GET['role']) && in_array($_GET['role'], ['student', 'mentor', 'peer']) ? $_GET['role'] : 'student';
+$role = isset($_GET['role']) && in_array($_GET['role'], ['student', 'mentor']) ? $_GET['role'] : 'student';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
@@ -17,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $first_name = sanitize_input($_POST['first_name']);
         $last_name = sanitize_input($_POST['last_name']);
         $role = sanitize_input($_POST['role']);
-        $referral_code = sanitize_input($_POST['referral_code']);
         
         // Validation
         if (empty($username) || empty($email) || empty($password) || empty($first_name) || empty($last_name)) {
@@ -28,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Password must be at least 8 characters long.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
-        } elseif (!in_array($role, ['student', 'mentor', 'peer'])) {
+        } elseif (!in_array($role, ['student', 'mentor'])) {
             $error = 'Invalid role selected.';
         } else {
             $db = getDB();
@@ -39,73 +38,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->fetch()) {
                 $error = 'Username or email already exists.';
             } else {
-                // Validate referral code if provided
-                $referral_valid = true;
-                $referral_creator_id = null;
-                if (!empty($referral_code)) {
-                    $ref_stmt = $db->prepare("SELECT id, created_by, max_uses, current_uses FROM referral_codes WHERE code = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())");
-                    $ref_stmt->execute([$referral_code]);
-                    $referral = $ref_stmt->fetch();
-                    
-                    if (!$referral || $referral['current_uses'] >= $referral['max_uses']) {
-                        $error = 'Invalid or expired referral code.';
-                        $referral_valid = false;
-                    } else {
-                        $referral_creator_id = $referral['created_by'];
-                    }
-                }
                 
-                if ($referral_valid) {
-                    // Create user account
-                    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                // Create user account
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                
+                try {
+                    $db->beginTransaction();
                     
-                    try {
-                        $db->beginTransaction();
-                        
-                        $is_verified = !empty($referral_code) && $referral_creator_id ? 1 : 0;
-                        
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $role, $first_name, $last_name, $is_verified]);
-                        $user_id = $db->lastInsertId();
-                        
-                        // Update referral code usage if used
-                        if (!empty($referral_code) && isset($referral)) {
-                            $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
-                            $update_ref->execute([$referral['id']]);
-                            
-                            // Log the referral usage in activity logs with more details
-                            $referral_details = json_encode([
-                                'role' => $role, 
-                                'referral_used' => true,
-                                'referral_code' => $referral_code,
-                                'referral_code_id' => $referral['id'],
-                                'referred_by' => $referral_creator_id
-                            ]);
-                        } else {
-                            $referral_details = json_encode(['role' => $role, 'referral_used' => false]);
-                        }
-                        
-                        // Log registration
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'register', ?, ?)");
-                        $log_stmt->execute([$user_id, $referral_details, $_SERVER['REMOTE_ADDR']]);
-                        
-                        $db->commit();
-                        
-                        $success = 'Account created successfully! You can now log in.';
-                        
-                        // Auto-login the user
-                        $_SESSION['user_id'] = $user_id;
-                        $_SESSION['username'] = $username;
-                        $_SESSION['role'] = $role;
-                        $_SESSION['full_name'] = $first_name . ' ' . $last_name;
-                        
-                        // Redirect to profile setup
-                        redirect('profile/setup.php');
-                        
-                    } catch (Exception $e) {
-                        $db->rollBack();
-                        $error = 'Registration failed. Please try again.';
-                    }
+                    $is_verified = 0;
+                    
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$username, $email, $password_hash, $role, $first_name, $last_name, $is_verified]);
+                    $user_id = $db->lastInsertId();
+                    
+                    $referral_details = json_encode(['role' => $role, 'referral_used' => false]);
+                    
+                    // Log registration
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'register', ?, ?)");
+                    $log_stmt->execute([$user_id, $referral_details, $_SERVER['REMOTE_ADDR']]);
+                    
+                    $db->commit();
+                    
+                    $success = 'Account created successfully! You can now log in.';
+                    
+                    // Auto-login the user
+                    $_SESSION['user_id'] = $user_id;
+                    $_SESSION['username'] = $username;
+                    $_SESSION['role'] = $role;
+                    $_SESSION['full_name'] = $first_name . ' ' . $last_name;
+                    
+                    // Redirect to profile setup
+                    redirect('profile/setup.php');
+                    
+                } catch (Exception $e) {
+                    $db->rollBack();
+                    $error = 'Registration failed. Please try again.';
                 }
             }
         }
@@ -150,13 +117,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST" action="">
                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                 
+                <!-- Removed peer option from role selection -->
                 <div class="form-group">
                     <label for="role" class="form-label">I want to join as:</label>
                     <select id="role" name="role" class="form-select" required>
                         <option value="student" <?php echo $role === 'student' ? 'selected' : ''; ?>>Student (Looking for help)</option>
                         <option value="mentor" <?php echo $role === 'mentor' ? 'selected' : ''; ?>>Mentor (Ready to help others)</option>
-                        <option value="peer" <?php echo $role === 'peer' ? 'selected' : ''; ?>>Peer (Learn & Teach)</option>
                     </select>
+                    <small class="text-secondary">Students can upgrade to Peer status later from their profile</small>
                 </div>
                 
                 <div class="grid grid-cols-2" style="gap: 1rem;">
@@ -196,12 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
                 </div>
                 
-                <div class="form-group">
-                    <label for="referral_code" class="form-label">Referral Code (Optional)</label>
-                    <input type="text" id="referral_code" name="referral_code" class="form-input" 
-                           value="<?php echo isset($_POST['referral_code']) ? htmlspecialchars($_POST['referral_code']) : ''; ?>">
-                    <small class="text-secondary">Enter a referral code from a verified teacher if you have one</small>
-                </div>
+                <!-- Removed referral code field from registration -->
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
             </form>
