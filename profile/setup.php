@@ -581,24 +581,25 @@ $common_subjects = getMainSubjects();
                             <?php if (!empty($existing_availability)): ?>
                                 <?php foreach ($existing_availability as $avail): ?>
                                     <div class="availability-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                                        <select name="availability[]" class="form-select" style="flex: 1;" required>
+                                        <select class="availability-day form-select" style="flex: 1;" required>
                                             <option value="">Select Day</option>
-                                            <option value="monday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'monday' ? 'selected' : ''; ?>>Monday</option>
-                                            <option value="tuesday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
-                                            <option value="wednesday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
-                                            <option value="thursday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
-                                            <option value="friday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'friday' ? 'selected' : ''; ?>>Friday</option>
-                                            <option value="saturday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
-                                            <option value="sunday|<?php echo htmlspecialchars($avail['start_time']); ?>|<?php echo htmlspecialchars($avail['end_time']); ?>" <?php echo ($avail['day_of_week'] ?? '') === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
+                                            <option value="monday" <?php echo ($avail['day_of_week'] ?? '') === 'monday' ? 'selected' : ''; ?>>Monday</option>
+                                            <option value="tuesday" <?php echo ($avail['day_of_week'] ?? '') === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
+                                            <option value="wednesday" <?php echo ($avail['day_of_week'] ?? '') === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
+                                            <option value="thursday" <?php echo ($avail['day_of_week'] ?? '') === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
+                                            <option value="friday" <?php echo ($avail['day_of_week'] ?? '') === 'friday' ? 'selected' : ''; ?>>Friday</option>
+                                            <option value="saturday" <?php echo ($avail['day_of_week'] ?? '') === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
+                                            <option value="sunday" <?php echo ($avail['day_of_week'] ?? '') === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
                                         </select>
-                                        <input type="time" name="start_time[]" class="form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['start_time']); ?>" required>
-                                        <input type="time" name="end_time[]" class="form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['end_time']); ?>" required>
+                                        <input type="time" class="availability-start form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['start_time']); ?>" required>
+                                        <input type="time" class="availability-end form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['end_time']); ?>" required>
+                                        <input type="hidden" name="availability[]" class="availability-combined" value="<?php echo htmlspecialchars($avail['day_of_week'] . '|' . $avail['start_time'] . '|' . $avail['end_time']); ?>">
                                         <button type="button" class="btn btn-danger" onclick="removeAvailability(this)" style="padding: 0.5rem;">Remove</button>
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <div class="availability-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                                    <select name="availability_day[]" class="form-select" style="flex: 1;" required>
+                                    <select class="availability-day form-select" style="flex: 1;" required>
                                         <option value="">Select Day</option>
                                         <option value="monday">Monday</option>
                                         <option value="tuesday">Tuesday</option>
@@ -608,8 +609,9 @@ $common_subjects = getMainSubjects();
                                         <option value="saturday">Saturday</option>
                                         <option value="sunday">Sunday</option>
                                     </select>
-                                    <input type="time" name="start_time[]" class="form-input" style="flex: 1;" required>
-                                    <input type="time" name="end_time[]" class="form-input" style="flex: 1;" required>
+                                    <input type="time" class="availability-start form-input" style="flex: 1;" required>
+                                    <input type="time" class="availability-end form-input" style="flex: 1;" required>
+                                    <input type="hidden" name="availability[]" class="availability-combined" value="">
                                     <button type="button" class="btn btn-danger" onclick="removeAvailability(this)" style="padding: 0.5rem;">Remove</button>
                                 </div>
                             <?php endif; ?>
@@ -812,6 +814,11 @@ $common_subjects = getMainSubjects();
                 );
             });
         }
+        
+        const availabilityRows = document.querySelectorAll('.availability-row');
+        availabilityRows.forEach(row => {
+            attachAvailabilityListeners(row);
+        });
     });
 
     function addSubject(type = 'general') {
@@ -941,7 +948,7 @@ $common_subjects = getMainSubjects();
         availabilityRow.style.cssText = 'display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;';
         
         availabilityRow.innerHTML = `
-            <select name="availability_day[]" class="form-select" style="flex: 1;" required>
+            <select class="availability-day form-select" style="flex: 1;" required>
                 <option value="">Select Day</option>
                 <option value="monday">Monday</option>
                 <option value="tuesday">Tuesday</option>
@@ -951,11 +958,14 @@ $common_subjects = getMainSubjects();
                 <option value="saturday">Saturday</option>
                 <option value="sunday">Sunday</option>
             </select>
-            <input type="time" name="start_time[]" class="form-input" style="flex: 1;" required>
-            <input type="time" name="end_time[]" class="form-input" style="flex: 1;" required>
+            <input type="time" class="availability-start form-input" style="flex: 1;" required>
+            <input type="time" class="availability-end form-input" style="flex: 1;" required>
+            <input type="hidden" name="availability[]" class="availability-combined" value="">
             <button type="button" class="btn btn-danger" onclick="removeAvailability(this)" style="padding: 0.5rem;">Remove</button>
         `;
         container.appendChild(availabilityRow);
+        
+        attachAvailabilityListeners(availabilityRow);
     }
 
     function removeAvailability(button) {
@@ -963,6 +973,29 @@ $common_subjects = getMainSubjects();
         if (container && container.children.length > 1) {
             button.parentElement.remove();
         }
+    }
+    
+    function updateAvailabilityCombined(row) {
+        const day = row.querySelector('.availability-day').value;
+        const start = row.querySelector('.availability-start').value;
+        const end = row.querySelector('.availability-end').value;
+        const combined = row.querySelector('.availability-combined');
+        
+        if (day && start && end) {
+            combined.value = `${day}|${start}|${end}`;
+        } else {
+            combined.value = '';
+        }
+    }
+    
+    function attachAvailabilityListeners(row) {
+        const daySelect = row.querySelector('.availability-day');
+        const startInput = row.querySelector('.availability-start');
+        const endInput = row.querySelector('.availability-end');
+        
+        daySelect.addEventListener('change', () => updateAvailabilityCombined(row));
+        startInput.addEventListener('change', () => updateAvailabilityCombined(row));
+        endInput.addEventListener('change', () => updateAvailabilityCombined(row));
     }
 
     function reverseGeocode(lat, lng) {

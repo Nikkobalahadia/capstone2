@@ -13,9 +13,130 @@ if (!$user) {
 }
 
 $db = getDB();
+
 $user_subjects_stmt = $db->prepare("SELECT DISTINCT subject_name FROM user_subjects WHERE user_id = ?");
 $user_subjects_stmt->execute([$user['id']]);
 $user_subjects = $user_subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Mentors and peers must be verified to find matches
+// Students can still search without verification (they're seeking help)
+if (($user['role'] === 'mentor' || $user['role'] === 'peer') && !$user['is_verified']) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verification Required - StudyConnect</title>
+        <link rel="stylesheet" href="../assets/css/style.css">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            .verification-required {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                padding: 2rem;
+            }
+            
+            .verification-card {
+                background: white;
+                border-radius: 20px;
+                padding: 3rem 2rem;
+                max-width: 500px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+            
+            .verification-icon {
+                width: 80px;
+                height: 80px;
+                background: linear-gradient(135deg, #fbbf24, #f59e0b);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 1.5rem;
+                font-size: 2.5rem;
+            }
+            
+            .verification-title {
+                color: #2d3748;
+                font-size: 1.8rem;
+                font-weight: 700;
+                margin-bottom: 1rem;
+            }
+            
+            .verification-text {
+                color: #718096;
+                line-height: 1.6;
+                margin-bottom: 2rem;
+            }
+            
+            .verification-actions {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .btn-verify {
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 1rem 2rem;
+                border-radius: 25px;
+                font-weight: 600;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            }
+            
+            .btn-verify:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            }
+            
+            .btn-back {
+                color: #4a5568;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            
+            .btn-back:hover {
+                color: #2d3748;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="verification-required">
+            <div class="verification-card">
+                <div class="verification-icon">🔒</div>
+                <h1 class="verification-title">Verification Required</h1>
+                <p class="verification-text">
+                    To ensure the quality and safety of our community, <?php echo $user['role'] === 'mentor' ? 'mentors' : 'peers'; ?> 
+                    must be verified before they can find and match with students.
+                </p>
+                <p class="verification-text">
+                    Please contact an administrator to get your account verified. Once verified, you'll be able to:
+                </p>
+                <ul style="text-align: left; color: #4a5568; margin-bottom: 2rem; line-height: 1.8;">
+                    <li>Find and match with students</li>
+                    <li>Offer help in your areas of expertise</li>
+                    <li>Build your reputation in the community</li>
+                    <li>Schedule study sessions</li>
+                </ul>
+                <div class="verification-actions">
+                    <a href="../dashboard.php" class="btn-verify">Go to Dashboard</a>
+                    <a href="../profile/index.php" class="btn-back">View My Profile</a>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
 
 if (!isset($_SESSION['passed_users'])) {
     $_SESSION['passed_users'] = [];
@@ -74,9 +195,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_match'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pass_match'])) {
     $passed_user_id = (int)$_POST['passed_user_id'];
+    
+    // Add to session for immediate filtering
     if (!in_array($passed_user_id, $_SESSION['passed_users'])) {
         $_SESSION['passed_users'][] = $passed_user_id;
     }
+    
+    // Store rejection in database for 7-day ban
+    try {
+        $rejection_stmt = $db->prepare("
+            INSERT INTO user_rejections (rejector_id, rejected_id) 
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE rejected_at = CURRENT_TIMESTAMP
+        ");
+        $rejection_stmt->execute([$user['id'], $passed_user_id]);
+    } catch (Exception $e) {
+        error_log("Failed to store rejection: " . $e->getMessage());
+    }
+    
     // Trigger the matching algorithm again to find next match
     $_POST['find_match'] = true;
 }
@@ -90,6 +226,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
     } else {
         $all_potential_matches = [];
         $subject_match_counts = []; // Track how many subjects each user matches on
+        
+        $rejected_users_stmt = $db->prepare("
+            SELECT rejected_id 
+            FROM user_rejections 
+            WHERE rejector_id = ? 
+            AND expires_at > NOW()
+        ");
+        $rejected_users_stmt->execute([$user['id']]);
+        $rejected_users = $rejected_users_stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // Merge with session passed users
+        $all_rejected_users = array_unique(array_merge($_SESSION['passed_users'], $rejected_users));
         
         if ($help_mode === 'offering' && $user['role'] === 'peer') {
             // OFFERING HELP MODE: Match user's TEACHING subjects with others' LEARNING subjects
@@ -114,8 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                     foreach ($subject_matches as $match) {
                         $match_id = $match['id'];
                         
-                        // Skip passed users
-                        if (in_array($match_id, $_SESSION['passed_users'])) {
+                        if (in_array($match_id, $all_rejected_users)) {
                             continue;
                         }
                         
@@ -143,8 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                 foreach ($subject_matches as $match) {
                     $match_id = $match['id'];
                     
-                    // Skip passed users
-                    if (in_array($match_id, $_SESSION['passed_users'])) {
+                    if (in_array($match_id, $all_rejected_users)) {
                         continue;
                     }
                     
@@ -182,8 +328,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
             // Use GPS-based distance sorting
             $location_sorted = $matchmaker->findNearestMatches($user['id'], 50);
             
-            $location_sorted = array_filter($location_sorted, function($match) {
-                return !in_array($match['id'], $_SESSION['passed_users']);
+            $location_sorted = array_filter($location_sorted, function($match) use ($all_rejected_users) {
+                return !in_array($match['id'], $all_rejected_users);
             });
             
             // Merge location data with subject matches while preserving subject priority
@@ -631,12 +777,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                             <?php endif; ?>
                         </div>
                     </div>
-                    <script>
-                        // Auto-refresh to show results after loading animation
-                        setTimeout(() => {
-                            location.reload();
-                        }, 2000);
-                    </script>
                 <?php elseif ($current_match): ?>
                     <div class="match-card-container">
                         <div class="match-found-card">

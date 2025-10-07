@@ -64,6 +64,12 @@ class MatchmakingEngine {
                 WHERE (student_id = ? OR mentor_id = ?) 
                 AND status IN ('pending', 'accepted')
             )
+            AND u.id NOT IN (
+                SELECT rejected_id 
+                FROM user_rejections 
+                WHERE rejector_id = ? 
+                AND expires_at > NOW()
+            )
             GROUP BY u.id 
             HAVING distance_km <= 100
             ORDER BY distance_km ASC 
@@ -72,7 +78,7 @@ class MatchmakingEngine {
         $params = array_merge(
             [$user['latitude'], $user['longitude'], $user['latitude']], // Haversine formula params
             $target_roles, 
-            [$user_id, $user_id, $user_id, $user_id]
+            [$user_id, $user_id, $user_id, $user_id, $user_id]
         );
         
         $stmt = $this->db->prepare($query);
@@ -138,9 +144,15 @@ class MatchmakingEngine {
                 WHERE (student_id = ? OR mentor_id = ?) 
                 AND status IN ('pending', 'accepted')
             )
+            AND u.id NOT IN (
+                SELECT rejected_id 
+                FROM user_rejections 
+                WHERE rejector_id = ? 
+                AND expires_at > NOW()
+            )
         ";
         
-        $params = array_merge($target_roles, [$user_id, $user_id, $user_id, $user_id]);
+        $params = array_merge($target_roles, [$user_id, $user_id, $user_id, $user_id, $user_id]);
         
         if ($subject) {
             $query .= " AND us.subject_name = ?";
@@ -601,18 +613,19 @@ $activity_score = $this->calculateActivityLevelScore(
                 WHERE (student_id = ? OR mentor_id = ?) 
                 AND status IN ('pending', 'accepted')
             )
+            AND u.id NOT IN (
+                SELECT rejected_id 
+                FROM user_rejections 
+                WHERE rejector_id = ? 
+                AND expires_at > NOW()
+            )
         ";
         
-        $params = [$user_id, $user_id, $user_id, $user_id];
+        $params = [$user_id, $user_id, $user_id, $user_id, $user_id];
         
         // Add subject filter if specified - find users who need help with this subject
         if ($subject) {
-            $query .= " AND EXISTS (
-                SELECT 1 FROM user_subjects us2 
-                WHERE us2.user_id = u.id 
-                AND us2.subject_name = ? 
-                AND us2.proficiency_level IN ('beginner', 'intermediate')
-            )";
+            $query .= " AND us.subject_name = ? AND us.proficiency_level IN ('beginner', 'intermediate')";
             $params[] = $subject;
         }
         

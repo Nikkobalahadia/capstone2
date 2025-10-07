@@ -20,9 +20,9 @@
 // Email Configuration
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
-define('SMTP_USERNAME', 'balahadianikko2015@gmail.com'); // Change this
-define('SMTP_PASSWORD', 'oidq sxyg yrkr soub'); // Change this (use App Password, not regular password)
-define('SMTP_FROM_EMAIL', 'balahadianikko2015@gmail.com'); // Change this
+define('SMTP_USERNAME', 'studybuddy.mentorship@gmail.com'); // Change this
+define('SMTP_PASSWORD', 'vkci ophi bzbl awvc'); // Change this (use App Password, not regular password)
+define('SMTP_FROM_EMAIL', 'studybuddy.mentorship@gmail.com'); // Change this
 define('SMTP_FROM_NAME', 'StudyConnect');
 define('SMTP_ENCRYPTION', 'tls'); // 'tls' or 'ssl'
 

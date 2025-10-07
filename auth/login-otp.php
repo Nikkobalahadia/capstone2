@@ -19,17 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_otp'])) {
         } else {
             $db = getDB();
             
-            // Check if user exists
             $stmt = $db->prepare("SELECT id, is_active FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             
             if (!$user) {
-                $error = 'No account found with this email address.';
+                $error = "Couldn't find your account. Check your email address and try again.";
             } elseif (!$user['is_active']) {
                 $error = 'Your account has been deactivated. Please contact support.';
             } else {
-                // Generate OTP
                 $otp_code = str_pad(random_int(0, 999999), OTP_LENGTH, '0', STR_PAD_LEFT);
                 $expires_at = date('Y-m-d H:i:s', strtotime('+' . OTP_EXPIRY_MINUTES . ' minutes'));
                 
@@ -82,29 +80,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
                 $update_stmt = $db->prepare("UPDATE otp_codes SET is_used = 1 WHERE id = ?");
                 $update_stmt->execute([$otp['id']]);
                 
-                // Get user details
                 $user_stmt = $db->prepare("SELECT id, username, role, first_name, last_name FROM users WHERE email = ?");
                 $user_stmt->execute([$email]);
                 $user = $user_stmt->fetch();
                 
-                // Log successful login
-                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'login_otp', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['method' => 'otp']), $_SERVER['REMOTE_ADDR']]);
-                
-                // Set session variables
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                
-                // Clear OTP email from session
-                unset($_SESSION['otp_email']);
-                
-                // Redirect based on role
-                if ($user['role'] === 'admin') {
-                    redirect('admin/dashboard.php');
+                if (!$user) {
+                    $error = 'User account not found. Please register first.';
                 } else {
-                    redirect('dashboard.php');
+                    // Log successful login
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'login_otp', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['method' => 'otp']), $_SERVER['REMOTE_ADDR']]);
+                    
+                    // Set session variables
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
+                    
+                    // Clear OTP email from session
+                    unset($_SESSION['otp_email']);
+                    
+                    // Redirect based on role
+                    if ($user['role'] === 'admin') {
+                        redirect('admin/dashboard.php');
+                    } else {
+                        redirect('dashboard.php');
+                    }
                 }
             }
         }
@@ -116,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login with OTP - StudyConnect</title>
+    <title>Sign In with Email - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -137,7 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
         <div class="form-container">
             <?php if ($step === 'email'): ?>
                 <h2 class="text-center mb-4">Sign In with Email</h2>
-                <p class="text-center text-secondary mb-4">We'll send a verification code to your email</p>
+                <!-- Updated description to clarify this is for existing accounts only -->
+                <p class="text-center text-secondary mb-4">Enter your email to receive a verification code</p>
                 
                 <?php if ($error): ?>
                     <div class="alert alert-error"><?php echo $error; ?></div>
@@ -154,12 +156,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
                     </div>
                     
                     <button type="submit" name="request_otp" class="btn btn-primary" style="width: 100%;">
-                        Send Verification Code
+                        Continue with Email
                     </button>
                 </form>
                 
                 <div class="text-center mt-4">
                     <p class="text-secondary">Prefer password login? <a href="login.php" class="text-primary">Sign in with password</a></p>
+                    <!-- Added link to registration for new users -->
                     <p class="text-secondary mt-2">Don't have an account? <a href="register.php" class="text-primary">Sign up here</a></p>
                 </div>
                 

@@ -229,29 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
                 
-                <!-- Session Actions -->
-                <div class="mt-4" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                    <h4 class="mb-3">Session Actions</h4>
-                    
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                        <!-- Mark Complete button -->
-                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to mark this session as completed?');">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="action" value="complete">
-                            <button type="submit" class="btn btn-success" style="width: 100%;">Mark as Complete</button>
-                        </form>
-                        
-                        <!-- Enhanced cancel form with reason selection -->
-                        <div style="flex: 1;">
-                            <button type="button" class="btn btn-danger" style="width: 100%;" onclick="showCancelModal()">Cancel Session</button>
-                        </div>
-                    </div>
-                    
-                    <p class="text-secondary">Mark the session as complete once it has taken place, or cancel if it cannot happen as scheduled.</p>
-                </div>
-            </div>
-        </div>
-    </main>
+
 
     <!-- Added cancellation reason modal -->
     <div id="cancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">

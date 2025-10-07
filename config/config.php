@@ -10,6 +10,8 @@ define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 // Include database configuration
 require_once 'database.php';
 
+require_once 'email.php';
+
 // Timezone setting
 date_default_timezone_set('Asia/Manila');
 
