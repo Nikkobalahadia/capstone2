@@ -40,13 +40,18 @@ $popular_subjects = $db->query("
     SELECT 
         us.subject_name,
         COUNT(CASE WHEN u.role = 'student' THEN 1 END) as student_demand,
-        COUNT(CASE WHEN u.role = 'mentor' THEN 1 END) as mentor_supply,
+        COUNT(CASE WHEN u.role IN ('mentor', 'peer') THEN 1 END) as mentor_supply,
         COUNT(*) as total_count,
-        ROUND(COUNT(CASE WHEN u.role = 'student' THEN 1 END) / NULLIF(COUNT(CASE WHEN u.role = 'mentor' THEN 1 END), 0), 2) as demand_supply_ratio
+        ROUND(
+            COUNT(CASE WHEN u.role = 'student' THEN 1 END) / 
+            NULLIF(COUNT(CASE WHEN u.role IN ('mentor', 'peer') THEN 1 END), 0), 
+            2
+        ) as demand_supply_ratio
     FROM user_subjects us
     JOIN users u ON us.user_id = u.id
-    WHERE u.role != 'admin'
+    WHERE u.role != 'admin' AND u.is_active = 1
     GROUP BY us.subject_name
+    HAVING student_demand > 0 OR mentor_supply > 0
     ORDER BY student_demand DESC
     LIMIT 15
 ")->fetchAll();
@@ -97,28 +102,6 @@ $rematch_requests = $db->query("
 ")->fetch();
 
 // 2.6 Feedback trends and common user concerns
-$feedback_trends = $db->query("
-    SELECT 
-        reason,
-        COUNT(*) as count,
-        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM user_reports), 2) as percentage
-    FROM user_reports
-    GROUP BY reason
-    ORDER BY count DESC
-    LIMIT 10
-")->fetchAll();
-
-$recent_feedback = $db->query("
-    SELECT 
-        ur.*,
-        reporter.first_name as reporter_name,
-        reported.first_name as reported_name
-    FROM user_reports ur
-    JOIN users reporter ON ur.reporter_id = reporter.id
-    JOIN users reported ON ur.reported_id = reported.id
-    ORDER BY ur.created_at DESC
-    LIMIT 20
-")->fetchAll();
 
 // 2.7 Session cancellation reasons and user inactivity
 $session_cancellation_stats = $db->query("
@@ -143,22 +126,6 @@ $cancellation_reasons = $db->query("
     LIMIT 10
 ")->fetchAll();
 
-$inactive_users = $db->query("
-    SELECT 
-        u.id,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.created_at,
-        MAX(ual.created_at) as last_activity
-    FROM users u
-    LEFT JOIN user_activity_logs ual ON u.id = ual.user_id
-    WHERE u.role != 'admin'
-    GROUP BY u.id
-    HAVING last_activity < DATE_SUB(NOW(), INTERVAL 30 DAY) OR last_activity IS NULL
-    ORDER BY last_activity ASC
-    LIMIT 50
-")->fetchAll();
 
 // Optimal time slots analysis
 $optimal_time_slots = $db->query("
@@ -216,54 +183,11 @@ $user_journey = $db->query("
     </style>
 </head>
 <body>
+    <?php include '../includes/admin-sidebar.php'; ?>
     <div class="container-fluid">
         <div class="row">
-            <nav class="col-md-2 d-none d-md-block sidebar">
-                <div class="position-sticky pt-3">
-                    <div class="text-center mb-4">
-                        <h4 class="text-white">Admin Panel</h4>
-                        <small class="text-white-50">Study Mentorship Platform</small>
-                    </div>
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link" href="dashboard.php">
-                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="users.php">
-                                <i class="fas fa-users me-2"></i>User Management
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="analytics.php">
-                                <i class="fas fa-analytics me-2"></i>Advanced Analytics
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="matches.php">
-                                <i class="fas fa-handshake me-2"></i>Matches
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="sessions.php">
-                                <i class="fas fa-calendar me-2"></i>Sessions
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="referral-audit.php">
-                                <i class="fas fa-gift me-2"></i>Referral Audit
-                            </a>
-                        </li>
-                    </ul>
-                    <hr class="text-white-50">
-                    <div class="text-center">
-                        <a href="../auth/logout.php" class="btn btn-outline-light btn-sm">
-                            <i class="fas fa-sign-out-alt me-1"></i>Logout
-                        </a>
-                    </div>
-                </div>
-            </nav>
+            
+            
             <main class="col-md-10 ms-sm-auto main-content">
                 <div class="p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -272,7 +196,7 @@ $user_journey = $db->query("
                             <p class="text-muted">Comprehensive platform performance metrics and insights.</p>
                         </div>
                         <div>
-                            <button class="btn btn-primary" onclick="exportAnalytics()">
+                            <button class="btn btn-primary" onclick="window.print()">
                                 <i class="fas fa-download me-2"></i>Export Report
                             </button>
                         </div>
@@ -367,6 +291,7 @@ $user_journey = $db->query("
                             <div class="card shadow">
                                 <div class="card-header py-3">
                                     <h6 class="m-0 font-weight-bold text-primary">Subject Demand vs Supply</h6>
+                                    <small class="text-muted">Students seeking help vs Mentors/Peers offering help</small>
                                 </div>
                                 <div class="card-body">
                                     <canvas id="demandSupplyChart" width="400" height="200"></canvas>
@@ -377,7 +302,7 @@ $user_journey = $db->query("
 
                     <div class="row">
                         <!-- Popular Strands -->
-                        <div class="col-lg-4 mb-4">
+                        <div class="col-lg-6 mb-4">
                             <div class="card shadow">
                                 <div class="card-header py-3">
                                     <h6 class="m-0 font-weight-bold text-primary">Most Popular Strands</h6>
@@ -399,7 +324,7 @@ $user_journey = $db->query("
                         </div>
 
                         <!-- Session Status Breakdown -->
-                        <div class="col-lg-4 mb-4">
+                        <div class="col-lg-6 mb-4">
                             <div class="card shadow">
                                 <div class="card-header py-3">
                                     <h6 class="m-0 font-weight-bold text-primary">Session Status Distribution</h6>
@@ -409,29 +334,9 @@ $user_journey = $db->query("
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Feedback Trends -->
-                        <div class="col-lg-4 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Common User Concerns</h6>
-                                </div>
-                                <div class="card-body">
-                                    <?php foreach ($feedback_trends as $trend): ?>
-                                        <div class="mb-3">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <span><?php echo htmlspecialchars($trend['reason']); ?></span>
-                                                <span class="font-weight-bold"><?php echo $trend['percentage']; ?>%</span>
-                                            </div>
-                                            <div class="progress" style="height: 6px;">
-                                                <div class="progress-bar bg-warning" style="width: <?php echo $trend['percentage']; ?>%"></div>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        </div>
                     </div>
+
+                    <!-- Removed "Common User Concerns" section -->
 
                     <!-- Session Cancellation Reasons -->
                     <div class="row">
@@ -471,7 +376,7 @@ $user_journey = $db->query("
 
                     <!-- Optimal Time Slots -->
                     <div class="row">
-                        <div class="col-lg-8 mb-4">
+                        <div class="col-lg-12 mb-4">
                             <div class="card shadow">
                                 <div class="card-header py-3">
                                     <h6 class="m-0 font-weight-bold text-primary">Optimal Time Slots for Sessions</h6>
@@ -483,27 +388,7 @@ $user_journey = $db->query("
                             </div>
                         </div>
 
-                        <!-- Inactive Users -->
-                        <div class="col-lg-4 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Inactive Users (30+ days)</h6>
-                                </div>
-                                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                                    <?php foreach (array_slice($inactive_users, 0, 15) as $user): ?>
-                                        <div class="border-bottom py-2">
-                                            <div class="small">
-                                                <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
-                                                <span class="badge badge-secondary"><?php echo ucfirst($user['role']); ?></span>
-                                            </div>
-                                            <div class="small text-muted">
-                                                Last active: <?php echo $user['last_activity'] ? date('M j, Y', strtotime($user['last_activity'])) : 'Never'; ?>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Removed "Inactive Users (30+ days)" section -->
                     </div>
                 </div>
             </main>
@@ -523,8 +408,8 @@ $user_journey = $db->query("
                 datasets: [{
                     label: 'Activity Count',
                     data: peakHoursData.map(d => d.activity_count),
-                    backgroundColor: 'rgba(37, 99, 235, 0.8)',
-                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                    borderColor: '#667eea',
                     borderWidth: 1
                 }]
             },
@@ -533,7 +418,15 @@ $user_journey = $db->query("
                 maintainAspectRatio: false,
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
                     }
                 }
             }
@@ -549,12 +442,16 @@ $user_journey = $db->query("
                 labels: demandSupplyData.map(d => d.subject_name),
                 datasets: [{
                     label: 'Student Demand',
-                    data: demandSupplyData.map(d => d.student_demand),
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)'
+                    data: demandSupplyData.map(d => parseInt(d.student_demand)),
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    borderColor: '#ef4444',
+                    borderWidth: 1
                 }, {
-                    label: 'Mentor Supply',
-                    data: demandSupplyData.map(d => d.mentor_supply),
-                    backgroundColor: 'rgba(16, 185, 129, 0.8)'
+                    label: 'Mentor/Peer Supply',
+                    data: demandSupplyData.map(d => parseInt(d.mentor_supply)),
+                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                    borderColor: '#10b981',
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -562,7 +459,28 @@ $user_journey = $db->query("
                 maintainAspectRatio: false,
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function(context) {
+                                if (context.datasetIndex === 0) {
+                                    const index = context.dataIndex;
+                                    const ratio = demandSupplyData[index].demand_supply_ratio;
+                                    return ratio ? `Demand/Supply Ratio: ${ratio}` : '';
+                                }
+                                return '';
+                            }
+                        }
                     }
                 }
             }
@@ -578,12 +496,17 @@ $user_journey = $db->query("
                 labels: sessionStatusData.map(d => d.status.charAt(0).toUpperCase() + d.status.slice(1)),
                 datasets: [{
                     data: sessionStatusData.map(d => d.count),
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#6b7280']
+                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#6b7280', '#667eea']
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
             }
         });
 
@@ -597,31 +520,45 @@ $user_journey = $db->query("
                 labels: optimalTimeSlotsData.map(d => d.hour + ':00'),
                 datasets: [{
                     label: 'Completion Rate (%)',
-                    data: optimalTimeSlotsData.map(d => d.completion_rate),
+                    data: optimalTimeSlotsData.map(d => parseFloat(d.completion_rate)),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    tension: 0.4
                 }, {
                     label: 'Session Count',
-                    data: optimalTimeSlotsData.map(d => d.session_count),
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    yAxisID: 'y1'
+                    data: optimalTimeSlotsData.map(d => parseInt(d.session_count)),
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
                     y: {
                         type: 'linear',
                         display: true,
                         position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Completion Rate (%)'
+                        }
                     },
                     y1: {
                         type: 'linear',
                         display: true,
                         position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Session Count'
+                        },
                         grid: {
                             drawOnChartArea: false,
                         },
@@ -657,11 +594,6 @@ $user_journey = $db->query("
                 }
             }
         });
-
-        function exportAnalytics() {
-            // Implementation for exporting analytics report
-            alert('Analytics export functionality would be implemented here');
-        }
     </script>
 </body>
 </html>

@@ -15,70 +15,146 @@ $db = getDB();
 $error = '';
 $success = '';
 
-// Handle user actions
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="users_export_' . date('Y-m-d') . '.csv"');
+    
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['ID', 'Username', 'Email', 'First Name', 'Last Name', 'Role', 'Verified', 'Active', 'Joined Date']);
+    
+    $export_query = "SELECT id, username, email, first_name, last_name, role, is_verified, is_active, created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC";
+    $export_stmt = $db->query($export_query);
+    
+    while ($row = $export_stmt->fetch()) {
+        fputcsv($output, [
+            $row['id'],
+            $row['username'],
+            $row['email'],
+            $row['first_name'],
+            $row['last_name'],
+            $row['role'],
+            $row['is_verified'] ? 'Yes' : 'No',
+            $row['is_active'] ? 'Yes' : 'No',
+            $row['created_at']
+        ]);
+    }
+    
+    fclose($output);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
         $action = $_POST['action'];
-        $user_id = (int)$_POST['user_id'];
         
         try {
-            switch ($action) {
-                case 'verify':
-                    $stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_verify_user', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['verified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                    
-                    $success = 'User verified successfully.';
-                    break;
-                    
-                case 'unverify':
-                    $stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_unverify_user', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['unverified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                    
-                    $success = 'User verification removed.';
-                    break;
-                    
-                case 'activate':
-                    $stmt = $db->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_activate_user', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['activated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                    
-                    $success = 'User activated successfully.';
-                    break;
-                    
-                case 'deactivate':
-                    $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_deactivate_user', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['deactivated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                    
-                    $success = 'User deactivated successfully.';
-                    break;
-                    
-                case 'delete':
-                    $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_delete_user', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['deleted_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                    
-                    $success = 'User deleted successfully.';
-                    break;
+            if ($action === 'create') {
+                $username = sanitize_input($_POST['username']);
+                $email = sanitize_input($_POST['email']);
+                $first_name = sanitize_input($_POST['first_name']);
+                $last_name = sanitize_input($_POST['last_name']);
+                $role = sanitize_input($_POST['role']);
+                $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                
+                $stmt = $db->prepare("INSERT INTO users (username, email, first_name, last_name, role, password_hash, is_verified, is_active) VALUES (?, ?, ?, ?, ?, ?, 1, 1)");
+                $stmt->execute([$username, $email, $first_name, $last_name, $role, $password]);
+                
+                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_create_user', ?, ?)");
+                $log_stmt->execute([$user['id'], json_encode(['created_user_email' => $email]), $_SERVER['REMOTE_ADDR']]);
+                
+                $success = 'User created successfully.';
+            } elseif ($action === 'update') {
+                $user_id = (int)$_POST['user_id'];
+                $username = sanitize_input($_POST['username']);
+                $email = sanitize_input($_POST['email']);
+                $first_name = sanitize_input($_POST['first_name']);
+                $last_name = sanitize_input($_POST['last_name']);
+                $role = sanitize_input($_POST['role']);
+                
+                $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, role = ? WHERE id = ?");
+                $stmt->execute([$username, $email, $first_name, $last_name, $role, $user_id]);
+                
+                if (!empty($_POST['password'])) {
+                    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                    $pwd_stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                    $pwd_stmt->execute([$password, $user_id]);
+                }
+                
+                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_update_user', ?, ?)");
+                $log_stmt->execute([$user['id'], json_encode(['updated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                
+                $success = 'User updated successfully.';
+            } else {
+                // Existing actions (verify, unverify, activate, deactivate, delete)
+                $user_id = (int)$_POST['user_id'];
+                
+                switch ($action) {
+                    case 'verify':
+                        $stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
+                        $stmt->execute([$user_id]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_verify_user', ?, ?)");
+                        $log_stmt->execute([$user['id'], json_encode(['verified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                        
+                        $success = 'User verified successfully.';
+                        break;
+                        
+                    case 'unverify':
+                        $stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
+                        $stmt->execute([$user_id]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_unverify_user', ?, ?)");
+                        $log_stmt->execute([$user['id'], json_encode(['unverified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                        
+                        $success = 'User verification removed.';
+                        break;
+                        
+                    case 'activate':
+                        $stmt = $db->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
+                        $stmt->execute([$user_id]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_activate_user', ?, ?)");
+                        $log_stmt->execute([$user['id'], json_encode(['activated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                        
+                        $success = 'User activated successfully.';
+                        break;
+                        
+                    case 'deactivate':
+                        $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+                        $stmt->execute([$user_id]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_deactivate_user', ?, ?)");
+                        $log_stmt->execute([$user['id'], json_encode(['deactivated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                        
+                        $success = 'User deactivated successfully.';
+                        break;
+                        
+                    case 'delete':
+                        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                        $stmt->execute([$user_id]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_delete_user', ?, ?)");
+                        $log_stmt->execute([$user['id'], json_encode(['deleted_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                        
+                        $success = 'User deleted successfully.';
+                        break;
+                }
             }
         } catch (Exception $e) {
-            $error = 'Failed to perform action. Please try again.';
+            $error = 'Failed to perform action: ' . $e->getMessage();
         }
     }
+}
+
+$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
+$sort_dir = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'ASC' : 'DESC';
+
+// Validate sort column
+$allowed_sorts = ['first_name', 'last_name', 'email', 'role', 'created_at', 'is_verified', 'is_active'];
+if (!in_array($sort_by, $allowed_sorts)) {
+    $sort_by = 'created_at';
 }
 
 // Get filters
@@ -130,13 +206,25 @@ $users_query = "
     LEFT JOIN session_ratings sr ON u.id = sr.rated_id
     WHERE $where_clause
     GROUP BY u.id
-    ORDER BY u.created_at DESC
+    ORDER BY u.$sort_by $sort_dir
     LIMIT 50
 ";
 
 $stmt = $db->prepare($users_query);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
+
+function getSortLink($column, $current_sort, $current_dir) {
+    $params = $_GET;
+    $params['sort'] = $column;
+    $params['dir'] = ($current_sort === $column && $current_dir === 'DESC') ? 'asc' : 'desc';
+    return '?' . http_build_query($params);
+}
+
+function getSortIcon($column, $current_sort, $current_dir) {
+    if ($current_sort !== $column) return '<i class="fas fa-sort text-muted"></i>';
+    return $current_dir === 'ASC' ? '<i class="fas fa-sort-up"></i>' : '<i class="fas fa-sort-down"></i>';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -144,7 +232,6 @@ $users = $stmt->fetchAll();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - StudyConnect Admin</title>
-    <!-- Updated to use Bootstrap and purple admin theme -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -154,46 +241,15 @@ $users = $stmt->fetchAll();
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
         .main-content { margin-left: 250px; padding: 20px; }
+        /* Added sortable table header styles */
+        .sortable-header { cursor: pointer; user-select: none; }
+        .sortable-header:hover { background-color: #e9ecef; }
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
     </style>
 </head>
 <body>
-    <!-- Replaced horizontal header with purple sidebar navigation -->
-    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
-        <div class="p-4">
-            <h4 class="text-white mb-0">Admin Panel</h4>
-            <small class="text-white-50">Study Mentorship Platform</small>
-        </div>
-        <nav class="nav flex-column px-3">
-            <a class="nav-link" href="dashboard.php">
-                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-            </a>
-            <a class="nav-link active" href="users.php">
-                <i class="fas fa-users me-2"></i> User Management
-            </a>
-            <li class="nav-item">
-                            <a class="nav-link active" href="analytics.php">
-                                <i class="fas fa-analytics me-2"></i>Advanced Analytics
-                            </a>
-                        </li>
-            <a class="nav-link" href="matches.php">
-                <i class="fas fa-handshake me-2"></i> Matches
-            </a>
-            <a class="nav-link" href="sessions.php">
-                <i class="fas fa-video me-2"></i> Sessions
-            </a>
-            <a class="nav-link" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-        </nav>
-        <div class="position-absolute bottom-0 w-100 p-3">
-            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
-                <i class="fas fa-sign-out-alt me-2"></i> Logout
-            </a>
-        </div>
-    </div>
+    <?php require_once '../includes/admin-sidebar.php'; ?>
 
-    <!-- Updated main content area to work with sidebar layout -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -201,20 +257,38 @@ $users = $stmt->fetchAll();
                     <h1 class="h3 mb-0 text-gray-800">User Management</h1>
                     <p class="text-muted">Manage user accounts, verification, and activity.</p>
                 </div>
+                <div>
+                    <!-- Added Create User button -->
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                        <i class="fas fa-plus me-2"></i> Add New User
+                    </button>
+                    <a href="?export=csv" class="btn btn-success">
+                        <i class="fas fa-download me-2"></i> Export to CSV
+                    </a>
+                </div>
             </div>
 
             <?php if ($error): ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <?php echo $error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             <?php endif; ?>
             
             <?php if ($success): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
+                <div class="alert alert-success alert-dismissible fade show">
+                    <?php echo $success; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             <?php endif; ?>
 
-            <!-- Filters -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
+                         <!-- Preserve sort parameters in filter form -->
+                        <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort_by); ?>">
+                        <input type="hidden" name="dir" value="<?php echo htmlspecialchars($sort_dir); ?>">
+                        
                         <div class="col-md-3">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" id="search" name="search" class="form-control" 
@@ -228,6 +302,7 @@ $users = $stmt->fetchAll();
                                 <option value="">All Roles</option>
                                 <option value="student" <?php echo $role_filter === 'student' ? 'selected' : ''; ?>>Students</option>
                                 <option value="mentor" <?php echo $role_filter === 'mentor' ? 'selected' : ''; ?>>Mentors</option>
+                                <option value="peer" <?php echo $role_filter === 'peer' ? 'selected' : ''; ?>>Peers</option>
                             </select>
                         </div>
                         
@@ -252,23 +327,29 @@ $users = $stmt->fetchAll();
                 </div>
             </div>
 
-            <!-- Users Table -->
             <div class="card shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">Users (<?php echo count($users); ?>)</h6>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-bordered mb-0">
+                        <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
+                                     <!-- Made table headers sortable -->
+                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('first_name', $sort_by, $sort_dir); ?>'">
+                                        User <?php echo getSortIcon('first_name', $sort_by, $sort_dir); ?>
+                                    </th>
+                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('role', $sort_by, $sort_dir); ?>'">
+                                        Role <?php echo getSortIcon('role', $sort_by, $sort_dir); ?>
+                                    </th>
                                     <th>Status</th>
                                     <th>Activity</th>
                                     <th>Rating</th>
-                                    <th>Joined</th>
-                                    <th>Actions</th>
+                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('created_at', $sort_by, $sort_dir); ?>'">
+                                        Joined <?php echo getSortIcon('created_at', $sort_by, $sort_dir); ?>
+                                    </th>
+                                    <th style="width: 180px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -281,7 +362,7 @@ $users = $stmt->fetchAll();
                                                          alt="<?php echo htmlspecialchars($u['first_name']); ?>" 
                                                          style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                                                 <?php else: ?>
-                                                    <div style="width: 40px; height: 40px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
+                                                    <div style="width: 40px; height: 40px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
                                                         <?php echo strtoupper(substr($u['first_name'], 0, 1) . substr($u['last_name'], 0, 1)); ?>
                                                     </div>
                                                 <?php endif; ?>
@@ -293,23 +374,26 @@ $users = $stmt->fetchAll();
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="badge <?php echo $u['role'] === 'student' ? 'bg-primary' : 'bg-success'; ?>">
+                                            <span class="badge <?php 
+                                                echo $u['role'] === 'student' ? 'bg-primary' : 
+                                                    ($u['role'] === 'mentor' ? 'bg-success' : 'bg-info'); 
+                                            ?>">
                                                 <?php echo ucfirst($u['role']); ?>
                                             </span>
                                         </td>
                                         <td>
                                             <div class="small">
                                                 <?php if ($u['is_verified']): ?>
-                                                    <span class="text-success">✓ Verified</span>
+                                                    <span class="text-success"><i class="fas fa-check-circle"></i> Verified</span>
                                                 <?php else: ?>
-                                                    <span class="text-warning">⚠ Unverified</span>
+                                                    <span class="text-warning"><i class="fas fa-exclamation-circle"></i> Unverified</span>
                                                 <?php endif; ?>
                                             </div>
                                             <div class="small">
                                                 <?php if ($u['is_active']): ?>
-                                                    <span class="text-success">● Active</span>
+                                                    <span class="text-success"><i class="fas fa-circle"></i> Active</span>
                                                 <?php else: ?>
-                                                    <span class="text-danger">● Inactive</span>
+                                                    <span class="text-danger"><i class="fas fa-circle"></i> Inactive</span>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
@@ -319,50 +403,68 @@ $users = $stmt->fetchAll();
                                         </td>
                                         <td>
                                             <?php if ($u['avg_rating']): ?>
-                                                <div class="small"><?php echo number_format($u['avg_rating'], 1); ?>/5</div>
+                                                <div class="small">
+                                                    <i class="fas fa-star text-warning"></i> 
+                                                    <?php echo number_format($u['avg_rating'], 1); ?>/5
+                                                </div>
                                                 <div class="small text-muted">(<?php echo $u['rating_count']; ?> reviews)</div>
                                             <?php else: ?>
-                                                <span class="text-muted">No ratings</span>
+                                                <span class="text-muted small">No ratings</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="small"><?php echo date('M j, Y', strtotime($u['created_at'])); ?></div>
                                         </td>
                                         <td>
-                                            <div class="btn-group-vertical btn-group-sm">
+                                             <!-- Improved action buttons layout -->
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button class="btn btn-outline-primary" 
+                                                        onclick="editUser(<?php echo htmlspecialchars(json_encode($u)); ?>)"
+                                                        title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                
                                                 <?php if (!$u['is_verified']): ?>
                                                     <form method="POST" class="d-inline">
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="verify">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-success btn-sm">Verify</button>
-                                                    </form>
-                                                <?php else: ?>
-                                                    <form method="POST" class="d-inline">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                        <input type="hidden" name="action" value="unverify">
-                                                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-warning btn-sm">Unverify</button>
+                                                        <button type="submit" class="btn btn-outline-success" title="Verify">
+                                                            <i class="fas fa-check"></i>
+                                                        </button>
                                                     </form>
                                                 <?php endif; ?>
                                                 
                                                 <?php if ($u['is_active']): ?>
-                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to deactivate this user?');">
+                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Deactivate this user?');">
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="deactivate">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-danger btn-sm">Deactivate</button>
+                                                        <button type="submit" class="btn btn-outline-warning" title="Deactivate">
+                                                            <i class="fas fa-ban"></i>
+                                                        </button>
                                                     </form>
                                                 <?php else: ?>
                                                     <form method="POST" class="d-inline">
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="activate">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-success btn-sm">Activate</button>
+                                                        <button type="submit" class="btn btn-outline-success" title="Activate">
+                                                            <i class="fas fa-check-circle"></i>
+                                                        </button>
                                                     </form>
                                                 <?php endif; ?>
                                                 
-                                                <a href="user-profile.php?id=<?php echo $u['id']; ?>" class="btn btn-secondary btn-sm">View</a>
+                                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                    <input type="hidden" name="action" value="delete">
+                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <!-- Removed View Documents button - moved to separate Verifications page -->
                                             </div>
                                         </td>
                                     </tr>
@@ -371,8 +473,9 @@ $users = $stmt->fetchAll();
                         </table>
                         
                         <?php if (empty($users)): ?>
-                            <div class="text-center py-4 text-muted">
-                                No users found matching your criteria.
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-users fa-3x mb-3"></i>
+                                <p>No users found matching your criteria.</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -381,7 +484,138 @@ $users = $stmt->fetchAll();
         </div>
     </div>
 
-    <!-- Added Bootstrap JS -->
+     <!-- Create User Modal -->
+    <div class="modal fade" id="createUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add New User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="action" value="create">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Username *</label>
+                            <input type="text" name="username" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" name="email" class="form-control" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">First Name *</label>
+                                <input type="text" name="first_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Last Name *</label>
+                                <input type="text" name="last_name" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Role *</label>
+                            <select name="role" class="form-select" required>
+                                <option value="student">Student</option>
+                                <option value="mentor">Mentor</option>
+                                <option value="peer">Peer</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Password *</label>
+                            <input type="password" name="password" class="form-control" required minlength="6">
+                            <small class="text-muted">Minimum 6 characters</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+     <!-- Edit User Modal -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="action" value="update">
+                        <input type="hidden" name="user_id" id="edit_user_id">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Username *</label>
+                            <input type="text" name="username" id="edit_username" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" name="email" id="edit_email" class="form-control" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">First Name *</label>
+                                <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Last Name *</label>
+                                <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Role *</label>
+                            <select name="role" id="edit_role" class="form-select" required>
+                                <option value="student">Student</option>
+                                <option value="mentor">Mentor</option>
+                                <option value="peer">Peer</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">New Password</label>
+                            <input type="password" name="password" class="form-control" minlength="6">
+                            <small class="text-muted">Leave blank to keep current password</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+     <!-- Removed Verification Documents Modal - moved to separate Verifications page -->
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function editUser(user) {
+            document.getElementById('edit_user_id').value = user.id;
+            document.getElementById('edit_username').value = user.username;
+            document.getElementById('edit_email').value = user.email;
+            document.getElementById('edit_first_name').value = user.first_name;
+            document.getElementById('edit_last_name').value = user.last_name;
+            document.getElementById('edit_role').value = user.role;
+            
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
+        
+    </script>
 </body>
 </html>

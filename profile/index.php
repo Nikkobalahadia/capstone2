@@ -455,12 +455,10 @@ if ($user['role'] === 'student') {
                     <?php endif; ?>
 
                     <!-- Mentor Verification -->
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                    <?php if ($user['role'] === 'mentor'): ?>
                         <div class="card mb-4">
                             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                                <h3 class="card-title">
-                                    <?php echo $user['role'] === 'peer' ? 'Peer Verification' : 'Mentor Verification'; ?>
-                                </h3>
+                                <h3 class="card-title">Mentor Verification</h3>
                                 <a href="verification.php" class="btn btn-secondary">Manage Documents</a>
                             </div>
                             <div class="card-body">
@@ -469,10 +467,10 @@ if ($user['role'] === 'student') {
                                         <div style="color: var(--success-color); font-size: 1.5rem;">✓</div>
                                         <div>
                                             <div class="font-medium" style="color: var(--success-color);">
-                                                <?php echo $user['role'] === 'peer' ? 'Verified Peer' : 'Verified Mentor'; ?>
+                                                Verified Mentor
                                             </div>
                                             <div class="text-sm text-secondary">
-                                                Your <?php echo $user['role']; ?> status has been verified by our admin team.
+                                                Your mentor status has been verified by our admin team.
                                             </div>
                                         </div>
                                     </div>
@@ -482,7 +480,7 @@ if ($user['role'] === 'student') {
                                         <div>
                                             <div class="font-medium" style="color: var(--warning-color);">Verification Pending</div>
                                             <div class="text-sm text-secondary">
-                                                Upload verification documents to become a verified <?php echo $user['role']; ?>.
+                                                Upload verification documents to become a verified mentor.
                                             </div>
                                         </div>
                                     </div>
@@ -503,8 +501,7 @@ if ($user['role'] === 'student') {
                                         <div>
                                             <div class="font-medium" style="color: var(--primary-color);">Share Your Expertise</div>
                                             <div class="text-sm text-secondary">
-                                                Generate referral codes to invite <?php echo $user['role'] === 'peer' ? 'other peers and co-teachers' : 'co-teachers'; ?> 
-                                                and help them get verified instantly.
+                                                Generate referral codes to invite other peers and co-teachers and help them get verified instantly.
                                             </div>
                                         </div>
                                     </div>

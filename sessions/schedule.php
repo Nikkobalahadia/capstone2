@@ -631,7 +631,6 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php else: ?>
                 <div class="schedule-container">
-                     Calendar 
                     <div class="calendar-card">
                         <div class="calendar-header">
                             <h3 id="calendarMonth">October 2025</h3>
@@ -645,7 +644,6 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                     Form 
                     <div class="form-card">
                         <h3>Session Details</h3>
                         <form method="POST" action="">

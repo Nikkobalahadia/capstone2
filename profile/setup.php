@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $referral_code = null;
         $referral = null; // Initialize $referral to null
-        if ($role === 'mentor' && !empty($_POST['referral_code'])) {
+        if (($role === 'mentor' || $role === 'peer') && !empty($_POST['referral_code'])) {
             $referral_code = sanitize_input($_POST['referral_code']);
             
             // Validate referral code
@@ -121,12 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db = getDB();
                     $db->beginTransaction();
                     
-                    if ($role === 'mentor' && !empty($referral_code) && $referral) {
+                    if (($role === 'mentor' || $role === 'peer') && !empty($referral_code) && $referral) {
                         // Update referral code usage
                         $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
                         $update_ref->execute([$referral['id']]);
                         
-                        // Mark mentor as verified if they used a valid referral code
                         $verify_stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
                         $verify_stmt->execute([$user['id']]);
                         
@@ -141,6 +140,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'referral_code_used', ?, ?)");
                         $log_stmt->execute([$user['id'], $referral_details, $_SERVER['REMOTE_ADDR']]);
+                    } elseif ($role === 'mentor' || $role === 'peer') {
+                        $unverify_stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
+                        $unverify_stmt->execute([$user['id']]);
+                    } elseif ($role === 'student') {
+                        $unverify_stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
+                        $unverify_stmt->execute([$user['id']]);
                     }
                     
                     if ($role === 'student') {
@@ -353,14 +358,14 @@ $common_subjects = getMainSubjects();
                         </div>
                     </div>
                     
-                    <!-- Added referral code input for mentors -->
-                    <?php if ($user['role'] === 'mentor'): ?>
+                     Added referral code input for both mentors and peers 
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
                         <div class="form-group">
                             <label for="referral_code" class="form-label">Referral Code (Optional)</label>
                             <input type="text" id="referral_code" name="referral_code" class="form-input" 
                                    placeholder="Enter referral code if you have one"
                                    value="<?php echo htmlspecialchars($_POST['referral_code'] ?? ''); ?>">
-                             <p class="text-sm text-secondary mt-1">Using a referral code verifies your account and may unlock benefits.</p>
+                            <p class="text-sm text-secondary mt-1">Using a referral code verifies your account and may unlock benefits.</p>
                         </div>
                     <?php endif; ?>
                     

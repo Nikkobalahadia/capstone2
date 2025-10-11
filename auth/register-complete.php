@@ -37,8 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $db->beginTransaction();
                     
-                    // Create user account (no password needed for OTP-only accounts)
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, 0)");
                     // Use a random hash as placeholder since they're using OTP login
                     $placeholder_hash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
                     $stmt->execute([$username, $email, $placeholder_hash, $role, $first_name, $last_name]);

@@ -52,8 +52,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $db->beginTransaction();
                     
+                    error_log("[v0] Starting peer upgrade for user ID: {$user['id']}");
+                    
+                    // Update user role to peer and set verified status
                     $update_stmt = $db->prepare("UPDATE users SET role = 'peer', is_verified = 1 WHERE id = ?");
-                    $update_stmt->execute([$user['id']]);
+                    $result = $update_stmt->execute([$user['id']]);
+                    
+                    if (!$result) {
+                        error_log("[v0] ERROR: Failed to update user role - " . print_r($update_stmt->errorInfo(), true));
+                        throw new Exception("Failed to update user role");
+                    }
+                    
+                    $rows_affected = $update_stmt->rowCount();
+                    error_log("[v0] Update query affected {$rows_affected} rows");
+                    
+                    // Verify the update worked
+                    $verify_stmt = $db->prepare("SELECT role, is_verified FROM users WHERE id = ?");
+                    $verify_stmt->execute([$user['id']]);
+                    $verify_result = $verify_stmt->fetch();
+                    error_log("[v0] After update - Role: {$verify_result['role']}, Verified: {$verify_result['is_verified']}");
                     
                     // Update referral code usage
                     $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
@@ -65,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'new_role' => 'peer',
                         'referral_code' => $referral_code,
                         'referral_code_id' => $referral['id'],
-                        'referred_by' => $referral['created_by']
+                        'referred_by' => $referral['created_by'],
+                        'auto_verified' => true
                     ]);
                     
                     $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'upgrade_to_peer', ?, ?)");
@@ -73,16 +91,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $db->commit();
                     
-                    // Update session
                     $_SESSION['role'] = 'peer';
+                    $_SESSION['is_verified'] = 1;
                     
-                    $success = 'Congratulations! You are now a Peer. You can now both learn and teach on StudyConnect.';
+                    $refresh_stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+                    $refresh_stmt->execute([$user['id']]);
+                    $updated_user = $refresh_stmt->fetch();
+                    
+                    if ($updated_user) {
+                        // Update all session variables with fresh data
+                        foreach ($updated_user as $key => $value) {
+                            $_SESSION[$key] = $value;
+                        }
+                        error_log("[v0] Session updated - Role: {$_SESSION['role']}, Verified: {$_SESSION['is_verified']}");
+                    }
+                    
+                    error_log("[v0] User upgraded to peer - ID: {$user['id']}, Verified: {$updated_user['is_verified']}, Role: {$updated_user['role']}");
+                    
+                    $success = 'Congratulations! You are now a verified Peer. You can now both learn and teach on StudyConnect, and start finding matches immediately!';
                     
                     // Redirect to profile setup to add teaching subjects
-                    header("refresh:2;url=setup.php");
+                    header("refresh:3;url=setup.php");
                     
                 } catch (Exception $e) {
                     $db->rollBack();
+                    error_log("[v0] Error upgrading to peer: " . $e->getMessage());
                     $error = 'Failed to upgrade to peer status. Please try again.';
                 }
             }

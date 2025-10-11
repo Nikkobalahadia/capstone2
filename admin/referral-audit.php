@@ -13,6 +13,85 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="referral_codes_export_' . date('Y-m-d') . '.csv"');
+    
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Code', 'Creator Name', 'Creator Email', 'Verified', 'Current Uses', 'Max Uses', 'Expires At', 'Status', 'Created Date']);
+    
+    $export_query = "
+        SELECT rc.*, 
+               u.first_name, u.last_name, u.email, u.is_verified
+        FROM referral_codes rc
+        JOIN users u ON rc.created_by = u.id
+        ORDER BY rc.created_at DESC
+    ";
+    $export_stmt = $db->query($export_query);
+    
+    while ($row = $export_stmt->fetch()) {
+        $is_expired = $row['expires_at'] && strtotime($row['expires_at']) < time();
+        $is_maxed = $row['current_uses'] >= $row['max_uses'];
+        
+        if (!$row['is_active']) {
+            $status = 'Inactive';
+        } elseif ($is_expired) {
+            $status = 'Expired';
+        } elseif ($is_maxed) {
+            $status = 'Max Uses';
+        } else {
+            $status = 'Active';
+        }
+        
+        fputcsv($output, [
+            $row['code'],
+            $row['first_name'] . ' ' . $row['last_name'],
+            $row['email'],
+            $row['is_verified'] ? 'Yes' : 'No',
+            $row['current_uses'],
+            $row['max_uses'],
+            $row['expires_at'] ? $row['expires_at'] : 'Never',
+            $status,
+            $row['created_at']
+        ]);
+    }
+    
+    fclose($output);
+    exit;
+}
+
+$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+$verified_filter = isset($_GET['verified']) ? $_GET['verified'] : '';
+$search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+
+// Build query with filters
+$where_conditions = ['1=1'];
+$params = [];
+
+if ($status_filter === 'active') {
+    $where_conditions[] = "rc.is_active = 1 AND (rc.expires_at IS NULL OR rc.expires_at > NOW()) AND rc.current_uses < rc.max_uses";
+} elseif ($status_filter === 'expired') {
+    $where_conditions[] = "rc.expires_at < NOW()";
+} elseif ($status_filter === 'maxed') {
+    $where_conditions[] = "rc.current_uses >= rc.max_uses";
+} elseif ($status_filter === 'inactive') {
+    $where_conditions[] = "rc.is_active = 0";
+}
+
+if ($verified_filter === 'verified') {
+    $where_conditions[] = "u.is_verified = 1";
+} elseif ($verified_filter === 'unverified') {
+    $where_conditions[] = "u.is_verified = 0";
+}
+
+if ($search) {
+    $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR rc.code LIKE ?)";
+    $search_param = "%$search%";
+    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
+}
+
+$where_clause = implode(' AND ', $where_conditions);
+
 // Get referral code statistics
 $stats = $db->query("
     SELECT 
@@ -25,7 +104,7 @@ $stats = $db->query("
 ")->fetch();
 
 // Get all referral codes with creator info
-$codes_stmt = $db->query("
+$codes_query = "
     SELECT rc.*, 
            u.first_name, u.last_name, u.email, u.is_verified,
            COALESCE(referred_count.actual_referrals, 0) as actual_referrals
@@ -41,9 +120,14 @@ $codes_stmt = $db->query("
         AND JSON_EXTRACT(ual.details, '$.referral_code_id') IS NOT NULL
         GROUP BY JSON_EXTRACT(ual.details, '$.referral_code_id')
     ) referred_count ON referred_count.code_id = rc.id
+    WHERE $where_clause
     ORDER BY rc.created_at DESC
-");
-$referral_codes = $codes_stmt->fetchAll();
+    LIMIT 100
+";
+
+$stmt = $db->prepare($codes_query);
+$stmt->execute($params);
+$referral_codes = $stmt->fetchAll();
 
 // Get referral usage trends (last 30 days)
 $trends = $db->query("
@@ -102,38 +186,7 @@ $top_referrers = $db->query("
     </style>
 </head>
 <body>
-    <!-- Added consistent purple sidebar navigation -->
-    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
-        <div class="p-4">
-            <h4 class="text-white mb-0">Admin Panel</h4>
-            <small class="text-white-50">Study Mentorship Platform</small>
-        </div>
-        <nav class="nav flex-column px-3">
-            <a class="nav-link" href="dashboard.php">
-                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-            </a>
-            <a class="nav-link" href="users.php">
-                <i class="fas fa-users me-2"></i> User Management
-            </a>
-            <a class="nav-link" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link" href="matches.php">
-                <i class="fas fa-handshake me-2"></i> Matches
-            </a>
-            <a class="nav-link" href="sessions.php">
-                <i class="fas fa-video me-2"></i> Sessions
-            </a>
-            <a class="nav-link active" href="referral-audit.php">
-                <i class="fas fa-share-alt me-2"></i> Referral Audit
-            </a>
-        </nav>
-        <div class="position-absolute bottom-0 w-100 p-3">
-            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
-                <i class="fas fa-sign-out-alt me-2"></i> Logout
-            </a>
-        </div>
-    </div>
+    <?php include '../includes/admin-sidebar.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">
@@ -141,6 +194,12 @@ $top_referrers = $db->query("
                 <div>
                     <h1 class="h3 mb-0 text-gray-800">Referral Code Audit</h1>
                     <p class="text-muted">Monitor referral code usage and mentor activity.</p>
+                </div>
+                <!-- Added export button -->
+                <div>
+                    <a href="?export=csv<?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $verified_filter ? '&verified='.$verified_filter : ''; ?><?php echo $search ? '&search='.$search : ''; ?>" class="btn btn-success">
+                        <i class="fas fa-download me-2"></i> Export to CSV
+                    </a>
                 </div>
             </div>
 
@@ -211,12 +270,53 @@ $top_referrers = $db->query("
                 </div>
             </div>
 
+            <!-- Added filters section -->
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <form method="GET" action="" class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label for="search" class="form-label">Search</label>
+                            <input type="text" id="search" name="search" class="form-control" 
+                                   placeholder="Name, email, or code"
+                                   value="<?php echo htmlspecialchars($search); ?>">
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="status" class="form-label">Status</label>
+                            <select id="status" name="status" class="form-select">
+                                <option value="">All Status</option>
+                                <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                                <option value="expired" <?php echo $status_filter === 'expired' ? 'selected' : ''; ?>>Expired</option>
+                                <option value="maxed" <?php echo $status_filter === 'maxed' ? 'selected' : ''; ?>>Max Uses</option>
+                                <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="verified" class="form-label">Creator Status</label>
+                            <select id="verified" name="verified" class="form-select">
+                                <option value="">All Creators</option>
+                                <option value="verified" <?php echo $verified_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
+                                <option value="unverified" <?php echo $verified_filter === 'unverified' ? 'selected' : ''; ?>>Unverified</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                        </div>
+                        <div class="col-md-1">
+                            <a href="referral-audit.php" class="btn btn-secondary">Clear</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="row">
                 <!-- Referral Codes Table -->
                 <div class="col-lg-8">
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">All Referral Codes</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">All Referral Codes (<?php echo count($referral_codes); ?>)</h6>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -283,6 +383,13 @@ $top_referrers = $db->query("
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
+                                
+                                <?php if (empty($referral_codes)): ?>
+                                    <div class="text-center py-5 text-muted">
+                                        <i class="fas fa-ticket-alt fa-3x mb-3"></i>
+                                        <p>No referral codes found matching your criteria.</p>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>

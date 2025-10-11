@@ -53,6 +53,11 @@ class MatchmakingEngine {
             WHERE u.role IN ($role_placeholders)
             AND u.id != ? 
             AND u.is_active = 1
+            AND u.matchmaking_enabled = 1
+            AND (
+                u.role = 'student' 
+                OR (u.role IN ('mentor', 'peer') AND u.is_verified = 1)
+            )
             AND u.latitude IS NOT NULL 
             AND u.longitude IS NOT NULL
             AND u.id NOT IN (
@@ -135,6 +140,11 @@ class MatchmakingEngine {
             WHERE u.role IN ($role_placeholders)
             AND u.id != ? 
             AND u.is_active = 1
+            AND u.matchmaking_enabled = 1
+            AND (
+                u.role = 'student' 
+                OR (u.role IN ('mentor', 'peer') AND u.is_verified = 1)
+            )
             AND u.id NOT IN (
                 SELECT CASE 
                     WHEN student_id = ? THEN mentor_id 
@@ -604,6 +614,11 @@ $activity_score = $this->calculateActivityLevelScore(
             WHERE u.role IN ('student', 'peer')
             AND u.id != ? 
             AND u.is_active = 1
+            AND u.matchmaking_enabled = 1
+            AND (
+                u.role = 'student' 
+                OR (u.role = 'peer' AND u.is_verified = 1)
+            )
             AND u.id NOT IN (
                 SELECT CASE 
                     WHEN student_id = ? THEN mentor_id 

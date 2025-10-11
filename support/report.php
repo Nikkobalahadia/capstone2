@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db = getDB();
             $stmt = $db->prepare("
-                INSERT INTO reports (reporter_id, reported_user_id, report_type, description, status, created_at)
+                INSERT INTO user_reports (reporter_id, reported_id, reason, description, status, created_at)
                 VALUES (?, ?, ?, ?, 'pending', NOW())
             ");
             $stmt->execute([
