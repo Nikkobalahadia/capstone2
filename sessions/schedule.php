@@ -30,6 +30,14 @@ if (!$reminder_prefs) {
     $reminder_prefs = $prefs_stmt->fetch();
 }
 
+$settings_stmt = $db->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('commission_percentage', 'coa_terms_url')");
+$settings = [];
+while ($row = $settings_stmt->fetch()) {
+    $settings[$row['setting_key']] = $row['setting_value'];
+}
+$commission_percentage = $settings['commission_percentage'] ?? 10;
+$terms_url = $settings['coa_terms_url'] ?? '/terms-and-conditions.php';
+
 // Get user's active matches
 $matches_query = "
     SELECT m.id, m.subject,
@@ -67,6 +75,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $location = sanitize_input($_POST['location']);
         $notes = sanitize_input($_POST['notes']);
         $send_reminder = isset($_POST['send_reminder']) ? 1 : 0;
+        $terms_accepted = isset($_POST['terms_accepted']) ? 1 : 0;
         
         // Calculate end time based on duration
         $start_datetime = new DateTime($session_date . ' ' . $start_time);
@@ -77,24 +86,31 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validation
         if (empty($selected_match_id) || empty($session_date) || empty($start_time) || empty($duration)) {
             $error = 'Please fill in all required fields.';
+        } elseif (!$terms_accepted) {
+            $error = 'You must accept the terms and conditions to schedule a session.';
         } elseif (strtotime($session_date) < strtotime(date('Y-m-d'))) {
             $error = 'Session date cannot be in the past.';
         } else {
             $match_info_stmt = $db->prepare("
-                SELECT student_id, mentor_id 
-                FROM matches 
-                WHERE id = ? AND (student_id = ? OR mentor_id = ?)
+                SELECT m.student_id, m.mentor_id, u.hourly_rate
+                FROM matches m
+                JOIN users u ON u.id = CASE WHEN m.mentor_id != ? THEN m.mentor_id ELSE m.student_id END
+                WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
             ");
-            $match_info_stmt->execute([$selected_match_id, $user['id'], $user['id']]);
+            $match_info_stmt->execute([$user['id'], $selected_match_id, $user['id'], $user['id']]);
             $match_info = $match_info_stmt->fetch();
             
             if (!$match_info) {
                 $error = 'Invalid match selection.';
             } else {
-                // Determine partner ID
+                // Determine partner ID and mentor ID
                 $partner_id = ($match_info['student_id'] == $user['id']) 
                     ? $match_info['mentor_id'] 
                     : $match_info['student_id'];
+                $mentor_id = $match_info['mentor_id'];
+                
+                $hourly_rate = $match_info['hourly_rate'] ?? 0;
+                $payment_amount = ($hourly_rate * $duration) / 60; // Convert minutes to hours
                 
                 $conflict_check = $db->prepare("
                     SELECT COUNT(*) as conflict_count,
@@ -140,26 +156,19 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->beginTransaction();
                         
                         $stmt = $db->prepare("
-                            INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes) 
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes, terms_accepted, terms_accepted_at, payment_amount) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
                         ");
-                        $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes]);
+                        $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes, $terms_accepted, $payment_amount]);
                         $session_id = $db->lastInsertId();
                         
-                        if ($send_reminder) {
-                            $session_datetime = strtotime($session_date . ' ' . $start_time);
-                            
-                            if ($reminder_prefs['enable_24h_reminder']) {
-                                $reminder_time = date('Y-m-d H:i:s', $session_datetime - (24 * 3600));
-                                $db->prepare("INSERT INTO session_reminders (session_id, user_id, reminder_type, reminder_time) VALUES (?, ?, '24_hours', ?)")
-                                   ->execute([$session_id, $user['id'], $reminder_time]);
-                            }
-                            
-                            if ($reminder_prefs['enable_1h_reminder']) {
-                                $reminder_time = date('Y-m-d H:i:s', $session_datetime - 3600);
-                                $db->prepare("INSERT INTO session_reminders (session_id, user_id, reminder_type, reminder_time) VALUES (?, ?, '1_hour', ?)")
-                                   ->execute([$session_id, $user['id'], $reminder_time]);
-                            }
+                        if ($payment_amount > 0) {
+                            $commission_amount = ($payment_amount * $commission_percentage) / 100;
+                            $commission_stmt = $db->prepare("
+                                INSERT INTO commission_payments (session_id, mentor_id, session_amount, commission_amount, commission_percentage, payment_status)
+                                VALUES (?, ?, ?, ?, ?, 'pending')
+                            ");
+                            $commission_stmt->execute([$session_id, $mentor_id, $payment_amount, $commission_amount, $commission_percentage]);
                         }
                         
                         $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
@@ -681,6 +690,20 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-group">
                                 <label class="form-label">Notes (Optional)</label>
                                 <textarea name="notes" class="form-textarea" rows="3" placeholder="What topics will you cover?"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="checkbox-group" style="background: #fef3c7; border: 1px solid #fbbf24;">
+                                    <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required>
+                                    <label for="terms_accepted">
+                                        I agree to the <a href="<?php echo htmlspecialchars($terms_url); ?>" target="_blank" style="color: #7c3aed; text-decoration: underline;">Terms and Conditions</a> including the Commission on Agreement (COA) policy
+                                    </label>
+                                </div>
+                                <p style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem; padding-left: 1.75rem;">
+                                    <?php if ($commission_percentage > 0): ?>
+                                        Note: Mentors are required to pay <?php echo $commission_percentage; ?>% commission to the admin after each paid session.
+                                    <?php endif; ?>
+                                </p>
                             </div>
 
                             <div class="form-group">

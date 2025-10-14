@@ -113,16 +113,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($action === 'complete') {
             try {
+                $db->beginTransaction();
+                
                 $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
                 $stmt->execute([$session_id]);
+                
+                // Get mentor info and calculate commission
+                $commission_stmt = $db->prepare("
+                    SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time
+                    FROM sessions s
+                    JOIN matches m ON s.match_id = m.id
+                    JOIN users u ON m.mentor_id = u.id
+                    WHERE s.id = ?
+                ");
+                $commission_stmt->execute([$session_id]);
+                $commission_data = $commission_stmt->fetch();
+                
+                if ($commission_data && $commission_data['hourly_rate'] > 0) {
+                    // Calculate duration in hours
+                    $start = new DateTime($commission_data['start_time']);
+                    $end = new DateTime($commission_data['end_time']);
+                    $duration_hours = $end->diff($start)->h + ($end->diff($start)->i / 60);
+                    
+                    // Calculate session amount and commission (10%)
+                    $session_amount = $commission_data['hourly_rate'] * $duration_hours;
+                    $commission_amount = $session_amount * 0.10;
+                    
+                    // Insert commission payment record
+                    $insert_commission = $db->prepare("
+                        INSERT INTO commission_payments 
+                        (mentor_id, session_id, session_amount, amount, commission_rate, status, created_at) 
+                        VALUES (?, ?, ?, ?, 0.10, 'pending', NOW())
+                    ");
+                    $insert_commission->execute([
+                        $commission_data['mentor_id'],
+                        $session_id,
+                        $session_amount,
+                        $commission_amount
+                    ]);
+                }
                 
                 // Log activity
                 $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_completed', ?, ?)");
                 $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
                 
+                $db->commit();
+                
                 redirect('index.php');
                 
             } catch (Exception $e) {
+                $db->rollBack();
                 $error = 'Failed to mark session as completed. Please try again.';
             }
         }
@@ -229,7 +269,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
                 
-
+                <!-- Session Actions -->
+                <div class="mt-4" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                    <h4 class="mb-3">Session Actions</h4>
+                    
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <!-- Mark Complete button -->
+                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to mark this session as completed?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="action" value="complete">
+                            <button type="submit" class="btn btn-success" style="width: 100%;">Mark as Complete</button>
+                        </form>
+                        
+                        <!-- Enhanced cancel form with reason selection -->
+                        <div style="flex: 1;">
+                            <button type="button" class="btn btn-danger" style="width: 100%;" onclick="showCancelModal()">Cancel Session</button>
+                        </div>
+                    </div>
+                    
+                    <p class="text-secondary">Mark the session as complete once it has taken place, or cancel if it cannot happen as scheduled.</p>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <!-- Added cancellation reason modal -->
     <div id="cancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">

@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $referral_code = null;
         $referral = null; // Initialize $referral to null
-        if (($role === 'mentor' || $role === 'peer') && !empty($_POST['referral_code'])) {
+        if ($role === 'mentor' && !empty($_POST['referral_code'])) {
             $referral_code = sanitize_input($_POST['referral_code']);
             
             // Validate referral code
@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($role === 'mentor' || $role === 'peer') {
             $teaching_style = sanitize_input($_POST['teaching_style']);
             $availability = $_POST['availability'] ?? [];
+            $hourly_rate = !empty($_POST['hourly_rate']) ? (float)$_POST['hourly_rate'] : null;
         }
         
         $learning_subjects = [];
@@ -67,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $learning_subjects = $_POST['learning_subjects'] ?? [];
             $teaching_subjects = $_POST['teaching_subjects'] ?? [];
             $subjects = array_merge($learning_subjects, $teaching_subjects);
+            $hourly_rate = !empty($_POST['hourly_rate']) ? (float)$_POST['hourly_rate'] : null;
         }
 
         $profile_picture_path = null;
@@ -121,11 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db = getDB();
                     $db->beginTransaction();
                     
-                    if (($role === 'mentor' || $role === 'peer') && !empty($referral_code) && $referral) {
+                    if ($role === 'mentor' && !empty($referral_code) && $referral) {
                         // Update referral code usage
                         $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
                         $update_ref->execute([$referral['id']]);
                         
+                        // Mark mentor as verified if they used a valid referral code
                         $verify_stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
                         $verify_stmt->execute([$user['id']]);
                         
@@ -140,12 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'referral_code_used', ?, ?)");
                         $log_stmt->execute([$user['id'], $referral_details, $_SERVER['REMOTE_ADDR']]);
-                    } elseif ($role === 'mentor' || $role === 'peer') {
+                         } elseif ($role === 'mentor' || $role === 'peer') {
                         $unverify_stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
                         $unverify_stmt->execute([$user['id']]);
                     } elseif ($role === 'student') {
                         $unverify_stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
                         $unverify_stmt->execute([$user['id']]);
+
                     }
                     
                     if ($role === 'student') {
@@ -158,11 +162,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     } elseif ($role === 'mentor') {
                         if ($profile_picture_path) {
-                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
-                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $profile_picture_path, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ?, hourly_rate = ?, profile_picture = ? WHERE id = ?");
+                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $hourly_rate, $profile_picture_path, $user['id']]);
                         } else {
-                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ? WHERE id = ?");
-                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ?, hourly_rate = ? WHERE id = ?");
+                            $stmt->execute([$location, $latitude, $longitude, $location_accuracy, $bio, $teaching_style, $hourly_rate, $user['id']]);
                         }
                         
                         if (!empty($availability)) {
@@ -181,11 +185,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     } elseif ($role === 'peer') {
                         if ($profile_picture_path) {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ?, profile_picture = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $profile_picture_path, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ?, hourly_rate = ?, profile_picture = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $hourly_rate, $profile_picture_path, $user['id']]);
                         } else {
-                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ? WHERE id = ?");
-                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $user['id']]);
+                            $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ?, teaching_style = ?, hourly_rate = ? WHERE id = ?");
+                            $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $teaching_style, $hourly_rate, $user['id']]);
                         }
                         
                         if (!empty($availability)) {
@@ -358,14 +362,14 @@ $common_subjects = getMainSubjects();
                         </div>
                     </div>
                     
-                     Added referral code input for both mentors and peers 
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                    <!-- Added referral code input for mentors -->
+                    <?php if ($user['role'] === 'mentor'): ?>
                         <div class="form-group">
                             <label for="referral_code" class="form-label">Referral Code (Optional)</label>
                             <input type="text" id="referral_code" name="referral_code" class="form-input" 
                                    placeholder="Enter referral code if you have one"
                                    value="<?php echo htmlspecialchars($_POST['referral_code'] ?? ''); ?>">
-                            <p class="text-sm text-secondary mt-1">Using a referral code verifies your account and may unlock benefits.</p>
+                             <p class="text-sm text-secondary mt-1">Using a referral code verifies your account and may unlock benefits.</p>
                         </div>
                     <?php endif; ?>
                     
@@ -631,6 +635,23 @@ $common_subjects = getMainSubjects();
                         </label>
                         <textarea id="teaching_style" name="teaching_style" class="form-input" rows="4" required
                                   placeholder="Describe your teaching approach, experience, and what makes you a great mentor..."><?php echo htmlspecialchars($user['teaching_style'] ?? ''); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hourly_rate" class="form-label">Hourly Rate (Optional)</label>
+                        <div style="position: relative;">
+                            <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #718096; font-weight: 600;">₱</span>
+                            <input type="number" id="hourly_rate" name="hourly_rate" class="form-input" 
+                                   style="padding-left: 2.5rem;"
+                                   min="0" 
+                                   step="0.01" 
+                                   placeholder="e.g., 150.00"
+                                   value="<?php echo htmlspecialchars($user['hourly_rate'] ?? ''); ?>">
+                        </div>
+                        <p class="text-sm text-secondary mt-1">
+                            Set your hourly rate for tutoring sessions. Leave blank if you're offering free help. 
+                            This will be displayed to students when they find you.
+                        </p>
                     </div>
                 <?php endif; ?>
                 

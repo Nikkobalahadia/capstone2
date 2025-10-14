@@ -53,20 +53,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
             $stmt->execute([$session_id]);
             
+            $commission_stmt = $db->prepare("
+                SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time, s.session_date,
+                       CONCAT(u.first_name, ' ', u.last_name) as mentor_name
+                FROM sessions s
+                JOIN matches m ON s.match_id = m.id
+                JOIN users u ON m.mentor_id = u.id
+                WHERE s.id = ?
+            ");
+            $commission_stmt->execute([$session_id]);
+            $commission_data = $commission_stmt->fetch();
+            
+            // Debug: Log commission data
+            error_log("Commission Debug - Session ID: $session_id");
+            error_log("Commission Debug - Mentor ID: " . ($commission_data['mentor_id'] ?? 'NULL'));
+            error_log("Commission Debug - Hourly Rate: " . ($commission_data['hourly_rate'] ?? 'NULL'));
+            error_log("Commission Debug - Start Time: " . ($commission_data['start_time'] ?? 'NULL'));
+            error_log("Commission Debug - End Time: " . ($commission_data['end_time'] ?? 'NULL'));
+            
+            if ($commission_data) {
+                if ($commission_data['hourly_rate'] > 0) {
+                    $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
+                    $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
+                    $interval = $start->diff($end);
+                    $duration_hours = $interval->h + ($interval->i / 60);
+                    
+                    // Calculate session amount and commission (10%)
+                    $session_amount = $commission_data['hourly_rate'] * $duration_hours;
+                    $commission_amount = $session_amount * 0.10;
+                    
+                    error_log("Commission Debug - Duration: $duration_hours hours");
+                    error_log("Commission Debug - Session Amount: $session_amount");
+                    error_log("Commission Debug - Commission Amount: $commission_amount");
+                    
+                    try {
+                        $insert_commission = $db->prepare("
+                            INSERT INTO commission_payments 
+                            (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                            VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                        ");
+                        $insert_commission->execute([
+                            $commission_data['mentor_id'],
+                            $session_id,
+                            $session_amount,
+                            $commission_amount
+                        ]);
+                        error_log("Commission created successfully for Mentor ID {$commission_data['mentor_id']}, Amount: ₱{$commission_amount}");
+                        $success = 'Session marked as completed! Commission payment of ₱' . number_format($commission_amount, 2) . ' has been recorded.';
+                    } catch (PDOException $e) {
+                        error_log("Commission creation error: " . $e->getMessage());
+                        $error = 'Session marked complete but commission creation failed: ' . $e->getMessage();
+                    }
+                } else {
+                    error_log("No commission created: Mentor '{$commission_data['mentor_name']}' has no hourly rate set (Rate: " . ($commission_data['hourly_rate'] ?? 'NULL') . ")");
+                    $success = 'Session marked as completed! Note: No commission was created because the mentor has not set an hourly rate.';
+                }
+            } else {
+                error_log("No commission data found for session ID: $session_id");
+                $success = 'Session marked as completed! Note: Could not retrieve commission data.';
+            }
+            
             // Log activity
             $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_completed', ?, ?)");
             $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
             
             $db->commit();
             
-            $success = 'Session marked as completed successfully!';
-            
-            // Redirect after 2 seconds
-            header("refresh:2;url=index.php");
+            if (!$error && $success) {
+                header("refresh:3;url=index.php");
+            }
             
         } catch (Exception $e) {
             $db->rollBack();
-            $error = 'Failed to mark session as completed. Please try again.';
+            $error = 'Failed to mark session as completed: ' . $e->getMessage();
+            error_log("Session completion error: " . $e->getMessage());
         }
     }
 }
@@ -91,6 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="index.php">Sessions</a></li>
                     <li><a href="../messages/index.php">Messages</a></li>
+                    <!-- Added Commission Payments link for mentors -->
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                        <li><a href="../profile/commission-payments.php">Commission Payments</a></li>
+                    <?php endif; ?>
                     <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
                 </ul>
             </nav>

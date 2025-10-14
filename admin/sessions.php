@@ -72,6 +72,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$session_id]);
         $success_message = "Session cancelled successfully.";
     }
+    elseif ($action === 'complete' && $session_id) {
+        try {
+            $db->beginTransaction();
+            
+            $stmt = $db->prepare("UPDATE sessions SET status = 'completed', updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$session_id]);
+            
+            // Automatically create commission payment record
+            $commission_stmt = $db->prepare("
+                SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time, s.session_date
+                FROM sessions s
+                JOIN matches m ON s.match_id = m.id
+                JOIN users u ON m.mentor_id = u.id
+                WHERE s.id = ?
+            ");
+            $commission_stmt->execute([$session_id]);
+            $commission_data = $commission_stmt->fetch();
+            
+            if ($commission_data && $commission_data['hourly_rate'] > 0) {
+                // Calculate duration in hours
+                $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
+                $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
+                $interval = $start->diff($end);
+                $duration_hours = $interval->h + ($interval->i / 60);
+                
+                // Calculate session amount and commission (10%)
+                $session_amount = $commission_data['hourly_rate'] * $duration_hours;
+                $commission_amount = $session_amount * 0.10;
+                
+                // Insert commission payment record with correct column names
+                try {
+                    $insert_commission = $db->prepare("
+                        INSERT INTO commission_payments 
+                        (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                        VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                    ");
+                    $insert_commission->execute([
+                        $commission_data['mentor_id'],
+                        $session_id,
+                        $session_amount,
+                        $commission_amount
+                    ]);
+                    $success_message = "Session marked as completed! Commission payment of ₱" . number_format($commission_amount, 2) . " has been recorded.";
+                } catch (PDOException $e) {
+                    // Log the specific error for debugging
+                    error_log("Commission creation error: " . $e->getMessage());
+                    $success_message = "Session marked as completed, but commission creation failed: " . $e->getMessage();
+                }
+            } else {
+                $success_message = "Session marked as completed! Note: No commission was created (mentor has no hourly rate set).";
+            }
+            
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            $success_message = "Error: " . $e->getMessage();
+            error_log("Session completion error: " . $e->getMessage());
+        }
+    }
 }
 
 $status_filter = $_GET['status'] ?? 'all';
@@ -152,7 +211,44 @@ $stats = $db->query("
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
+    <!-- Replaced horizontal header with purple sidebar navigation -->
+    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-3">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="monitoring.php">
+                <i class="fas fa-chart-line me-2"></i> System Monitoring
+            </a>
+            <a class="nav-link" href="reports-inbox.php">
+                <i class="fas fa-inbox me-2"></i> Reports & Feedback
+            </a>
+            <a class="nav-link" href="session-tracking.php">
+                <i class="fas fa-calendar-check me-2"></i> Session Tracking
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link active" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="reports.php">
+                <i class="fas fa-chart-bar me-2"></i> Reports
+            </a>
+        </nav>
+        <div class="position-absolute bottom-0 w-100 p-3">
+            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
+                <i class="fas fa-sign-out-alt me-2"></i> Logout
+            </a>
+        </div>
+    </div>
 
     <!-- Updated main content area to work with sidebar layout -->
     <div class="main-content">
@@ -319,6 +415,10 @@ $stats = $db->query("
                                             <?php if ($session['status'] === 'scheduled'): ?>
                                                 <form method="POST" class="d-inline">
                                                     <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                                                    <!-- Add complete button -->
+                                                    <button type="submit" name="action" value="complete" class="btn btn-success btn-sm me-1" onclick="return confirm('Mark this session as completed?')">
+                                                        <i class="fas fa-check me-1"></i>Complete
+                                                    </button>
                                                     <button type="submit" name="action" value="cancel" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this session?')">
                                                         <i class="fas fa-times me-1"></i>Cancel
                                                     </button>

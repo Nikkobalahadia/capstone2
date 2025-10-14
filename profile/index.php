@@ -189,6 +189,18 @@ if ($user['role'] === 'student') {
                                     <div class="mb-3">
                                         <strong>Location:</strong> <?php echo htmlspecialchars($user['location'] ?? 'Not set'); ?>
                                     </div>
+                                    <?php // Added hourly rate display for mentors and peers ?>
+                                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                                        <div class="mb-3">
+                                            <strong>Hourly Rate:</strong> 
+                                            <?php if ($user['hourly_rate'] && $user['hourly_rate'] > 0): ?>
+                                                <span class="text-success font-semibold">₱<?php echo number_format($user['hourly_rate'], 2); ?>/hour</span>
+                                            <?php else: ?>
+                                                <span class="text-warning">Not set</span>
+                                                <a href="edit.php" class="text-primary text-sm">(Set your rate)</a>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                                 <div>
                                     <h4 class="font-semibold mb-2">About Me</h4>

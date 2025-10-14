@@ -810,6 +810,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                                         • 🎯 <?php echo $current_match['matched_subject_count']; ?> subjects in common
                                     <?php endif; ?>
                                 </div>
+                                <?php if ($current_match['hourly_rate'] && $current_match['hourly_rate'] > 0): ?>
+                                    <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 0.5rem 1rem; border-radius: 25px; font-weight: 600; display: inline-block; margin-top: 0.5rem;">
+                                        💰 ₱<?php echo number_format($current_match['hourly_rate'], 2); ?>/hour
+                                    </div>
+                                <?php elseif ($current_match['role'] === 'mentor' || $current_match['role'] === 'peer'): ?>
+                                    <div style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 0.5rem 1rem; border-radius: 25px; font-weight: 600; display: inline-block; margin-top: 0.5rem;">
+                                        🎁 Free Tutoring
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             
                             <div class="subjects-common">

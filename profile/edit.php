@@ -27,6 +27,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $location = sanitize_input($_POST['location']);
         $bio = sanitize_input($_POST['bio']);
         
+        $hourly_rate = null;
+        if (($user['role'] === 'mentor' || $user['role'] === 'peer') && isset($_POST['hourly_rate'])) {
+            $hourly_rate = floatval($_POST['hourly_rate']);
+            if ($hourly_rate < 0) {
+                $hourly_rate = 0;
+            }
+        }
+        
         $latitude = isset($_POST['latitude']) ? floatval($_POST['latitude']) : null;
         $longitude = isset($_POST['longitude']) ? floatval($_POST['longitude']) : null;
         $location_accuracy = isset($_POST['location_accuracy']) ? floatval($_POST['location_accuracy']) : null;
@@ -71,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else if (empty($error)) {
             try {
                 $db = getDB();
-                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ?, latitude = ?, longitude = ?, location_accuracy = ? WHERE id = ?");
-                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $profile_picture, $latitude, $longitude, $location_accuracy, $user['id']]);
+                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, grade_level = ?, strand = ?, course = ?, location = ?, bio = ?, profile_picture = ?, latitude = ?, longitude = ?, location_accuracy = ?, hourly_rate = ? WHERE id = ?");
+                $stmt->execute([$first_name, $last_name, $grade_level, $strand, $course, $location, $bio, $profile_picture, $latitude, $longitude, $location_accuracy, $hourly_rate, $user['id']]);
                 
                 $success = 'Profile updated successfully!';
                 
@@ -351,6 +359,25 @@ try {
                         <textarea id="bio" name="bio" class="form-input" rows="4" required
                                   placeholder="Tell others about yourself, your learning goals, and what you can help with..."><?php echo htmlspecialchars($user['bio'] ? $user['bio'] : ''); ?></textarea>
                     </div>
+                    
+                    <?php // Added hourly rate input for mentors and peers ?>
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                        <div class="form-group">
+                            <label for="hourly_rate" class="form-label">
+                                Hourly Rate (₱)
+                                <?php if ($user['role'] === 'peer'): ?>
+                                    <span class="text-sm text-secondary">(for teaching sessions)</span>
+                                <?php endif; ?>
+                            </label>
+                            <input type="number" id="hourly_rate" name="hourly_rate" class="form-input" 
+                                   min="0" step="0.01" 
+                                   placeholder="e.g., 200.00"
+                                   value="<?php echo htmlspecialchars($user['hourly_rate'] ? number_format($user['hourly_rate'], 2, '.', '') : ''); ?>">
+                            <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+                                Set to 0 or leave empty for free tutoring. This rate will be shown to students and used for commission calculations.
+                            </p>
+                        </div>
+                    <?php endif; ?>
                     
                     <div style="display: flex; gap: 1rem;">
                         <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
