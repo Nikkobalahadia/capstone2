@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$session_id]);
             
             $commission_stmt = $db->prepare("
-                SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time, s.session_date,
+                SELECT m.mentor_id, u.hourly_rate, u.role, s.start_time, s.end_time, s.session_date,
                        CONCAT(u.first_name, ' ', u.last_name) as mentor_name
                 FROM sessions s
                 JOIN matches m ON s.match_id = m.id
@@ -67,12 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Debug: Log commission data
             error_log("Commission Debug - Session ID: $session_id");
             error_log("Commission Debug - Mentor ID: " . ($commission_data['mentor_id'] ?? 'NULL'));
+            error_log("Commission Debug - Mentor Role: " . ($commission_data['role'] ?? 'NULL'));
             error_log("Commission Debug - Hourly Rate: " . ($commission_data['hourly_rate'] ?? 'NULL'));
             error_log("Commission Debug - Start Time: " . ($commission_data['start_time'] ?? 'NULL'));
             error_log("Commission Debug - End Time: " . ($commission_data['end_time'] ?? 'NULL'));
             
             if ($commission_data) {
-                if ($commission_data['hourly_rate'] > 0) {
+                if ($commission_data['role'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
                     $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
                     $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
                     $interval = $start->diff($end);
@@ -104,6 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         error_log("Commission creation error: " . $e->getMessage());
                         $error = 'Session marked complete but commission creation failed: ' . $e->getMessage();
                     }
+                } elseif ($commission_data['role'] === 'peer') {
+                    error_log("No commission created: User is a peer, not a mentor");
+                    $success = 'Session marked as completed! (No commission for peer-to-peer sessions)';
                 } else {
                     error_log("No commission created: Mentor '{$commission_data['mentor_name']}' has no hourly rate set (Rate: " . ($commission_data['hourly_rate'] ?? 'NULL') . ")");
                     $success = 'Session marked as completed! Note: No commission was created because the mentor has not set an hourly rate.';
@@ -152,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li><a href="index.php">Sessions</a></li>
                     <li><a href="../messages/index.php">Messages</a></li>
                     <!-- Added Commission Payments link for mentors -->
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                    <?php if ($user['role'] === 'mentor'): ?>
                         <li><a href="../profile/commission-payments.php">Commission Payments</a></li>
                     <?php endif; ?>
                     <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>

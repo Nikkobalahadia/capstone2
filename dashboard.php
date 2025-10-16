@@ -11,6 +11,22 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
+$commission_warning = null;
+if ($user['role'] === 'mentor') {
+    require_once 'config/commission_helper.php';
+    $db = getDB();
+    $overdue_info = check_overdue_commissions($user['id'], $db);
+    
+    if ($overdue_info['has_overdue']) {
+        $commission_warning = $overdue_info;
+        
+        // Check if account should be suspended
+        if (should_suspend_mentor($user['id'], $db)) {
+            $commission_warning['suspended'] = true;
+        }
+    }
+}
+
 // Get user statistics
 $db = getDB();
 
@@ -58,6 +74,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
     <title>Dashboard - StudyConnect</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
     <header class="header">
@@ -70,6 +87,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     <li><a href="matches/index.php">Matches</a></li>
                     <li><a href="sessions/index.php">Sessions</a></li>
                     <li><a href="messages/index.php">Messages</a></li>
+                    <!-- Added Commission Payments link for mentors -->
+                    <?php if ($user['role'] === 'mentor'): ?>
+                        <li><a href="profile/commission-payments.php">Commission Payments</a></li>
+                    <?php endif; ?>
+                    <!-- </CHANGE> -->
                     <li>
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <span class="text-secondary">Hi, <?php echo htmlspecialchars($user['first_name']); ?>!</span>
@@ -89,9 +111,36 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     <?php if ($user['role'] === 'peer'): ?>
                         Here's what's happening with your learning and teaching journey.
                     <?php else: ?>
+                        Here's what's happening with your learning journey.
                     <?php endif; ?>
                 </p>
             </div>
+
+            <!-- Added commission payment warnings for mentors -->
+            <?php if ($commission_warning): ?>
+                <div class="alert <?php echo isset($commission_warning['suspended']) ? 'alert-error' : 'alert-warning'; ?> mb-6">
+                    <div style="display: flex; align-items: start; gap: 1rem;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; margin-top: 0.25rem;"></i>
+                        <div style="flex: 1;">
+                            <?php if (isset($commission_warning['suspended'])): ?>
+                                <h4 class="font-bold mb-2">Account Suspended - Unpaid Commissions</h4>
+                                <p class="mb-2">Your account has been suspended due to unpaid commission payments for over 30 days. You cannot accept new sessions until all overdue commissions are paid.</p>
+                            <?php else: ?>
+                                <h4 class="font-bold mb-2">Overdue Commission Payments</h4>
+                                <p class="mb-2">You have <?php echo $commission_warning['overdue_count']; ?> overdue commission payment(s) totaling ₱<?php echo number_format($commission_warning['total_overdue'], 2); ?>.</p>
+                                <p class="mb-2">Oldest unpaid commission: <?php echo $commission_warning['oldest_days']; ?> days overdue.</p>
+                                <?php if ($commission_warning['oldest_days'] > 21): ?>
+                                    <p class="mb-2"><strong>Warning:</strong> Your account will be suspended if commissions remain unpaid after 30 days.</p>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <a href="profile/commission-payments.php" class="btn btn-sm <?php echo isset($commission_warning['suspended']) ? 'btn-error' : 'btn-warning'; ?> mt-2">
+                                <i class="fas fa-money-bill-wave"></i> Pay Commissions Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <!-- </CHANGE> -->
 
             <div class="grid grid-cols-3 gap-6 mb-8">
                 <div class="card">
@@ -121,6 +170,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             </div>
 
             <div class="grid grid-cols-2 gap-8">
+                <!-- Quick Actions -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Quick Actions</h3>
@@ -143,6 +193,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     </div>
                 </div>
 
+                <!-- Recent Activity -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Recent Matches</h3>

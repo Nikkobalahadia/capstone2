@@ -35,6 +35,12 @@ if (!$document_id || !in_array($status, ['approved', 'rejected', 'pending'])) {
 try {
     $db = getDB();
     
+    try {
+        $db->exec("ALTER TABLE user_verification_documents ADD COLUMN reviewed_at TIMESTAMP NULL AFTER reviewed_by");
+    } catch (Exception $e) {
+        // Column already exists, ignore error
+    }
+    
     // Get document info
     $doc_stmt = $db->prepare("SELECT user_id FROM user_verification_documents WHERE id = ?");
     $doc_stmt->execute([$document_id]);

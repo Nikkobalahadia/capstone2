@@ -27,7 +27,11 @@ $sessions_query = "
            CASE 
                WHEN m.student_id = ? THEN u2.role
                ELSE u1.role
-           END as partner_role
+           END as partner_role,
+           CASE 
+               WHEN m.student_id = ? THEN u2.profile_picture
+               ELSE u1.profile_picture
+           END as partner_profile_picture
     FROM sessions s
     JOIN matches m ON s.match_id = m.id
     JOIN users u1 ON m.student_id = u1.id
@@ -37,7 +41,7 @@ $sessions_query = "
 ";
 
 $stmt = $db->prepare($sessions_query);
-$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
+$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $sessions = $stmt->fetchAll();
 
 // Separate sessions by status
@@ -79,6 +83,10 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                     <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="index.php">Sessions</a></li>
                     <li><a href="../messages/index.php">Messages</a></li>
+                    <!-- Only show Commission Payments link for mentors -->
+                    <?php if ($user['role'] === 'mentor'): ?>
+                        <li><a href="../profile/commission-payments.php">Commission Payments</a></li>
+                    <?php endif; ?>
                     <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
                 </ul>
             </nav>
@@ -92,10 +100,67 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                     <h1>My Sessions</h1>
                     <p class="text-secondary">Manage your study sessions and track your learning progress.</p>
                 </div>
-                <a href="history.php" class="btn btn-primary">Schedule New Session</a>
+                <a href="schedule.php" class="btn btn-primary">Schedule New Session</a>
             </div>
 
-
+            <!-- Upcoming Sessions -->
+            <?php if (!empty($upcoming_sessions)): ?>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Upcoming Sessions (<?php echo count($upcoming_sessions); ?>)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <?php foreach ($upcoming_sessions as $session): ?>
+                                <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: #f0f9ff;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <div style="flex: 1;">
+                                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                                <?php if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($session['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($session['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 50px; height: 50px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                        <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div>
+                                                    <h4 class="font-semibold"><?php echo htmlspecialchars($session['partner_name']); ?></h4>
+                                                    <div class="text-sm text-secondary">
+                                                        <?php echo ucfirst($session['partner_role']); ?> • <?php echo htmlspecialchars($session['subject']); ?>
+                                                    </div>
+                                                    <div class="text-sm font-medium" style="color: var(--primary-color);">
+                                                        <?php echo date('l, M j, Y', strtotime($session['session_date'])); ?> • 
+                                                        <?php echo date('g:i A', strtotime($session['start_time'])) . ' - ' . date('g:i A', strtotime($session['end_time'])); ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <?php if ($session['location']): ?>
+                                                <div class="mb-2">
+                                                    <strong>Location:</strong> <?php echo htmlspecialchars($session['location']); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if ($session['notes']): ?>
+                                                <div class="text-secondary">
+                                                    <strong>Notes:</strong> <?php echo nl2br(htmlspecialchars($session['notes'])); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        
+                                        <div style="display: flex; gap: 0.5rem; margin-left: 2rem;">
+                                            <a href="edit.php?id=<?php echo $session['id']; ?>" class="btn btn-secondary">Edit</a>
+                                            <a href="../messages/chat.php?match_id=<?php echo $session['match_id']; ?>" class="btn btn-outline">Message</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <!-- Past Sessions That Need Completion -->
             <?php if (!empty($past_sessions_need_completion)): ?>
@@ -110,9 +175,15 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                                <div style="width: 50px; height: 50px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                                                    <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
-                                                </div>
+                                                <?php if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($session['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($session['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 50px; height: 50px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                        <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div>
                                                     <h4 class="font-semibold"><?php echo htmlspecialchars($session['partner_name']); ?></h4>
                                                     <div class="text-sm text-secondary">
@@ -151,9 +222,15 @@ $cancelled_sessions = array_filter($sessions, function($session) {
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                                <div style="width: 50px; height: 50px; background: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                                                    <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
-                                                </div>
+                                                <?php if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])): ?>
+                                                    <img src="../<?php echo htmlspecialchars($session['partner_profile_picture']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($session['partner_name']); ?>" 
+                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div style="width: 50px; height: 50px; background: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                        <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div>
                                                     <h4 class="font-semibold"><?php echo htmlspecialchars($session['partner_name']); ?></h4>
                                                     <div class="text-sm text-secondary">

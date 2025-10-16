@@ -121,6 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ");
             $stmt->execute([$rejection_reason, $user['id'], $payment_id]);
             $success = 'Commission payment rejected.';
+        } elseif ($_POST['action'] === 'suspend_mentor') {
+            $mentor_id = (int)$_POST['mentor_id'];
+            $stmt = $db->prepare("UPDATE users SET account_status = 'suspended' WHERE id = ? AND role IN ('mentor', 'peer')");
+            $stmt->execute([$mentor_id]);
+            $success = 'Mentor account suspended due to unpaid commissions.';
+        } elseif ($_POST['action'] === 'unsuspend_mentor') {
+            $mentor_id = (int)$_POST['mentor_id'];
+            $stmt = $db->prepare("UPDATE users SET account_status = 'active' WHERE id = ? AND role IN ('mentor', 'peer')");
+            $stmt->execute([$mentor_id]);
+            $success = 'Mentor account reactivated.';
         }
     }
 }
@@ -157,7 +167,8 @@ $query = "
         s.start_time,
         s.end_time,
         CONCAT(student.first_name, ' ', student.last_name) as student_name,
-        student.email as student_email
+        student.email as student_email,
+        DATEDIFF(NOW(), cp.created_at) as days_overdue
     FROM commission_payments cp
     JOIN users mentor ON cp.mentor_id = mentor.id
     LEFT JOIN users verifier ON cp.verified_by = verifier.id
@@ -351,6 +362,14 @@ $amount_verified = $amounts['verified'] ?? 0;
                                                 <?php if (!empty($payment['mentor_gcash_number'])): ?>
                                                     <div class="small text-muted">GCash: <?php echo htmlspecialchars($payment['mentor_gcash_number']); ?></div>
                                                 <?php endif; ?>
+                                                <?php 
+                                                $days_overdue = $payment['days_overdue'] ?? 0;
+                                                if ($payment['payment_status'] !== 'verified' && $days_overdue > 7): 
+                                                ?>
+                                                    <span class="badge bg-warning text-dark mt-1">
+                                                        <?php echo $days_overdue; ?> days overdue
+                                                    </span>
+                                                <?php endif; ?>
                                             </td>
                                             <td><?php echo !empty($payment['student_name']) ? htmlspecialchars($payment['student_name']) : '<span class="text-muted">N/A</span>'; ?></td>
                                             <td>
@@ -390,13 +409,14 @@ $amount_verified = $amounts['verified'] ?? 0;
                                                 <?php 
                                                 $status = $payment['payment_status'] ?? 'pending';
                                                 $has_reference = !empty($payment['reference_number']);
+                                                $days_overdue = $payment['days_overdue'] ?? 0;
                                                 
                                                 if ($has_reference && $status !== 'verified'): 
                                                 ?>
-                                                    <button class="btn btn-sm btn-success" onclick="verifyPayment(<?php echo $payment['id']; ?>)">
+                                                    <button class="btn btn-sm btn-success mb-1" onclick="verifyPayment(<?php echo $payment['id']; ?>)">
                                                         <i class="fas fa-check"></i> Verify
                                                     </button>
-                                                    <button class="btn btn-sm btn-danger" onclick="rejectPayment(<?php echo $payment['id']; ?>)">
+                                                    <button class="btn btn-sm btn-danger mb-1" onclick="rejectPayment(<?php echo $payment['id']; ?>)">
                                                         <i class="fas fa-times"></i> Reject
                                                     </button>
                                                 <?php elseif ($status === 'verified'): ?>
@@ -476,6 +496,56 @@ $amount_verified = $amounts['verified'] ?? 0;
         </div>
     </div>
 
+    <!-- Suspend Mentor Modal -->
+    <div class="modal fade" id="suspendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <input type="hidden" name="action" value="suspend_mentor">
+                    <input type="hidden" name="mentor_id" id="suspendMentorId">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title">Suspend Mentor Account</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to suspend <strong id="suspendMentorName"></strong>'s account?</p>
+                        <p class="text-danger">This will prevent them from accepting new sessions until commissions are paid.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Suspend Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unsuspend Mentor Modal -->
+    <div class="modal fade" id="unsuspendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <input type="hidden" name="action" value="unsuspend_mentor">
+                    <input type="hidden" name="mentor_id" id="unsuspendMentorId">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title">Reactivate Mentor Account</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to reactivate this mentor's account?</p>
+                        <p class="text-muted">They will be able to accept new sessions again.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-info">Reactivate Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function verifyPayment(paymentId) {
@@ -486,6 +556,17 @@ $amount_verified = $amounts['verified'] ?? 0;
         function rejectPayment(paymentId) {
             document.getElementById('rejectPaymentId').value = paymentId;
             new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        }
+
+        function suspendMentor(mentorId, mentorName) {
+            document.getElementById('suspendMentorId').value = mentorId;
+            document.getElementById('suspendMentorName').textContent = mentorName;
+            new bootstrap.Modal(document.getElementById('suspendModal')).show();
+        }
+
+        function unsuspendMentor(mentorId) {
+            document.getElementById('unsuspendMentorId').value = mentorId;
+            new bootstrap.Modal(document.getElementById('unsuspendModal')).show();
         }
     </script>
 </body>

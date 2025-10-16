@@ -12,6 +12,20 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
+$can_accept_matches = true;
+$commission_block_message = '';
+
+if ($user['role'] === 'mentor') {
+    require_once '../config/commission_helper.php';
+    $db = getDB();
+    $overdue_info = check_overdue_commissions($user['id'], $db);
+    
+    if ($overdue_info['has_overdue']) {
+        $can_accept_matches = false;
+        $commission_block_message = "You have {$overdue_info['overdue_count']} overdue commission payment(s) totaling ₱" . number_format($overdue_info['total_overdue'], 2) . ". Please pay your commissions before accepting new matches.";
+    }
+}
+
 $error = '';
 $success = '';
 
@@ -24,14 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
-        $match_id = (int)$_POST['match_id'];
-        $response = $_POST['response'];
-        
-        try {
-            $matchmaker->respondToMatch($match_id, $user['id'], $response);
-            $success = 'Match ' . ($response === 'accepted' ? 'accepted' : 'declined') . ' successfully!';
-        } catch (Exception $e) {
-            $error = 'Failed to process response. Please try again.';
+        if (!$can_accept_matches && $_POST['response'] === 'accepted') {
+            $error = $commission_block_message;
+        } else {
+            $match_id = (int)$_POST['match_id'];
+            $response = $_POST['response'];
+            
+            try {
+                $matchmaker->respondToMatch($match_id, $user['id'], $response);
+                $success = 'Match ' . ($response === 'accepted' ? 'accepted' : 'declined') . ' successfully!';
+            } catch (Exception $e) {
+                $error = 'Failed to process response. Please try again.';
+            }
         }
     }
 }
@@ -134,6 +152,22 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <div class="alert alert-success"><?php echo $success; ?></div>
             <?php endif; ?>
 
+            <!-- Added commission warning banner for mentors with overdue payments -->
+            <?php if (!$can_accept_matches): ?>
+                <div class="alert alert-warning mb-4">
+                    <div style="display: flex; align-items: start; gap: 1rem;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; margin-top: 0.25rem;"></i>
+                        <div style="flex: 1;">
+                            <h4 class="font-bold mb-2">Cannot Accept New Matches</h4>
+                            <p class="mb-2"><?php echo $commission_block_message; ?></p>
+                            <a href="../profile/commission-payments.php" class="btn btn-sm btn-warning mt-2">
+                                <i class="fas fa-money-bill-wave"></i> Pay Commissions Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <!-- Pending Matches -->
             <?php if (!empty($pending_matches)): ?>
                 <div class="card mb-4">
@@ -177,22 +211,45 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                         </div>
                                         
                                         <!-- Updated button layout to include Accept, Reject, and View Details buttons -->
-                                        <?php if ($match['mentor_id'] == $user['id']): ?>
+                                        <?php 
+                                        // Determine if current user is the receiver of this match request
+                                        // If initiated_by field exists, use it; otherwise infer from roles
+                                        $is_receiver = false;
+                                        if (isset($match['initiated_by'])) {
+                                            // Use initiated_by field if available
+                                            $is_receiver = ($match['initiated_by'] != $user['id']);
+                                        } else {
+                                            // Fallback: Infer based on typical flow (student requests mentor)
+                                            // Mentor is receiver if they're the mentor in the match
+                                            // Student is receiver if they're the student AND the other person initiated
+                                            if ($user['role'] === 'mentor' && $match['mentor_id'] == $user['id']) {
+                                                $is_receiver = true;
+                                            } elseif ($user['role'] === 'student' && $match['student_id'] == $user['id']) {
+                                                // Student is sender in typical flow
+                                                $is_receiver = false;
+                                            } elseif ($user['role'] === 'peer') {
+                                                // For peers, check who is in which position
+                                                // If I'm the mentor_id, I'm likely the receiver
+                                                $is_receiver = ($match['mentor_id'] == $user['id']);
+                                            }
+                                        }
+                                        ?>
+                                        
+                                        <?php if ($is_receiver): ?>
                                             <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
-                                                <!-- View Details Button -->
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </button>
-                                                <!-- Accept Button -->
+                                                
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="response" value="accepted">
-                                                    <button type="submit" class="btn btn-success btn-sm w-100">
+                                                    <button type="submit" class="btn btn-success btn-sm w-100" <?php echo !$can_accept_matches ? 'disabled' : ''; ?>>
                                                         <i class="fas fa-check"></i> Accept
                                                     </button>
                                                 </form>
-                                                <!-- Reject Button -->
+                                                
                                                 <form method="POST" action="" style="display: inline;">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
@@ -203,12 +260,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                                 </form>
                                             </div>
                                         <?php else: ?>
-                                            <div style="margin-left: 2rem;">
-                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                            <div style="margin-left: 2rem; text-align: center;">
+                                                <button type="button" class="btn btn-outline-primary btn-sm mb-2" onclick="toggleDetails(<?php echo $match['id']; ?>)">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </button>
-                                                <div class="mt-2">
-                                                    <span class="text-warning font-medium">Awaiting Response</span>
+                                                <div style="padding: 0.5rem 1rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px;">
+                                                    <i class="fas fa-clock text-warning"></i>
+                                                    <div class="text-warning font-medium mt-1">Awaiting Response</div>
                                                 </div>
                                             </div>
                                         <?php endif; ?>

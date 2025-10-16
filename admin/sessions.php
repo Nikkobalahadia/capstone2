@@ -79,9 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt = $db->prepare("UPDATE sessions SET status = 'completed', updated_at = NOW() WHERE id = ?");
             $stmt->execute([$session_id]);
             
-            // Automatically create commission payment record
             $commission_stmt = $db->prepare("
-                SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time, s.session_date
+                SELECT m.mentor_id, u.hourly_rate, u.user_type, s.start_time, s.end_time, s.session_date
                 FROM sessions s
                 JOIN matches m ON s.match_id = m.id
                 JOIN users u ON m.mentor_id = u.id
@@ -90,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $commission_stmt->execute([$session_id]);
             $commission_data = $commission_stmt->fetch();
             
-            if ($commission_data && $commission_data['hourly_rate'] > 0) {
+            if ($commission_data && $commission_data['user_type'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
                 // Calculate duration in hours
                 $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
                 $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
@@ -120,6 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     error_log("Commission creation error: " . $e->getMessage());
                     $success_message = "Session marked as completed, but commission creation failed: " . $e->getMessage();
                 }
+            } elseif ($commission_data && $commission_data['user_type'] === 'peer') {
+                $success_message = "Session marked as completed! (No commission for peer tutors)";
             } else {
                 $success_message = "Session marked as completed! Note: No commission was created (mentor has no hourly rate set).";
             }
@@ -211,44 +212,7 @@ $stats = $db->query("
     </style>
 </head>
 <body>
-    <!-- Replaced horizontal header with purple sidebar navigation -->
-    <div class="sidebar position-fixed" style="width: 250px; z-index: 1000;">
-        <div class="p-4">
-            <h4 class="text-white mb-0">Admin Panel</h4>
-            <small class="text-white-50">Study Mentorship Platform</small>
-        </div>
-        <nav class="nav flex-column px-3">
-            <a class="nav-link" href="dashboard.php">
-                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-            </a>
-            <a class="nav-link" href="users.php">
-                <i class="fas fa-users me-2"></i> User Management
-            </a>
-            <a class="nav-link" href="monitoring.php">
-                <i class="fas fa-chart-line me-2"></i> System Monitoring
-            </a>
-            <a class="nav-link" href="reports-inbox.php">
-                <i class="fas fa-inbox me-2"></i> Reports & Feedback
-            </a>
-            <a class="nav-link" href="session-tracking.php">
-                <i class="fas fa-calendar-check me-2"></i> Session Tracking
-            </a>
-            <a class="nav-link" href="matches.php">
-                <i class="fas fa-handshake me-2"></i> Matches
-            </a>
-            <a class="nav-link active" href="sessions.php">
-                <i class="fas fa-video me-2"></i> Sessions
-            </a>
-            <a class="nav-link" href="reports.php">
-                <i class="fas fa-chart-bar me-2"></i> Reports
-            </a>
-        </nav>
-        <div class="position-absolute bottom-0 w-100 p-3">
-            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm w-100">
-                <i class="fas fa-sign-out-alt me-2"></i> Logout
-            </a>
-        </div>
-    </div>
+    <?php include '../includes/admin-sidebar.php'; ?>
 
     <!-- Updated main content area to work with sidebar layout -->
     <div class="main-content">

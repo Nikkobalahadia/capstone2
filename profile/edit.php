@@ -22,13 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $first_name = sanitize_input($_POST['first_name']);
         $last_name = sanitize_input($_POST['last_name']);
         $grade_level = sanitize_input($_POST['grade_level']);
-        $strand = sanitize_input($_POST['strand']);
+        $strand = isset($_POST['strand']) ? sanitize_input($_POST['strand']) : '';
         $course = sanitize_input($_POST['course']);
         $location = sanitize_input($_POST['location']);
         $bio = sanitize_input($_POST['bio']);
         
         $hourly_rate = null;
-        if (($user['role'] === 'mentor' || $user['role'] === 'peer') && isset($_POST['hourly_rate'])) {
+        if ($user['role'] === 'mentor' && isset($_POST['hourly_rate'])) {
             $hourly_rate = floatval($_POST['hourly_rate']);
             if ($hourly_rate < 0) {
                 $hourly_rate = 0;
@@ -360,14 +360,11 @@ try {
                                   placeholder="Tell others about yourself, your learning goals, and what you can help with..."><?php echo htmlspecialchars($user['bio'] ? $user['bio'] : ''); ?></textarea>
                     </div>
                     
-                    <?php // Added hourly rate input for mentors and peers ?>
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                    <?php // Only show hourly rate input for mentors ?>
+                    <?php if ($user['role'] === 'mentor'): ?>
                         <div class="form-group">
                             <label for="hourly_rate" class="form-label">
                                 Hourly Rate (₱)
-                                <?php if ($user['role'] === 'peer'): ?>
-                                    <span class="text-sm text-secondary">(for teaching sessions)</span>
-                                <?php endif; ?>
                             </label>
                             <input type="number" id="hourly_rate" name="hourly_rate" class="form-input" 
                                    min="0" step="0.01" 
