@@ -12,11 +12,20 @@ if (!$user || $user['role'] !== 'admin') {
 }
 
 $db = getDB();
+$error = '';
+$success = '';
 
 // Get filters
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
 $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+$per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 25;
+
+// Validate per_page
+$allowed_per_page = [10, 25, 50, 100];
+if (!in_array($per_page, $allowed_per_page)) {
+    $per_page = 25;
+}
 
 // Build query to get users with verification documents
 $where_conditions = ["(u.role = 'mentor' OR u.role = 'peer')"];
@@ -43,25 +52,22 @@ if ($search) {
 
 $where_clause = implode(' AND ', $where_conditions);
 
-// Get users with document counts
-$query = "
-    SELECT u.*,
-           COUNT(DISTINCT uvd.id) as total_documents,
-           SUM(CASE WHEN uvd.status = 'pending' THEN 1 ELSE 0 END) as pending_documents,
-           SUM(CASE WHEN uvd.status = 'approved' THEN 1 ELSE 0 END) as approved_documents,
-           SUM(CASE WHEN uvd.status = 'rejected' THEN 1 ELSE 0 END) as rejected_documents,
-           MAX(uvd.created_at) as last_upload_date
+// Get total count for pagination info
+$count_query = "
+    SELECT COUNT(DISTINCT u.id) as total
     FROM users u
     LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
     WHERE $where_clause
-    GROUP BY u.id
-    HAVING total_documents > 0 OR ? = ''
-    ORDER BY 
-        CASE WHEN u.is_verified = 0 AND pending_documents > 0 THEN 0 ELSE 1 END,
-        last_upload_date DESC
 ";
+$count_stmt = $db->prepare($count_query);
+$count_stmt->execute($params);
+$count_result = $count_stmt->fetch();
+$total_users = $count_result['total'];
 
 // Get users with document counts
+$offset = 0;
+$params[] = $status_filter;
+
 $query = "
     SELECT u.*,
            COUNT(DISTINCT uvd.id) as total_documents,
@@ -77,20 +83,33 @@ $query = "
     ORDER BY 
         CASE WHEN u.is_verified = 0 AND SUM(CASE WHEN uvd.status = 'pending' THEN 1 ELSE 0 END) > 0 THEN 0 ELSE 1 END,
         last_upload_date DESC
-";
+    LIMIT " . (int)$per_page . " OFFSET " . (int)$offset;
 
-
-$params[] = $status_filter;
 $stmt = $db->prepare($query);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
+
+// Get statistics
+$stats_query = "
+    SELECT 
+        COUNT(DISTINCT CASE WHEN u.is_verified = 0 AND uvd.status = 'pending' THEN u.id END) as pending_users,
+        COUNT(DISTINCT CASE WHEN u.is_verified = 1 THEN u.id END) as verified_users,
+        COUNT(DISTINCT CASE WHEN u.is_verified = 0 THEN u.id END) as unverified_users,
+        COUNT(CASE WHEN uvd.status = 'pending' THEN 1 END) as pending_docs,
+        COUNT(CASE WHEN uvd.status = 'approved' THEN 1 END) as approved_docs,
+        COUNT(CASE WHEN uvd.status = 'rejected' THEN 1 END) as rejected_docs
+    FROM users u
+    LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
+    WHERE u.role IN ('mentor', 'peer')
+";
+$stats = $db->query($stats_query)->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mentor Verification - StudyConnect Admin</title>
+    <title>Mentor & Peer Verification - StudyConnect Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -102,7 +121,19 @@ $users = $stmt->fetchAll();
         .main-content { margin-left: 250px; padding: 20px; }
         .priority-badge { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+        .stat-card { border-left: 4px solid; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card.success { border-left-color: #28a745; }
+        .stat-card.danger { border-left-color: #dc3545; }
+        .stat-card.info { border-left-color: #17a2b8; }
+        .table-row-unverified { background-color: #fff3cd; }
+        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        @media (max-width: 768px) { 
+            .main-content { margin-left: 0; } 
+            .sidebar { display: none; }
+            .stat-card { margin-bottom: 1rem; }
+        }
     </style>
 </head>
 <body>
@@ -117,6 +148,92 @@ $users = $stmt->fetchAll();
                 </div>
             </div>
 
+            <?php if ($error): ?>
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <?php echo $error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($success): ?>
+                <div class="alert alert-success alert-dismissible fade show">
+                    <?php echo $success; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card stat-card warning shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="text-muted small mb-1">
+                                        <i class="fas fa-hourglass-start me-1"></i>Pending Review
+                                    </p>
+                                    <h4 class="mb-0"><?php echo $stats['pending_users']; ?></h4>
+                                    <small class="text-muted"><?php echo $stats['pending_docs']; ?> documents</small>
+                                </div>
+                                <i class="fas fa-clock fa-2x text-warning opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card stat-card success shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="text-muted small mb-1">
+                                        <i class="fas fa-check-circle me-1"></i>Verified
+                                    </p>
+                                    <h4 class="mb-0"><?php echo $stats['verified_users']; ?></h4>
+                                    <small class="text-muted"><?php echo $stats['approved_docs']; ?> approved docs</small>
+                                </div>
+                                <i class="fas fa-check-circle fa-2x text-success opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card stat-card danger shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="text-muted small mb-1">
+                                        <i class="fas fa-times-circle me-1"></i>Rejected
+                                    </p>
+                                    <h4 class="mb-0"><?php echo $stats['rejected_docs']; ?></h4>
+                                    <small class="text-muted">Requires resubmission</small>
+                                </div>
+                                <i class="fas fa-times-circle fa-2x text-danger opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card stat-card info shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="text-muted small mb-1">
+                                        <i class="fas fa-user-shield me-1"></i>Unverified
+                                    </p>
+                                    <h4 class="mb-0"><?php echo $stats['unverified_users']; ?></h4>
+                                    <small class="text-muted">No documents submitted</small>
+                                </div>
+                                <i class="fas fa-user-shield fa-2x text-info opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Card -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
@@ -145,71 +262,34 @@ $users = $stmt->fetchAll();
                                 <option value="unverified" <?php echo $status_filter === 'unverified' ? 'selected' : ''; ?>>Unverified</option>
                             </select>
                         </div>
+
+                        <div class="col-md-2">
+                            <label for="per_page" class="form-label">Per Page</label>
+                            <select id="per_page" name="per_page" class="form-select" onchange="this.form.submit()">
+                                <option value="10" <?php echo $per_page === 10 ? 'selected' : ''; ?>>10</option>
+                                <option value="25" <?php echo $per_page === 25 ? 'selected' : ''; ?>>25</option>
+                                <option value="50" <?php echo $per_page === 50 ? 'selected' : ''; ?>>50</option>
+                                <option value="100" <?php echo $per_page === 100 ? 'selected' : ''; ?>>100</option>
+                            </select>
+                        </div>
                         
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <button type="submit" class="btn btn-primary w-100">Filter</button>
                         </div>
+                        
                         <div class="col-md-2">
-                            <a href="verifications.php" class="btn btn-secondary">Clear</a>
+                            <a href="verifications.php" class="btn btn-secondary w-100">Clear</a>
                         </div>
                     </form>
                 </div>
             </div>
 
-             
-            <?php
-            $stats_query = "
-                SELECT 
-                    COUNT(DISTINCT CASE WHEN u.is_verified = 0 AND uvd.status = 'pending' THEN u.id END) as pending_users,
-                    COUNT(DISTINCT CASE WHEN u.is_verified = 1 THEN u.id END) as verified_users,
-                    COUNT(CASE WHEN uvd.status = 'pending' THEN 1 END) as pending_docs,
-                    COUNT(CASE WHEN uvd.status = 'approved' THEN 1 END) as approved_docs
-                FROM users u
-                LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
-                WHERE u.role IN ('mentor', 'peer')
-            ";
-            $stats = $db->query($stats_query)->fetch();
-            ?>
-            
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card border-left-warning shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Review</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['pending_users']; ?> Users</div>
-                                    <div class="small text-muted"><?php echo $stats['pending_docs']; ?> documents</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-clock fa-2x text-warning"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3">
-                    <div class="card border-left-success shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Verified</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $stats['verified_users']; ?> Users</div>
-                                    <div class="small text-muted"><?php echo $stats['approved_docs']; ?> approved docs</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-check-circle fa-2x text-success"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <!-- Users Table -->
             <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Verification Requests (<?php echo count($users); ?>)</h6>
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-file-alt me-2"></i>Verification Requests (<?php echo count($users); ?> of <?php echo $total_users; ?>)
+                    </h6>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -226,7 +306,7 @@ $users = $stmt->fetchAll();
                             </thead>
                             <tbody>
                                 <?php foreach ($users as $u): ?>
-                                    <tr class="<?php echo ($u['pending_documents'] > 0 && !$u['is_verified']) ? 'table-warning' : ''; ?>">
+                                    <tr class="<?php echo ($u['pending_documents'] > 0 && !$u['is_verified']) ? 'table-row-unverified' : ''; ?>">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                                 <?php if (!empty($u['profile_picture']) && file_exists('../' . $u['profile_picture'])): ?>
@@ -291,13 +371,13 @@ $users = $stmt->fetchAll();
                                                 <div class="small"><?php echo date('M j, Y', strtotime($u['last_upload_date'])); ?></div>
                                                 <div class="small text-muted"><?php echo date('g:i A', strtotime($u['last_upload_date'])); ?></div>
                                             <?php else: ?>
-                                                <span class="text-muted">-</span>
+                                                <span class="text-muted small">-</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <button class="btn btn-sm btn-primary" 
                                                     onclick="viewDocuments(<?php echo $u['id']; ?>, '<?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?>')">
-                                                <i class="fas fa-file-alt me-1"></i> Review Documents
+                                                <i class="fas fa-file-alt me-1"></i> Review
                                             </button>
                                         </td>
                                     </tr>
@@ -317,11 +397,14 @@ $users = $stmt->fetchAll();
         </div>
     </div>
 
+    <!-- Documents Modal -->
     <div class="modal fade" id="documentsModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Verification Documents - <span id="doc_user_name"></span></h5>
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-alt me-2"></i>Verification Documents - <span id="doc_user_name"></span>
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -338,6 +421,7 @@ $users = $stmt->fetchAll();
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
         function viewDocuments(userId, userName) {
@@ -358,14 +442,14 @@ $users = $stmt->fetchAll();
                         displayDocuments(data.documents, userId);
                     } else {
                         document.getElementById('documents_content').innerHTML = 
-                            '<div class="alert alert-warning">' + data.message + '</div>';
+                            '<div class="alert alert-warning"><i class="fas fa-info-circle me-2"></i>' + data.message + '</div>';
                     }
                 })
                 .catch(error => {
                     document.getElementById('documents_loading').style.display = 'none';
                     document.getElementById('documents_content').style.display = 'block';
                     document.getElementById('documents_content').innerHTML = 
-                        '<div class="alert alert-danger">Error loading documents: ' + error.message + '</div>';
+                        '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>Error loading documents: ' + error.message + '</div>';
                 });
         }
         
@@ -383,7 +467,7 @@ $users = $stmt->fetchAll();
                 'transcript': 'Academic Transcript',
                 'professional_cert': 'Professional Certification',
                 'expertise_proof': 'Proof of Expertise',
-                'other': 'Other'
+                'other': 'Other Document'
             };
             
             let html = '<div class="row">';
@@ -394,8 +478,8 @@ $users = $stmt->fetchAll();
                 
                 html += `
                     <div class="col-md-6 mb-4">
-                        <div class="card h-100">
-                            <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="card h-100 border">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-light">
                                 <strong>${typeLabels[doc.document_type] || doc.document_type}</strong>
                                 <span class="badge bg-${statusColor}">
                                     <i class="fas fa-${statusIcon} me-1"></i>${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
@@ -406,16 +490,16 @@ $users = $stmt->fetchAll();
                                     `<img src="../uploads/verification/${doc.filename}" class="img-fluid mb-3" style="max-height: 300px; width: 100%; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px;">` :
                                     `<div class="text-center py-5 bg-light rounded mb-3">
                                         <i class="fas fa-file-pdf fa-4x text-danger mb-2"></i>
-                                        <p class="mb-0">PDF Document</p>
+                                        <p class="mb-0 text-muted">PDF Document</p>
                                     </div>`
                                 }
                                 
                                 ${doc.description ? `<p class="text-muted small mb-2"><strong>Description:</strong> ${doc.description}</p>` : ''}
                                 <p class="text-muted small mb-2"><strong>Uploaded:</strong> ${new Date(doc.created_at).toLocaleDateString()}</p>
                                 ${doc.reviewed_at ? `<p class="text-muted small mb-2"><strong>Reviewed:</strong> ${new Date(doc.reviewed_at).toLocaleDateString()}</p>` : ''}
-                                ${doc.rejection_reason ? `<div class="alert alert-danger small mb-2"><strong>Rejection Reason:</strong> ${doc.rejection_reason}</div>` : ''}
+                                ${doc.rejection_reason ? `<div class="alert alert-danger small mb-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>Rejection Reason:</strong> ${doc.rejection_reason}</div>` : ''}
                                 
-                                <div class="d-flex gap-2 mt-3">
+                                <div class="action-buttons mt-3">
                                     <a href="../uploads/verification/${doc.filename}" target="_blank" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-external-link-alt me-1"></i>Open
                                     </a>
@@ -436,8 +520,8 @@ $users = $stmt->fetchAll();
                                     ` : ''}
                                     
                                     ${doc.status === 'approved' ? `
-                                        <button onclick="updateDocumentStatus(${doc.id}, ${userId}, 'rejected')" class="btn btn-sm btn-warning">
-                                            <i class="fas fa-undo me-1"></i>Revoke
+                                        <button onclick="updateDocumentStatus(${doc.id}, ${userId}, 'pending')" class="btn btn-sm btn-warning">
+                                            <i class="fas fa-undo me-1"></i>Revert
                                         </button>
                                     ` : ''}
                                 </div>
@@ -452,62 +536,121 @@ $users = $stmt->fetchAll();
         }
         
         function updateDocumentStatus(docId, userId, status) {
-            if (!confirm(`Are you sure you want to ${status} this document?`)) return;
-            
-            const formData = new FormData();
-            formData.append('action', 'update_document_status');
-            formData.append('document_id', docId);
-            formData.append('status', status);
-            formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
-            
-            fetch('update-document-status.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    viewDocuments(userId, document.getElementById('doc_user_name').textContent);
-                    if (status === 'approved') {
-                        alert('Document approved successfully!');
-                        setTimeout(() => location.reload(), 1500);
+            Swal.fire({
+                title: 'Confirm Action',
+                text: `Are you sure you want to ${status} this document?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: status === 'approved' ? '#28a745' : '#ffc107',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, ' + status
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                
+                const formData = new FormData();
+                formData.append('action', 'update_document_status');
+                formData.append('document_id', docId);
+                formData.append('status', status);
+                formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+                
+                fetch('update-document-status.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Document ' + status + ' successfully.',
+                            icon: 'success',
+                            confirmButtonColor: '#667eea'
+                        }).then(() => {
+                            viewDocuments(userId, document.getElementById('doc_user_name').textContent);
+                            setTimeout(() => location.reload(), 1500);
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message || 'Failed to update document',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
                     }
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Error updating document: ' + error.message);
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error updating document: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
             });
         }
         
         function rejectDocument(docId, userId) {
-            const reason = prompt('Please provide a reason for rejection:');
-            if (!reason) return;
-            
-            const formData = new FormData();
-            formData.append('action', 'update_document_status');
-            formData.append('document_id', docId);
-            formData.append('status', 'rejected');
-            formData.append('rejection_reason', reason);
-            formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
-            
-            fetch('update-document-status.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    viewDocuments(userId, document.getElementById('doc_user_name').textContent);
-                    alert('Document rejected.');
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    alert('Error: ' + data.message);
+            Swal.fire({
+                title: 'Reject Document',
+                input: 'textarea',
+                inputLabel: 'Rejection Reason',
+                inputPlaceholder: 'Please provide a reason for rejection...',
+                inputAttributes: {
+                    'aria-label': 'Rejection reason'
+                },
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, reject',
+                cancelButtonText: 'Cancel',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'Please provide a rejection reason'
+                    }
                 }
-            })
-            .catch(error => {
-                alert('Error rejecting document: ' + error.message);
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                
+                const formData = new FormData();
+                formData.append('action', 'update_document_status');
+                formData.append('document_id', docId);
+                formData.append('status', 'rejected');
+                formData.append('rejection_reason', result.value);
+                formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+                
+                fetch('update-document-status.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Rejected!',
+                            text: 'Document rejected successfully.',
+                            icon: 'success',
+                            confirmButtonColor: '#667eea'
+                        }).then(() => {
+                            viewDocuments(userId, document.getElementById('doc_user_name').textContent);
+                            setTimeout(() => location.reload(), 1500);
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message || 'Failed to reject document',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error rejecting document: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
             });
         }
     </script>

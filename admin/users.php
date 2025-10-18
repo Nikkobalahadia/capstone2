@@ -150,6 +150,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
 $sort_dir = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'ASC' : 'DESC';
+$per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 25;
+
+// Validate per_page
+$allowed_per_page = [10, 25, 50, 100];
+if (!in_array($per_page, $allowed_per_page)) {
+    $per_page = 25;
+}
 
 // Validate sort column
 $allowed_sorts = ['first_name', 'last_name', 'email', 'role', 'created_at', 'is_verified', 'is_active'];
@@ -207,7 +214,7 @@ $users_query = "
     WHERE $where_clause
     GROUP BY u.id
     ORDER BY u.$sort_by $sort_dir
-    LIMIT 50
+    LIMIT $per_page
 ";
 
 $stmt = $db->prepare($users_query);
@@ -241,9 +248,10 @@ function getSortIcon($column, $current_sort, $current_dir) {
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
         .main-content { margin-left: 250px; padding: 20px; }
-        /* Added sortable table header styles */
         .sortable-header { cursor: pointer; user-select: none; }
         .sortable-header:hover { background-color: #e9ecef; }
+        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .action-buttons .btn { padding: 0.375rem 0.65rem; font-size: 0.85rem; }
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
     </style>
 </head>
@@ -258,7 +266,6 @@ function getSortIcon($column, $current_sort, $current_dir) {
                     <p class="text-muted">Manage user accounts, verification, and activity.</p>
                 </div>
                 <div>
-                    <!-- Added Create User button -->
                     <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createUserModal">
                         <i class="fas fa-plus me-2"></i> Add New User
                     </button>
@@ -285,7 +292,6 @@ function getSortIcon($column, $current_sort, $current_dir) {
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
-                         <!-- Preserve sort parameters in filter form -->
                         <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort_by); ?>">
                         <input type="hidden" name="dir" value="<?php echo htmlspecialchars($sort_dir); ?>">
                         
@@ -316,12 +322,23 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                 <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                             </select>
                         </div>
+
+                        <div class="col-md-2">
+                            <label for="per_page" class="form-label">Per Page</label>
+                            <select id="per_page" name="per_page" class="form-select" onchange="this.form.submit()">
+                                <option value="10" <?php echo $per_page === 10 ? 'selected' : ''; ?>>10</option>
+                                <option value="25" <?php echo $per_page === 25 ? 'selected' : ''; ?>>25</option>
+                                <option value="50" <?php echo $per_page === 50 ? 'selected' : ''; ?>>50</option>
+                                <option value="100" <?php echo $per_page === 100 ? 'selected' : ''; ?>>100</option>
+                            </select>
+                        </div>
                         
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <button type="submit" class="btn btn-primary w-100">Filter</button>
                         </div>
+                        
                         <div class="col-md-2">
-                            <a href="users.php" class="btn btn-secondary">Clear</a>
+                            <a href="users.php" class="btn btn-secondary w-100">Clear</a>
                         </div>
                     </form>
                 </div>
@@ -336,7 +353,6 @@ function getSortIcon($column, $current_sort, $current_dir) {
                         <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                     <!-- Made table headers sortable -->
                                     <th class="sortable-header" onclick="window.location='<?php echo getSortLink('first_name', $sort_by, $sort_dir); ?>'">
                                         User <?php echo getSortIcon('first_name', $sort_by, $sort_dir); ?>
                                     </th>
@@ -349,7 +365,7 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                     <th class="sortable-header" onclick="window.location='<?php echo getSortLink('created_at', $sort_by, $sort_dir); ?>'">
                                         Joined <?php echo getSortIcon('created_at', $sort_by, $sort_dir); ?>
                                     </th>
-                                    <th style="width: 180px;">Actions</th>
+                                    <th style="width: 280px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -416,9 +432,8 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                             <div class="small"><?php echo date('M j, Y', strtotime($u['created_at'])); ?></div>
                                         </td>
                                         <td>
-                                             <!-- Improved action buttons layout -->
-                                            <div class="btn-group btn-group-sm" role="group">
-                                                <button class="btn btn-outline-primary" 
+                                            <div class="action-buttons">
+                                                <button class="btn btn-sm btn-outline-primary" 
                                                         onclick="editUser(<?php echo htmlspecialchars(json_encode($u)); ?>)"
                                                         title="Edit">
                                                     <i class="fas fa-edit"></i>
@@ -429,7 +444,7 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="verify">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-outline-success" title="Verify">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Verify">
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                     </form>
@@ -437,11 +452,10 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                                 
                                                 <?php if ($u['is_active']): ?>
                                                     <form method="POST" onsubmit="return confirmDeactivate(this);">
-
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="deactivate">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-outline-warning" title="Deactivate">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate">
                                                             <i class="fas fa-ban"></i>
                                                         </button>
                                                     </form>
@@ -450,23 +464,20 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="activate">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-outline-success" title="Activate">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Activate">
                                                             <i class="fas fa-check-circle"></i>
                                                         </button>
                                                     </form>
                                                 <?php endif; ?>
                                                 
                                                 <form method="POST" onsubmit="return confirmDelete(this);">
-
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="action" value="delete">
                                                     <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </form>
-                                                
-                                                <!-- Removed View Documents button - moved to separate Verifications page -->
                                             </div>
                                         </td>
                                     </tr>
@@ -486,7 +497,7 @@ function getSortIcon($column, $current_sort, $current_dir) {
         </div>
     </div>
 
-     <!-- Create User Modal -->
+    <!-- Create User Modal -->
     <div class="modal fade" id="createUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -544,7 +555,7 @@ function getSortIcon($column, $current_sort, $current_dir) {
         </div>
     </div>
 
-     <!-- Edit User Modal -->
+    <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -602,57 +613,51 @@ function getSortIcon($column, $current_sort, $current_dir) {
             </div>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-function confirmDeactivate(form) {
-    event.preventDefault();
-
-    Swal.fire({
-        title: 'Deactivate this user?',
-        text: "This user will be unable to log in until reactivated.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#f59e0b', // amber/yellow
-        cancelButtonColor: '#6b7280',  // gray
-        confirmButtonText: 'Yes, deactivate',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.submit();
-        }
-    });
-
-    return false;
-}
-
-function confirmDelete(form) {
-    event.preventDefault();
-
-    Swal.fire({
-        title: 'Are you sure?',
-        text: "Are you sure you want to delete this user? This action cannot be undone.",
-        icon: 'error',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626', // red
-        cancelButtonColor: '#6b7280',  // gray
-        confirmButtonText: 'Yes, delete',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.submit();
-        }
-    });
-
-    return false;
-}
-</script>
-
-
-
-     <!-- Removed Verification Documents Modal - moved to separate Verifications page -->
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function confirmDeactivate(form) {
+            event.preventDefault();
+
+            Swal.fire({
+                title: 'Deactivate this user?',
+                text: "This user will be unable to log in until reactivated.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, deactivate',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+
+            return false;
+        }
+
+        function confirmDelete(form) {
+            event.preventDefault();
+
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "Are you sure you want to delete this user? This action cannot be undone.",
+                icon: 'error',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, delete',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+
+            return false;
+        }
+
         function editUser(user) {
             document.getElementById('edit_user_id').value = user.id;
             document.getElementById('edit_username').value = user.username;
@@ -663,7 +668,8 @@ function confirmDelete(form) {
             
             new bootstrap.Modal(document.getElementById('editUserModal')).show();
         }
-        
     </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
