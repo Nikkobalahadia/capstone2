@@ -104,7 +104,7 @@ $stats = $db->query("
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .main-content { margin-left: 250px; padding: 20px; }
+        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .log-entry { border-left: 3px solid #667eea; padding-left: 15px; margin-bottom: 15px; }
         .log-entry.admin { border-left-color: #dc3545; }
@@ -115,6 +115,7 @@ $stats = $db->query("
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

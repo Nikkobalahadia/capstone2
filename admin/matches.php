@@ -144,7 +144,8 @@ $stats = $db->query("
     </style>
 </head>
 <body>
-    <?php require_once '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

@@ -225,7 +225,7 @@ $user_growth_trend = $db->query("
         .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
+        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
         .metric-card { transition: transform 0.2s; }
         .metric-card:hover { transform: translateY(-2px); }
@@ -236,7 +236,10 @@ $user_growth_trend = $db->query("
     </style>
 </head>
 <body>
-<?php include '../includes/admin-sidebar.php'; ?>
+    <div class="container-fluid">
+        <div class="row">
+            <?php include '../includes/admin-sidebar.php'; ?>
+            <?php include '../includes/admin-header.php'; ?>
             
             <main class="col-md-10 ms-sm-auto main-content">
                 <div class="p-4">

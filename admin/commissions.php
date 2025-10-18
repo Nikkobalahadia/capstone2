@@ -235,7 +235,7 @@ $amount_verified = $amounts['verified'] ?? 0;
         .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; position: fixed; width: 250px; }
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
+        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .stat-value { font-size: 2rem; font-weight: 700; }
         .stat-label { color: #6c757d; font-size: 0.875rem; }
@@ -248,6 +248,7 @@ $amount_verified = $amounts['verified'] ?? 0;
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

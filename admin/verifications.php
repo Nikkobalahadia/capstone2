@@ -118,7 +118,7 @@ $stats = $db->query($stats_query)->fetch();
         .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
+        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         .priority-badge { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         .stat-card { border-left: 4px solid; transition: transform 0.2s; }
@@ -137,7 +137,8 @@ $stats = $db->query($stats_query)->fetch();
     </style>
 </head>
 <body>
-    <?php require_once '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

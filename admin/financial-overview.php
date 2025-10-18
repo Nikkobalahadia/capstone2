@@ -101,6 +101,7 @@ $breakdown = $payment_breakdown->fetchAll();
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

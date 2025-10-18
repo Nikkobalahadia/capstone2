@@ -251,7 +251,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     <li><a href="matches/index.php">Matches</a></li>
                     <li><a href="sessions/index.php">Sessions</a></li>
                     <li><a href="messages/index.php">Messages</a></li>
-
+                    
                     <!-- Notification bell -->
                     <li style="position: relative;">
                         <div class="notification-bell" onclick="toggleNotifications(event)">

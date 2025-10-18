@@ -247,7 +247,7 @@ function getSortIcon($column, $current_sort, $current_dir) {
         .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
+        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         .sortable-header { cursor: pointer; user-select: none; }
         .sortable-header:hover { background-color: #e9ecef; }
         .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -256,7 +256,8 @@ function getSortIcon($column, $current_sort, $current_dir) {
     </style>
 </head>
 <body>
-    <?php require_once '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">

@@ -213,6 +213,7 @@ $stats = $db->query("
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <!-- Updated main content area to work with sidebar layout -->
     <div class="main-content">
