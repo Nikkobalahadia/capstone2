@@ -1,0 +1,56 @@
+app password: vkci ophi bzbl awvc
+
+
+# Session Reminders Cron Job Setup
+
+This guide explains how to set up automatic session reminder emails.
+
+## How It Works
+
+When users schedule a session with "Send reminder notification" checked, the system creates reminder records in the database. The cron job (`send_session_reminders.php`) checks for pending reminders and sends emails at the scheduled times.
+
+## Reminder Types
+
+- **24 hours before**: Sent 24 hours before the session starts
+- **1 hour before**: Sent 1 hour before the session starts
+
+Users can configure their reminder preferences in their account settings.
+
+## Manual Testing
+
+To test the reminder system manually:
+
+1. Visit: `http://localhost/study-mentorship-platform/cron/send_session_reminders.php`
+2. The page will show:
+   - Number of reminders found
+   - Number successfully sent
+   - Number failed
+   - SMTP configuration status
+
+## Automatic Setup (Windows with XAMPP)
+
+### Option 1: Windows Task Scheduler (Recommended)
+
+1. Open **Task Scheduler** (search in Start menu)
+2. Click **Create Basic Task**
+3. Name: "StudyConnect Session Reminders"
+4. Trigger: **Daily**
+5. Start time: **12:00 AM** (midnight)
+6. Recur every: **1 day**
+7. Action: **Start a program**
+8. Program/script: `C:\xampp\php\php.exe`
+9. Add arguments: `C:\xampp\htdocs\study-mentorship-platform\cron\send_session_reminders.php`
+10. Click **Finish**
+11. Right-click the task → **Properties**
+12. Go to **Triggers** tab → **Edit**
+13. Check **Repeat task every:** `5 minutes`
+14. Duration: **Indefinitely**
+15. Click **OK**
+
+### Option 2: Using a Batch File
+
+Create a file `run_reminders.bat` with:
+
+```batch
+@echo off
+C:\xampp\php\php.exe C:\xampp\htdocs\study-mentorship-platform\cron\send_session_reminders.php

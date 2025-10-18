@@ -28,13 +28,17 @@ $match_stmt = $db->prepare("
            CASE 
                WHEN m.student_id = ? THEN u2.id
                ELSE u1.id
-           END as partner_id
+           END as partner_id,
+           CASE 
+               WHEN m.student_id = ? THEN u2.profile_picture
+               ELSE u1.profile_picture
+           END as partner_profile_picture
     FROM matches m
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
     WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?) AND m.status = 'accepted'
 ");
-$match_stmt->execute([$user['id'], $user['id'], $match_id, $user['id'], $user['id']]);
+$match_stmt->execute([$user['id'], $user['id'], $user['id'], $match_id, $user['id'], $user['id']]);
 $match = $match_stmt->fetch();
 
 if (!$match) {
@@ -43,6 +47,33 @@ if (!$match) {
 
 $error = '';
 $success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
+    if (!verify_csrf_token($_POST['csrf_token'])) {
+        $error = 'Invalid security token. Please try again.';
+    } else {
+        $reason = trim($_POST['reason']);
+        $description = trim($_POST['description']);
+        
+        if (empty($reason) || empty($description)) {
+            $error = 'Please provide both a reason and description for the report.';
+        } else {
+            try {
+                $stmt = $db->prepare("INSERT INTO user_reports (reporter_id, reported_id, reason, description) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$user['id'], $match['partner_id'], $reason, $description]);
+                
+                // Log activity
+                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'user_reported', ?, ?)");
+                $log_stmt->execute([$user['id'], json_encode(['reported_user_id' => $match['partner_id'], 'reason' => $reason]), $_SERVER['REMOTE_ADDR']]);
+                
+                $success = 'Report submitted successfully. Our admin team will review it shortly.';
+                
+            } catch (Exception $e) {
+                $error = 'Failed to submit report. Please try again.';
+            }
+        }
+    }
+}
 
 // Handle new message
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
@@ -78,7 +109,7 @@ $read_stmt->execute([$match_id, $user['id']]);
 
 // Get messages
 $messages_stmt = $db->prepare("
-    SELECT m.*, u.first_name, u.last_name 
+    SELECT m.*, u.first_name, u.last_name, u.profile_picture
     FROM messages m
     JOIN users u ON m.sender_id = u.id
     WHERE m.match_id = ?
@@ -217,17 +248,47 @@ $messages = $messages_stmt->fetchAll();
                 <div class="alert alert-error"><?php echo $error; ?></div>
             <?php endif; ?>
 
+            <?php if ($success): ?>
+                <div class="alert alert-success"><?php echo $success; ?></div>
+            <?php endif; ?>
+
             <div class="chat-container">
                 <div class="chat-header">
-                    <div style="width: 40px; height: 40px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                        <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
-                    </div>
+                    <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
+                        <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
+                             alt="<?php echo htmlspecialchars($match['partner_name']); ?>" 
+                             style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <?php else: ?>
+                        <div style="width: 40px; height: 40px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                            <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
+                        </div>
+                    <?php endif; ?>
                     <div>
                         <div class="font-semibold"><?php echo htmlspecialchars($match['partner_name']); ?></div>
                         <div class="text-sm text-secondary">Online</div>
                     </div>
-                    <div style="margin-left: auto;">
+                    <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
                         <a href="../sessions/schedule.php?match_id=<?php echo $match_id; ?>" class="btn btn-secondary">Schedule Session</a>
+                        <div style="position: relative;">
+                            <button type="button" class="btn btn-outline" id="chatMenuBtn" 
+                                    style="padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color);"
+                                    onclick="toggleChatMenu()">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                    <circle cx="10" cy="4" r="1.5"/>
+                                    <circle cx="10" cy="10" r="1.5"/>
+                                    <circle cx="10" cy="16" r="1.5"/>
+                                </svg>
+                            </button>
+                            <div id="chatMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 0.5rem; background: white; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); min-width: 180px; z-index: 1000;">
+                                <button type="button" class="btn" onclick="openReportModal()" 
+                                        style="width: 100%; text-align: left; padding: 0.75rem 1rem; border: none; background: transparent; display: flex; align-items: center; gap: 0.5rem; color: var(--error-color);">
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Report User
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -239,9 +300,16 @@ $messages = $messages_stmt->fetchAll();
                     <?php else: ?>
                         <?php foreach ($messages as $message): ?>
                             <div class="message <?php echo $message['sender_id'] == $user['id'] ? 'own' : ''; ?>">
-                                <div class="message-avatar" style="background: <?php echo $message['sender_id'] == $user['id'] ? 'var(--primary-color)' : 'var(--secondary-color)'; ?>;">
-                                    <?php echo strtoupper(substr($message['first_name'], 0, 1) . substr($message['last_name'], 0, 1)); ?>
-                                </div>
+                                <?php if (!empty($message['profile_picture']) && file_exists('../' . $message['profile_picture'])): ?>
+                                    <img src="../<?php echo htmlspecialchars($message['profile_picture']); ?>" 
+                                         alt="<?php echo htmlspecialchars($message['first_name']); ?>" 
+                                         class="message-avatar" 
+                                         style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+                                <?php else: ?>
+                                    <div class="message-avatar" style="background: <?php echo $message['sender_id'] == $user['id'] ? 'var(--primary-color)' : 'var(--secondary-color)'; ?>;">
+                                        <?php echo strtoupper(substr($message['first_name'], 0, 1) . substr($message['last_name'], 0, 1)); ?>
+                                    </div>
+                                <?php endif; ?>
                                 <div class="message-content">
                                     <div><?php echo nl2br(htmlspecialchars($message['message'])); ?></div>
                                     <div class="message-time">
@@ -280,7 +348,83 @@ $messages = $messages_stmt->fetchAll();
         </div>
     </main>
 
+    <div id="reportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+            <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 600;">Report User</h3>
+                <button type="button" onclick="closeReportModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <div style="padding: 1.5rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            You are reporting <strong><?php echo htmlspecialchars($match['partner_name']); ?></strong>. 
+                            Please provide details about why you're reporting this user.
+                        </p>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label class="form-label" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Reason for Report</label>
+                        <select name="reason" class="form-input" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Select a reason...</option>
+                            <option value="harassment">Harassment or Bullying</option>
+                            <option value="inappropriate">Inappropriate Content</option>
+                            <option value="spam">Spam or Scam</option>
+                            <option value="fake_profile">Fake Profile</option>
+                            <option value="no_show">Repeated No-Shows</option>
+                            <option value="unprofessional">Unprofessional Behavior</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label class="form-label" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Description</label>
+                        <textarea name="description" class="form-input" rows="4" required 
+                                  placeholder="Please provide specific details about the issue..."
+                                  style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px; resize: vertical;"></textarea>
+                        <small style="color: var(--text-secondary);">Be as specific as possible. This will help our team review your report.</small>
+                    </div>
+                </div>
+                <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" onclick="closeReportModal()" class="btn btn-outline">Cancel</button>
+                    <button type="submit" name="submit_report" class="btn btn-primary">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        function toggleChatMenu() {
+            const menu = document.getElementById('chatMenu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function openReportModal() {
+            document.getElementById('reportModal').style.display = 'flex';
+            document.getElementById('chatMenu').style.display = 'none';
+        }
+        
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+        }
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('chatMenu');
+            const btn = document.getElementById('chatMenuBtn');
+            if (menu && btn && !menu.contains(event.target) && !btn.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Close modal when clicking outside
+        document.getElementById('reportModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeReportModal();
+            }
+        });
+
         // Auto-scroll to bottom of messages
         function scrollToBottom() {
             const chatMessages = document.getElementById('chatMessages');

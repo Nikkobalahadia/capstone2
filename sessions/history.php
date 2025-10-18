@@ -516,12 +516,21 @@ $page_title = "Session History";
 
                
 
-    <script>
-        function cancelSession(sessionId) {
-            if (!confirm('Are you sure you want to cancel this session?')) {
-                return;
-            }
-
+    <!-- Add SweetAlert2 CDN before the closing </body> -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function cancelSession(sessionId) {
+    Swal.fire({
+        title: 'Cancel Session?',
+        text: "Are you sure you want to cancel this session?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#7c3aed',
+        cancelButtonColor: '#d1d5db',
+        confirmButtonText: 'Yes, cancel it',
+        cancelButtonText: 'No, keep it'
+    }).then((result) => {
+        if (result.isConfirmed) {
             fetch('cancel.php', {
                 method: 'POST',
                 headers: {
@@ -535,17 +544,36 @@ $page_title = "Session History";
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Session cancelled successfully');
-                    window.location.reload();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Session Cancelled',
+                        text: 'The session was successfully cancelled.',
+                        confirmButtonColor: '#7c3aed'
+                    }).then(() => {
+                        window.location.reload();
+                    });
                 } else {
-                    alert('Error: ' + data.message);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Something went wrong. Please try again.',
+                        confirmButtonColor: '#7c3aed'
+                    });
                 }
             })
             .catch(error => {
-                console.error('[v0] Error cancelling session:', error);
-                alert('Failed to cancel session. Please try again.');
+                console.error('Error cancelling session:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Request Failed',
+                    text: 'Failed to cancel session. Please try again.',
+                    confirmButtonColor: '#7c3aed'
+                });
             });
         }
-    </script>
+    });
+}
+</script>
+
 </body>
 </html>

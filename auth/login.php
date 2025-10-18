@@ -64,59 +64,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="../index.php" class="logo">StudyConnect</a>
-                <ul class="nav-links">
-                    <li><a href="../index.php">Home</a></li>
-                    <li><a href="register.php">Sign Up</a></li>
-                </ul>
-            </nav>
+        <div class="container navbar">
+            <a href="../index.php" class="logo">StudyConnect</a>
+            <ul class="nav-links">
+                <li><a href="../index.php">Home</a></li>
+                <li><a href="register.php">Sign Up</a></li>
+            </ul>
         </div>
     </header>
 
-    <main style="min-height: 80vh; display: flex; align-items: center;">
+    <main class="flex items-center justify-center min-h-[80vh]">
         <div class="form-container">
             <h2 class="text-center mb-4">Welcome Back</h2>
             <p class="text-center text-secondary mb-4">Sign in to your StudyConnect account</p>
-            
+
             <?php if ($error): ?>
-                <div class="alert alert-error"><?php echo $error; ?></div>
+                <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
-            
+
             <?php if ($success): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
+                <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
-            
+
             <form method="POST" action="">
-                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                
+                <input type="hidden" name="csrf_token" value="<?= generate_csrf_token(); ?>">
+
                 <div class="form-group">
                     <label for="email" class="form-label">Email Address</label>
-                    <input type="email" id="email" name="email" class="form-input" required 
-                           value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
+                    <input type="email" id="email" name="email" class="form-input" autocomplete="email" required
+                        value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                 </div>
-                
+
                 <div class="form-group">
                     <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" required>
+                    <input type="password" id="password" name="password" class="form-input" autocomplete="current-password" required>
                 </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+
+                <button type="submit" class="btn btn-primary w-full">Sign In</button>
             </form>
-            
+
             <div class="text-center mt-3">
                 <p class="text-secondary">Or</p>
-                <a href="login-otp.php" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">
-                    Sign In with Email Code
-                </a>
+                <a href="login-otp.php" class="btn btn-secondary w-full mt-2">Sign In with Email Code</a>
             </div>
-            
+
             <div class="text-center mt-4">
-                <p class="text-secondary">Don't have an account? <a href="register.php" class="text-primary">Sign up here</a></p>
-                <p class="text-secondary mt-2"><a href="forgot-password.php" class="text-primary">Forgot your password?</a></p>
+                <p class="text-secondary">
+                    Don't have an account? <a href="register.php" class="text-primary">Sign up here</a>
+                </p>
+                <p class="text-secondary mt-2">
+                    <a href="forgot-password.php" class="text-primary">Forgot your password?</a>
+                </p>
             </div>
         </div>
     </main>
 </body>
 </html>
+

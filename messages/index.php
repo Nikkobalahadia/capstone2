@@ -1,5 +1,6 @@
 <?php
 require_once '../config/config.php';
+require_once '../config/notification_helper.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -10,6 +11,9 @@ $user = get_logged_in_user();
 if (!$user) {
     redirect('auth/login.php');
 }
+
+// Get unread notifications count
+$unread_notifications = get_unread_count($user['id']);
 
 // Get user's active matches with latest message
 $db = getDB();
@@ -59,6 +63,169 @@ $conversations = $stmt->fetchAll();
     <title>Messages - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        /* Notification bell styles */
+        .notification-bell {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        .notification-bell:hover {
+            background-color: #f3f4f6;
+        }
+        .notification-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0.125rem 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 18px;
+            text-align: center;
+        }
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.5rem;
+            width: 380px;
+            max-height: 500px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .notification-dropdown.show {
+            display: block;
+        }
+        .notification-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .notification-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .notification-item-dropdown {
+            padding: 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .notification-item-dropdown:hover {
+            background-color: #f9fafb;
+        }
+        .notification-item-dropdown.unread {
+            background-color: #eff6ff;
+        }
+        .notification-footer {
+            padding: 0.75rem;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* Profile dropdown styles */
+        .profile-menu {
+            position: relative;
+            display: inline-block;
+        }
+        .profile-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 1.25rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+        }
+        .profile-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.5rem;
+            width: 220px;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow: hidden;
+        }
+        .profile-dropdown.show {
+            display: block;
+        }
+        .profile-dropdown-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        .profile-dropdown-header .user-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+        .profile-dropdown-header .user-role {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin: 0.25rem 0 0 0;
+        }
+        .profile-dropdown-menu {
+            padding: 0.5rem 0;
+        }
+        .profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: #374151;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+        .profile-dropdown-item:hover {
+            background-color: #f3f4f6;
+        }
+        .profile-dropdown-item i {
+            width: 18px;
+            text-align: center;
+        }
+        .profile-dropdown-divider {
+            height: 1px;
+            background-color: #e5e7eb;
+            margin: 0.5rem 0;
+        }
+        .profile-dropdown-item.logout {
+            color: #dc2626;
+        }
+        .profile-dropdown-item.logout:hover {
+            background-color: #fee2e2;
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -67,11 +234,71 @@ $conversations = $stmt->fetchAll();
                 <a href="../dashboard.php" class="logo">StudyConnect</a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="../profile/index.php">Profile</a></li>
                     <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="../sessions/index.php">Sessions</a></li>
                     <li><a href="index.php">Messages</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
+                    
+                    <!-- Notification bell -->
+                    <li style="position: relative;">
+                        <div class="notification-bell" onclick="toggleNotifications(event)">
+                            <i class="fas fa-bell" style="font-size: 1.25rem;"></i>
+                            <?php if ($unread_notifications > 0): ?>
+                                <span class="notification-badge" id="notificationBadge"><?php echo $unread_notifications; ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="notification-dropdown" id="notificationDropdown">
+                            <div class="notification-header">
+                                <h4 class="font-semibold">Notifications</h4>
+                                <?php if ($unread_notifications > 0): ?>
+                                    <button onclick="markAllRead(event)" class="btn btn-sm btn-outline">Mark all read</button>
+                                <?php endif; ?>
+                            </div>
+                            <div class="notification-list" id="notificationList">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                                </div>
+                            </div>
+                            <div class="notification-footer">
+                                <a href="../notifications/index.php" class="text-primary font-medium">View All Notifications</a>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <!-- Profile menu with dropdown -->
+                    <li style="position: relative;">
+                        <div class="profile-menu">
+                            <button class="profile-icon" onclick="toggleProfileMenu(event)" title="Profile Menu">
+                                <i class="fas fa-user"></i>
+                            </button>
+                            <div class="profile-dropdown" id="profileDropdown">
+                                <div class="profile-dropdown-header">
+                                    <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
+                                    <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
+                                </div>
+                                <div class="profile-dropdown-menu">
+                                    <a href="../profile/index.php" class="profile-dropdown-item">
+                                        <i class="fas fa-user-circle"></i>
+                                        <span>View Profile</span>
+                                    </a>
+                                    <?php if (in_array($user['role'], ['mentor'])): ?>
+                                        <a href="profile/commission-payments.php" class="profile-dropdown-item">
+                                            <i class="fas fa-money-bill-wave"></i>
+                                            <span>Commission Payments</span>
+                                        </a>
+                                    <?php endif; ?>
+                                    <a href="../profile/settings.php" class="profile-dropdown-item">
+                                        <i class="fas fa-cog"></i>
+                                        <span>Settings</span>
+                                    </a>
+                                    <div class="profile-dropdown-divider"></div>
+                                    <a href="../auth/logout.php" class="profile-dropdown-item logout">
+                                        <i class="fas fa-sign-out-alt"></i>
+                                        <span>Logout</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
                 </ul>
             </nav>
         </div>
@@ -182,5 +409,184 @@ $conversations = $stmt->fetchAll();
             <?php endif; ?>
         </div>
     </main>
+
+    <script>
+        let notificationDropdownOpen = false;
+        let profileDropdownOpen = false;
+
+        function toggleNotifications(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('notificationDropdown');
+            notificationDropdownOpen = !notificationDropdownOpen;
+            
+            if (notificationDropdownOpen) {
+                dropdown.classList.add('show');
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
+                loadNotifications();
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function toggleProfileMenu(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('profileDropdown');
+            profileDropdownOpen = !profileDropdownOpen;
+            
+            if (profileDropdownOpen) {
+                dropdown.classList.add('show');
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function loadNotifications() {
+            fetch('../api/notifications.php')
+                .then(response => response.json())
+                .then(data => {
+                    const list = document.getElementById('notificationList');
+                    
+                    if (data.notifications.length === 0) {
+                        list.innerHTML = '<div class="text-center py-4 text-secondary">No notifications</div>';
+                        return;
+                    }
+                    
+                    list.innerHTML = data.notifications.slice(0, 5).map(notif => `
+                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
+                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
+                            <div style="display: flex; gap: 0.75rem;">
+                                <div style="flex-shrink: 0;">
+                                    <i class="fas ${getNotificationIcon(notif.type)} text-${getNotificationColor(notif.type)}-600"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div class="font-medium text-sm mb-1">${escapeHtml(notif.title)}</div>
+                                    <div class="text-xs text-secondary">${escapeHtml(notif.message)}</div>
+                                    <div class="text-xs text-gray-400 mt-1">${timeAgo(notif.created_at)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    // Update badge
+                    const badge = document.getElementById('notificationBadge');
+                    if (data.unread_count > 0) {
+                        if (badge) {
+                            badge.textContent = data.unread_count;
+                        }
+                    } else if (badge) {
+                        badge.remove();
+                    }
+                });
+        }
+
+        function handleNotificationClick(notificationId, link) {
+            fetch('../api/notifications.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'mark_read',
+                    notification_id: notificationId
+                })
+            }).then(() => {
+                if (link) {
+                    window.location.href = link;
+                } else {
+                    loadNotifications();
+                }
+            });
+        }
+
+        function markAllRead(event) {
+            event.stopPropagation();
+            fetch('../api/notifications.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'mark_all_read'})
+            }).then(() => {
+                loadNotifications();
+            });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'session_scheduled': 'fa-calendar-plus',
+                'session_accepted': 'fa-check-circle',
+                'session_rejected': 'fa-times-circle',
+                'match_request': 'fa-handshake',
+                'match_accepted': 'fa-user-check',
+                'announcement': 'fa-bullhorn',
+                'commission_due': 'fa-money-bill-wave'
+            };
+            return icons[type] || 'fa-bell';
+        }
+
+        function getNotificationColor(type) {
+            const colors = {
+                'session_accepted': 'success',
+                'session_rejected': 'danger',
+                'match_accepted': 'success',
+                'announcement': 'primary',
+                'commission_due': 'warning'
+            };
+            return colors[type] || 'secondary';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function timeAgo(dateString) {
+            const date = new Date(dateString);
+            const seconds = Math.floor((new Date() - date) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(event) {
+            if (notificationDropdownOpen) {
+                const dropdown = document.getElementById('notificationDropdown');
+                dropdown.classList.remove('show');
+                notificationDropdownOpen = false;
+            }
+            if (profileDropdownOpen) {
+                const dropdown = document.getElementById('profileDropdown');
+                dropdown.classList.remove('show');
+                profileDropdownOpen = false;
+            }
+        });
+
+        // Refresh notifications every 30 seconds
+        setInterval(() => {
+            if (notificationDropdownOpen) {
+                loadNotifications();
+            } else {
+                // Just update the badge count
+                fetch('../api/notifications.php')
+                    .then(response => response.json())
+                    .then(data => {
+                        const badge = document.getElementById('notificationBadge');
+                        if (data.unread_count > 0) {
+                            if (badge) {
+                                badge.textContent = data.unread_count;
+                            } else {
+                                document.querySelector('.notification-bell').innerHTML += 
+                                    `<span class="notification-badge" id="notificationBadge">${data.unread_count}</span>`;
+                            }
+                        } else if (badge) {
+                            badge.remove();
+                        }
+                    });
+            }
+        }, 30000);
+    </script>
 </body>
 </html>

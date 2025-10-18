@@ -13,14 +13,32 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
+$time_period = isset($_GET['period']) ? $_GET['period'] : 'monthly';
+$date_range = '';
 
-// 2.1 Number of registered users (daily, weekly, monthly)
+switch($time_period) {
+    case 'daily':
+        $date_range = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
+        break;
+    case 'weekly':
+        $date_range = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
+        break;
+    case 'yearly':
+        $date_range = "DATE_SUB(NOW(), INTERVAL 365 DAY)";
+        break;
+    case 'monthly':
+    default:
+        $date_range = "DATE_SUB(NOW(), INTERVAL 30 DAY)";
+}
+
+// 2.1 Number of registered users (daily, weekly, monthly, yearly)
 $user_registration_stats = $db->query("
     SELECT 
         COUNT(*) as total_users,
         COUNT(CASE WHEN created_at >= CURDATE() THEN 1 END) as today_registrations,
         COUNT(CASE WHEN created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 END) as week_registrations,
-        COUNT(CASE WHEN created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as month_registrations
+        COUNT(CASE WHEN created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as month_registrations,
+        COUNT(CASE WHEN created_at >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN 1 END) as year_registrations
     FROM users WHERE role != 'admin'
 ")->fetch();
 
@@ -29,7 +47,8 @@ $active_users_stats = $db->query("
     SELECT 
         COUNT(DISTINCT CASE WHEN ual.created_at >= CURDATE() THEN ual.user_id END) as daily_active,
         COUNT(DISTINCT CASE WHEN ual.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN ual.user_id END) as weekly_active,
-        COUNT(DISTINCT CASE WHEN ual.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN ual.user_id END) as monthly_active
+        COUNT(DISTINCT CASE WHEN ual.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN ual.user_id END) as monthly_active,
+        COUNT(DISTINCT CASE WHEN ual.created_at >= DATE_SUB(CURDATE(), INTERVAL 365 DAY) THEN ual.user_id END) as yearly_active
     FROM user_activity_logs ual
     JOIN users u ON ual.user_id = u.id
     WHERE u.role != 'admin'
@@ -74,7 +93,7 @@ $peak_hours = $db->query("
         COUNT(*) as activity_count,
         COUNT(DISTINCT user_id) as unique_users
     FROM user_activity_logs
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    WHERE created_at >= $date_range
     GROUP BY HOUR(created_at)
     ORDER BY hour
 ")->fetchAll();
@@ -101,8 +120,6 @@ $rematch_requests = $db->query("
     )
 ")->fetch();
 
-// 2.6 Feedback trends and common user concerns
-
 // 2.7 Session cancellation reasons and user inactivity
 $session_cancellation_stats = $db->query("
     SELECT 
@@ -125,7 +142,6 @@ $cancellation_reasons = $db->query("
     ORDER BY count DESC
     LIMIT 10
 ")->fetchAll();
-
 
 // Optimal time slots analysis
 $optimal_time_slots = $db->query("
@@ -159,6 +175,39 @@ $user_journey = $db->query("
     ) first_session ON u.id = first_session.user_id
     WHERE u.role != 'admin' AND u.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
 ")->fetch();
+
+$feedback_trends = $db->query("
+    SELECT 
+        reason,
+        COUNT(*) as count,
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM user_reports), 2) as percentage
+    FROM user_reports
+    WHERE created_at >= $date_range
+    GROUP BY reason
+    ORDER BY count DESC
+    LIMIT 10
+")->fetchAll();
+
+$commission_revenue = $db->query("
+    SELECT 
+        COUNT(*) as total_payments,
+        COUNT(CASE WHEN payment_status = 'verified' THEN 1 END) as verified_payments,
+        COUNT(CASE WHEN payment_status = 'pending' THEN 1 END) as pending_payments,
+        SUM(CASE WHEN payment_status = 'verified' THEN commission_amount ELSE 0 END) as total_revenue,
+        AVG(commission_amount) as avg_commission
+    FROM commission_payments
+    WHERE created_at >= $date_range
+")->fetch();
+
+$user_growth_trend = $db->query("
+    SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as new_users
+    FROM users
+    WHERE role != 'admin' AND created_at >= $date_range
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -180,13 +229,14 @@ $user_journey = $db->query("
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
         .metric-card { transition: transform 0.2s; }
         .metric-card:hover { transform: translateY(-2px); }
+        .nav-tabs .nav-link { color: #667eea; border: none; border-bottom: 3px solid transparent; }
+        .nav-tabs .nav-link.active { color: #667eea; border-bottom: 3px solid #667eea; background: none; }
+        .period-btn { margin: 0 5px; }
+        .period-btn.active { background: #667eea; color: white; }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
-    <div class="container-fluid">
-        <div class="row">
-            
+<?php include '../includes/admin-sidebar.php'; ?>
             
             <main class="col-md-10 ms-sm-auto main-content">
                 <div class="p-4">
@@ -202,193 +252,325 @@ $user_journey = $db->query("
                         </div>
                     </div>
 
-                    <!-- User Registration & Activity Metrics -->
-                    <div class="row mb-4">
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card metric-card border-left-primary shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Registered Users</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($user_registration_stats['total_users']); ?></div>
-                                            <div class="text-success small">+<?php echo $user_registration_stats['month_registrations']; ?> this month</div>
+                    <!-- Add time period selector -->
+                    <div class="mb-4 p-3 bg-white rounded shadow-sm">
+                        <label class="mb-2"><strong>Time Period:</strong></label>
+                        <div>
+                            <a href="?period=daily" class="btn btn-sm period-btn <?php echo $time_period === 'daily' ? 'active' : 'btn-outline-primary'; ?>">Daily</a>
+                            <a href="?period=weekly" class="btn btn-sm period-btn <?php echo $time_period === 'weekly' ? 'active' : 'btn-outline-primary'; ?>">Weekly</a>
+                            <a href="?period=monthly" class="btn btn-sm period-btn <?php echo $time_period === 'monthly' ? 'active' : 'btn-outline-primary'; ?>">Monthly</a>
+                            <a href="?period=yearly" class="btn btn-sm period-btn <?php echo $time_period === 'yearly' ? 'active' : 'btn-outline-primary'; ?>">Yearly</a>
+                        </div>
+                    </div>
+
+                    <!-- Add tabbed interface -->
+                    <ul class="nav nav-tabs mb-4" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab">
+                                <i class="fas fa-users me-2"></i>Users & Growth
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">
+                                <i class="fas fa-chart-line me-2"></i>Activity & Engagement
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="matches-tab" data-bs-toggle="tab" data-bs-target="#matches" type="button" role="tab">
+                                <i class="fas fa-handshake me-2"></i>Matches & Sessions
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab">
+                                <i class="fas fa-comments me-2"></i>Feedback & Issues
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="financial-tab" data-bs-toggle="tab" data-bs-target="#financial" type="button" role="tab">
+                                <i class="fas fa-dollar-sign me-2"></i>Financial
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <!-- Users & Growth Tab -->
+                        <div class="tab-pane fade show active" id="users" role="tabpanel">
+                            <div class="row mb-4">
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-primary shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Registered Users</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($user_registration_stats['total_users']); ?></div>
+                                                    <div class="text-success small">+<?php echo $user_registration_stats['month_registrations']; ?> this month</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-user-plus fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-user-plus fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-success shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Monthly Active Users</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($active_users_stats['monthly_active']); ?></div>
+                                                    <div class="text-muted small"><?php echo $active_users_stats['weekly_active']; ?> weekly | <?php echo $active_users_stats['daily_active']; ?> today</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-info shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">User Conversion Rate</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $user_journey['conversion_rate']; ?>%</div>
+                                                    <div class="text-muted small">Avg <?php echo round($user_journey['avg_days_to_first_session']); ?> days to first session</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-route fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Yearly Registrations</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $user_registration_stats['year_registrations']; ?></div>
+                                                    <div class="text-muted small">Last 365 days</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">User Growth Trend</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="userGrowthChart" width="400" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Most Popular Strands</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <?php foreach ($popular_strands as $strand): ?>
+                                                <div class="mb-3">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span><?php echo htmlspecialchars($strand['strand']); ?></span>
+                                                        <span class="font-weight-bold"><?php echo $strand['count']; ?></span>
+                                                    </div>
+                                                    <div class="progress" style="height: 8px;">
+                                                        <div class="progress-bar bg-primary" style="width: <?php echo ($strand['count'] / $popular_strands[0]['count']) * 100; ?>%"></div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card metric-card border-left-success shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Monthly Active Users</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($active_users_stats['monthly_active']); ?></div>
-                                            <div class="text-muted small"><?php echo $active_users_stats['weekly_active']; ?> weekly | <?php echo $active_users_stats['daily_active']; ?> today</div>
+                        <!-- Activity & Engagement Tab -->
+                        <div class="tab-pane fade" id="activity" role="tabpanel">
+                            <div class="row">
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Peak Activity Hours</h6>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                        <div class="card-body">
+                                            <canvas id="peakHoursChart" width="400" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Subject Demand vs Supply</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="demandSupplyChart" width="400" height="200"></canvas>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card metric-card border-left-warning shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Match Success Rate</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $match_analytics['success_rate']; ?>%</div>
-                                            <div class="text-muted small"><?php echo $rematch_requests['rematch_count']; ?> rematches</div>
+                        <!-- Matches & Sessions Tab -->
+                        <div class="tab-pane fade" id="matches" role="tabpanel">
+                            <div class="row mb-4">
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Match Success Rate</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $match_analytics['success_rate']; ?>%</div>
+                                                    <div class="text-muted small"><?php echo $rematch_requests['rematch_count']; ?> rematches</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-handshake fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-handshake fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Session Status Distribution</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="sessionStatusChart" width="400" height="300"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-6 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Cancellation Reasons</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="cancellationReasonsChart" width="400" height="300"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-lg-12 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">Optimal Time Slots for Sessions</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="optimalTimeSlotsChart" width="400" height="200"></canvas>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card metric-card border-left-info shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">User Conversion Rate</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $user_journey['conversion_rate']; ?>%</div>
-                                            <div class="text-muted small">Avg <?php echo round($user_journey['avg_days_to_first_session']); ?> days to first session</div>
+                        <!-- Feedback & Issues Tab -->
+                        <div class="tab-pane fade" id="feedback" role="tabpanel">
+                            <div class="row">
+                                <div class="col-lg-12 mb-4">
+                                    <div class="card shadow">
+                                        <div class="card-header py-3">
+                                            <h6 class="m-0 font-weight-bold text-primary">User Report Trends</h6>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-route fa-2x text-gray-300"></i>
+                                        <div class="card-body">
+                                            <?php if (!empty($feedback_trends)): ?>
+                                                <?php foreach ($feedback_trends as $trend): ?>
+                                                    <div class="mb-3">
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <span><?php echo htmlspecialchars($trend['reason']); ?></span>
+                                                            <span class="font-weight-bold"><?php echo $trend['count']; ?> (<?php echo $trend['percentage']; ?>%)</span>
+                                                        </div>
+                                                        <div class="progress" style="height: 8px;">
+                                                            <div class="progress-bar bg-danger" style="width: <?php echo $trend['percentage']; ?>%"></div>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            <?php else: ?>
+                                                <p class="text-muted">No reports in this period</p>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="row">
-                        <!-- Peak Hours Analysis -->
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Peak Activity Hours (Last 30 Days)</h6>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="peakHoursChart" width="400" height="200"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Subject Demand vs Supply -->
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Subject Demand vs Supply</h6>
-                                    <small class="text-muted">Students seeking help vs Mentors/Peers offering help</small>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="demandSupplyChart" width="400" height="200"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Popular Strands -->
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Most Popular Strands</h6>
-                                </div>
-                                <div class="card-body">
-                                    <?php foreach ($popular_strands as $strand): ?>
-                                        <div class="mb-3">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <span><?php echo htmlspecialchars($strand['strand']); ?></span>
-                                                <span class="font-weight-bold"><?php echo $strand['count']; ?></span>
-                                            </div>
-                                            <div class="progress" style="height: 8px;">
-                                                <div class="progress-bar bg-primary" style="width: <?php echo ($strand['count'] / $popular_strands[0]['count']) * 100; ?>%"></div>
+                        <!-- Financial Tab -->
+                        <div class="tab-pane fade" id="financial" role="tabpanel">
+                            <div class="row mb-4">
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-success shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Revenue</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₱<?php echo number_format($commission_revenue['total_revenue'] ?? 0, 2); ?></div>
+                                                    <div class="text-muted small"><?php echo $commission_revenue['verified_payments']; ?> verified payments</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                                                </div>
                                             </div>
                                         </div>
-                                    <?php endforeach; ?>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        <!-- Session Status Breakdown -->
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Session Status Distribution</h6>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="sessionStatusChart" width="400" height="300"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Removed "Common User Concerns" section -->
-
-                    <!-- Session Cancellation Reasons -->
-                    <div class="row">
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Session Cancellation Reasons</h6>
-                                    <small class="text-muted">Understanding why sessions are cancelled</small>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="cancellationReasonsChart" width="400" height="300"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-lg-6 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Cancellation Trends</h6>
-                                </div>
-                                <div class="card-body">
-                                    <?php foreach ($cancellation_reasons as $reason): ?>
-                                        <div class="mb-3">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <span><?php echo htmlspecialchars($reason['cancellation_reason']); ?></span>
-                                                <span class="font-weight-bold"><?php echo $reason['count']; ?> (<?php echo $reason['percentage']; ?>%)</span>
-                                            </div>
-                                            <div class="progress" style="height: 8px;">
-                                                <div class="progress-bar bg-danger" style="width: <?php echo $reason['percentage']; ?>%"></div>
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Payments</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $commission_revenue['pending_payments']; ?></div>
+                                                    <div class="text-muted small">Awaiting verification</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
+                                                </div>
                                             </div>
                                         </div>
-                                    <?php endforeach; ?>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-3 col-md-6 mb-4">
+                                    <div class="card metric-card border-left-info shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Commission</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₱<?php echo number_format($commission_revenue['avg_commission'] ?? 0, 2); ?></div>
+                                                    <div class="text-muted small">Per payment</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-chart-pie fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Optimal Time Slots -->
-                    <div class="row">
-                        <div class="col-lg-12 mb-4">
-                            <div class="card shadow">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Optimal Time Slots for Sessions</h6>
-                                    <small class="text-muted">Based on completion rates and session volume</small>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="optimalTimeSlotsChart" width="400" height="200"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Removed "Inactive Users (30+ days)" section -->
                     </div>
                 </div>
             </main>
@@ -397,6 +579,31 @@ $user_journey = $db->query("
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // User Growth Chart
+        const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+        const userGrowthData = <?php echo json_encode($user_growth_trend); ?>;
+        
+        new Chart(userGrowthCtx, {
+            type: 'line',
+            data: {
+                labels: userGrowthData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: [{
+                    label: 'New Users',
+                    data: userGrowthData.map(d => d.new_users),
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
         // Peak Hours Chart
         const peakHoursCtx = document.getElementById('peakHoursChart').getContext('2d');
         const peakHoursData = <?php echo json_encode($peak_hours); ?>;
@@ -416,19 +623,8 @@ $user_journey = $db->query("
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } }
             }
         });
 
@@ -443,46 +639,17 @@ $user_journey = $db->query("
                 datasets: [{
                     label: 'Student Demand',
                     data: demandSupplyData.map(d => parseInt(d.student_demand)),
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                    borderColor: '#ef4444',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)'
                 }, {
                     label: 'Mentor/Peer Supply',
                     data: demandSupplyData.map(d => parseInt(d.mentor_supply)),
-                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                    borderColor: '#10b981',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(16, 185, 129, 0.8)'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            afterLabel: function(context) {
-                                if (context.datasetIndex === 0) {
-                                    const index = context.dataIndex;
-                                    const ratio = demandSupplyData[index].demand_supply_ratio;
-                                    return ratio ? `Demand/Supply Ratio: ${ratio}` : '';
-                                }
-                                return '';
-                            }
-                        }
-                    }
-                }
+                plugins: { legend: { display: true, position: 'top' } }
             }
         });
 
@@ -502,11 +669,27 @@ $user_journey = $db->query("
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        // Cancellation Reasons Chart
+        const cancellationReasonsCtx = document.getElementById('cancellationReasonsChart').getContext('2d');
+        const cancellationReasonsData = <?php echo json_encode($cancellation_reasons); ?>;
+        
+        new Chart(cancellationReasonsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: cancellationReasonsData.map(d => d.cancellation_reason),
+                datasets: [{
+                    data: cancellationReasonsData.map(d => d.count),
+                    backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
             }
         });
 
@@ -537,60 +720,9 @@ $user_journey = $db->query("
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
                 scales: {
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Completion Rate (%)'
-                        }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Session Count'
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                    }
-                }
-            }
-        });
-
-        // Cancellation Reasons Chart
-        const cancellationReasonsCtx = document.getElementById('cancellationReasonsChart').getContext('2d');
-        const cancellationReasonsData = <?php echo json_encode($cancellation_reasons); ?>;
-        
-        new Chart(cancellationReasonsCtx, {
-            type: 'doughnut',
-            data: {
-                labels: cancellationReasonsData.map(d => d.cancellation_reason),
-                datasets: [{
-                    data: cancellationReasonsData.map(d => d.count),
-                    backgroundColor: [
-                        '#ef4444', '#f97316', '#f59e0b', '#eab308', 
-                        '#84cc16', '#22c55e', '#10b981', '#14b8a6',
-                        '#06b6d4', '#0ea5e9'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
+                    y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Completion Rate (%)' } },
+                    y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Session Count' }, grid: { drawOnChartArea: false } }
                 }
             }
         });

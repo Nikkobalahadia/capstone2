@@ -12,7 +12,7 @@ if (!$user) {
 }
 
 // Only mentors and peers can access this page
-if (!in_array($user['role'], ['mentor', 'peer'])) {
+if (!in_array($user['role'], ['mentor'])) {
     redirect('../dashboard.php');
 }
 
@@ -598,7 +598,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <a href="../dashboard.php" class="logo">StudyConnect</a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="index.php">Profile</a></li>
                     <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="../sessions/index.php">Sessions</a></li>
                     <li><a href="../messages/index.php">Messages</a></li>

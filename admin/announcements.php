@@ -1,5 +1,6 @@
 <?php
 require_once '../config/config.php';
+require_once '../config/notification_helper.php';
 
 // Check if user is logged in and is admin
 if (!is_logged_in()) {
@@ -32,7 +33,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_POST['target_audience'],
                     $user['id']
                 ]);
-                $success = 'Announcement created successfully.';
+                
+                $announcement_id = $db->lastInsertId();
+                $title = sanitize_input($_POST['title']);
+                $message = sanitize_input($_POST['message']);
+                $target_audience = $_POST['target_audience'];
+                
+                // Get users based on target audience
+                if ($target_audience === 'all') {
+                    $users_stmt = $db->query("SELECT id FROM users WHERE is_active = 1");
+                } else {
+                    $users_stmt = $db->prepare("SELECT id FROM users WHERE role = ? AND is_active = 1");
+                    $users_stmt->execute([$target_audience === 'students' ? 'student' : ($target_audience === 'mentors' ? 'mentor' : 'peer')]);
+                }
+                
+                $users = $users_stmt->fetchAll();
+                
+                // Send notification to each user
+                foreach ($users as $target_user) {
+                    create_notification(
+                        $target_user['id'],
+                        'announcement',
+                        $title,
+                        $message,
+                        '/admin/announcements.php'
+                    );
+                }
+                
+                $success = 'Announcement created and notifications sent to ' . count($users) . ' users.';
             } elseif ($action === 'delete') {
                 $stmt = $db->prepare("DELETE FROM announcements WHERE id = ?");
                 $stmt->execute([(int)$_POST['announcement_id']]);

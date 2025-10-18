@@ -436,7 +436,8 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                                 <?php endif; ?>
                                                 
                                                 <?php if ($u['is_active']): ?>
-                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Deactivate this user?');">
+                                                    <form method="POST" onsubmit="return confirmDeactivate(this);">
+
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <input type="hidden" name="action" value="deactivate">
                                                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
@@ -455,7 +456,8 @@ function getSortIcon($column, $current_sort, $current_dir) {
                                                     </form>
                                                 <?php endif; ?>
                                                 
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                                                <form method="POST" onsubmit="return confirmDelete(this);">
+
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="action" value="delete">
                                                     <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
@@ -600,6 +602,52 @@ function getSortIcon($column, $current_sort, $current_dir) {
             </div>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function confirmDeactivate(form) {
+    event.preventDefault();
+
+    Swal.fire({
+        title: 'Deactivate this user?',
+        text: "This user will be unable to log in until reactivated.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b', // amber/yellow
+        cancelButtonColor: '#6b7280',  // gray
+        confirmButtonText: 'Yes, deactivate',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
+
+    return false;
+}
+
+function confirmDelete(form) {
+    event.preventDefault();
+
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "Are you sure you want to delete this user? This action cannot be undone.",
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626', // red
+        cancelButtonColor: '#6b7280',  // gray
+        confirmButtonText: 'Yes, delete',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
+
+    return false;
+}
+</script>
+
+
 
      <!-- Removed Verification Documents Modal - moved to separate Verifications page -->
 

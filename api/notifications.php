@@ -1,6 +1,6 @@
 <?php
 require_once '../config/config.php';
-require_once '../includes/hybrid_matchmaking.php';
+require_once '../config/notification_helper.php';
 
 header('Content-Type: application/json');
 
@@ -11,17 +11,18 @@ if (!is_logged_in()) {
 }
 
 $user = get_logged_in_user();
-$db = getDB();
-$hybridMatcher = new HybridMatchmakingEngine($db);
-$onlineManager = new OnlineStatusManager($db);
-
 $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        // Get real-time notifications
-        $notifications = $hybridMatcher->getRealTimeNotifications($user['id']);
-        echo json_encode(['notifications' => $notifications]);
+        // Get recent notifications
+        $notifications = get_recent_notifications($user['id'], 20);
+        $unread_count = get_unread_count($user['id']);
+        
+        echo json_encode([
+            'notifications' => $notifications,
+            'unread_count' => $unread_count
+        ]);
         break;
         
     case 'POST':
@@ -29,28 +30,18 @@ switch ($method) {
         
         if (isset($input['action'])) {
             switch ($input['action']) {
-                case 'heartbeat':
-                    // Update user activity
-                    $onlineManager->updateActivity($user['id']);
+                case 'mark_read':
+                    if (isset($input['notification_id'])) {
+                        mark_notification_read($input['notification_id'], $user['id']);
+                        echo json_encode(['status' => 'success']);
+                    } else {
+                        echo json_encode(['error' => 'Missing notification_id']);
+                    }
+                    break;
+                    
+                case 'mark_all_read':
+                    mark_all_notifications_read($user['id']);
                     echo json_encode(['status' => 'success']);
-                    break;
-                    
-                case 'mark_delivered':
-                    if (isset($input['notification_id'])) {
-                        $hybridMatcher->markNotificationDelivered($input['notification_id']);
-                        echo json_encode(['status' => 'success']);
-                    } else {
-                        echo json_encode(['error' => 'Missing notification_id']);
-                    }
-                    break;
-                    
-                case 'mark_seen':
-                    if (isset($input['notification_id'])) {
-                        $hybridMatcher->markNotificationSeen($input['notification_id']);
-                        echo json_encode(['status' => 'success']);
-                    } else {
-                        echo json_encode(['error' => 'Missing notification_id']);
-                    }
                     break;
                     
                 default:
@@ -65,4 +56,3 @@ switch ($method) {
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed']);
 }
-?>
