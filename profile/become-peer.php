@@ -30,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $db = getDB();
             
+            error_log("[v0] Peer verification started - User ID: {$user['id']}, Referral Code: {$referral_code}");
+            
             // Validate referral code - must be from a verified mentor
             $ref_stmt = $db->prepare("
                 SELECT rc.id, rc.created_by, rc.max_uses, rc.current_uses, u.role, u.is_verified
@@ -38,85 +40,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE rc.code = ? 
                 AND rc.is_active = 1 
                 AND (rc.expires_at IS NULL OR rc.expires_at > NOW())
-                AND u.role = 'mentor'
+                AND u.role IN ('mentor', 'peer')
                 AND u.is_verified = 1
             ");
-            $ref_stmt->execute([$referral_code]);
-            $referral = $ref_stmt->fetch();
             
-            if (!$referral) {
-                $error = 'Invalid referral code. Please make sure you have a valid code from a verified mentor.';
-            } elseif ($referral['current_uses'] >= $referral['max_uses']) {
-                $error = 'This referral code has reached its maximum usage limit.';
+            if (!$ref_stmt->execute([$referral_code])) {
+                error_log("[v0] Referral code query failed: " . print_r($ref_stmt->errorInfo(), true));
+                $error = 'Database error. Please try again.';
             } else {
-                try {
-                    $db->beginTransaction();
-                    
-                    error_log("[v0] Starting peer upgrade for user ID: {$user['id']}");
-                    
-                    // Update user role to peer and set verified status
-                    $update_stmt = $db->prepare("UPDATE users SET role = 'peer', is_verified = 1 WHERE id = ?");
-                    $result = $update_stmt->execute([$user['id']]);
-                    
-                    if (!$result) {
-                        error_log("[v0] ERROR: Failed to update user role - " . print_r($update_stmt->errorInfo(), true));
-                        throw new Exception("Failed to update user role");
-                    }
-                    
-                    $rows_affected = $update_stmt->rowCount();
-                    error_log("[v0] Update query affected {$rows_affected} rows");
-                    
-                    // Verify the update worked
-                    $verify_stmt = $db->prepare("SELECT role, is_verified FROM users WHERE id = ?");
-                    $verify_stmt->execute([$user['id']]);
-                    $verify_result = $verify_stmt->fetch();
-                    error_log("[v0] After update - Role: {$verify_result['role']}, Verified: {$verify_result['is_verified']}");
-                    
-                    // Update referral code usage
-                    $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
-                    $update_ref->execute([$referral['id']]);
-                    
-                    // Log the upgrade
-                    $upgrade_details = json_encode([
-                        'previous_role' => 'student',
-                        'new_role' => 'peer',
-                        'referral_code' => $referral_code,
-                        'referral_code_id' => $referral['id'],
-                        'referred_by' => $referral['created_by'],
-                        'auto_verified' => true
-                    ]);
-                    
-                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'upgrade_to_peer', ?, ?)");
-                    $log_stmt->execute([$user['id'], $upgrade_details, $_SERVER['REMOTE_ADDR']]);
-                    
-                    $db->commit();
-                    
-                    $_SESSION['role'] = 'peer';
-                    $_SESSION['is_verified'] = 1;
-                    
-                    $refresh_stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
-                    $refresh_stmt->execute([$user['id']]);
-                    $updated_user = $refresh_stmt->fetch();
-                    
-                    if ($updated_user) {
-                        // Update all session variables with fresh data
-                        foreach ($updated_user as $key => $value) {
-                            $_SESSION[$key] = $value;
+                $referral = $ref_stmt->fetch();
+                error_log("[v0] Referral lookup result: " . ($referral ? 'Found' : 'Not found'));
+                
+                if (!$referral) {
+                    $error = 'Invalid referral code. Please make sure you have a valid code from a verified mentor.';
+                } elseif ($referral['current_uses'] >= $referral['max_uses']) {
+                    $error = 'This referral code has reached its maximum usage limit.';
+                } else {
+                    try {
+                        $db->beginTransaction();
+                        
+                        error_log("[v0] Starting peer upgrade for user ID: {$user['id']}");
+                        
+                        $update_stmt = $db->prepare("UPDATE users SET role = 'peer', is_verified = 1 WHERE id = ?");
+                        $result = $update_stmt->execute([$user['id']]);
+                        
+                        if (!$result) {
+                            error_log("[v0] ERROR: Failed to update user role - " . print_r($update_stmt->errorInfo(), true));
+                            throw new Exception("Failed to update user role. Error: " . print_r($update_stmt->errorInfo(), true));
                         }
-                        error_log("[v0] Session updated - Role: {$_SESSION['role']}, Verified: {$_SESSION['is_verified']}");
+                        
+                        $rows_affected = $update_stmt->rowCount();
+                        error_log("[v0] Update query affected {$rows_affected} rows");
+                        
+                        if ($rows_affected === 0) {
+                            throw new Exception("No rows were updated. User may not exist.");
+                        }
+                        
+                        $verify_stmt = $db->prepare("SELECT role, is_verified FROM users WHERE id = ?");
+                        $verify_stmt->execute([$user['id']]);
+                        $verify_result = $verify_stmt->fetch();
+                        
+                        if (!$verify_result) {
+                            throw new Exception("Could not verify user after update");
+                        }
+                        
+                        error_log("[v0] After update - Role: {$verify_result['role']}, Verified: {$verify_result['is_verified']}");
+                        
+                        if ($verify_result['role'] !== 'peer' || $verify_result['is_verified'] != 1) {
+                            throw new Exception("Verification failed: Role is {$verify_result['role']}, Verified is {$verify_result['is_verified']}");
+                        }
+                        
+                        // Update referral code usage
+                        $update_ref = $db->prepare("UPDATE referral_codes SET current_uses = current_uses + 1 WHERE id = ?");
+                        $update_ref->execute([$referral['id']]);
+                        
+                        // Log the upgrade
+                        $upgrade_details = json_encode([
+                            'previous_role' => 'student',
+                            'new_role' => 'peer',
+                            'referral_code' => $referral_code,
+                            'referral_code_id' => $referral['id'],
+                            'referred_by' => $referral['created_by'],
+                            'auto_verified' => true
+                        ]);
+                        
+                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'upgrade_to_peer', ?, ?)");
+                        $log_stmt->execute([$user['id'], $upgrade_details, $_SERVER['REMOTE_ADDR']]);
+                        
+                        $db->commit();
+                        
+                        $_SESSION['role'] = 'peer';
+                        $_SESSION['is_verified'] = 1;
+                        
+                        // Refresh user data from database
+                        $refresh_stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+                        $refresh_stmt->execute([$user['id']]);
+                        $updated_user = $refresh_stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($updated_user) {
+                            // Update ALL session variables with fresh data
+                            foreach ($updated_user as $key => $value) {
+                                $_SESSION[$key] = $value;
+                            }
+                        }
+                        
+                        error_log("[v0] Session refreshed - Role: {$_SESSION['role']}, Verified: {$_SESSION['is_verified']}");
+                        
+                        $success = 'Congratulations! You are now a verified Peer. You can now both learn and teach on StudyConnect!';
+                        
+                        // Redirect to profile to see updated status
+                        header("refresh:2;url=index.php");
+                        
+                    } catch (Exception $e) {
+                        $db->rollBack();
+                        error_log("[v0] Error upgrading to peer: " . $e->getMessage());
+                        $error = 'Failed to upgrade to peer status: ' . $e->getMessage();
                     }
-                    
-                    error_log("[v0] User upgraded to peer - ID: {$user['id']}, Verified: {$updated_user['is_verified']}, Role: {$updated_user['role']}");
-                    
-                    $success = 'Congratulations! You are now a verified Peer. You can now both learn and teach on StudyConnect, and start finding matches immediately!';
-                    
-                    // Redirect to profile setup to add teaching subjects
-                    header("refresh:3;url=setup.php");
-                    
-                } catch (Exception $e) {
-                    $db->rollBack();
-                    error_log("[v0] Error upgrading to peer: " . $e->getMessage());
-                    $error = 'Failed to upgrade to peer status. Please try again.';
                 }
             }
         }
@@ -140,11 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="../dashboard.php" class="logo">StudyConnect</a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="index.php">Profile</a></li>
                     <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="../sessions/index.php">Sessions</a></li>
                     <li><a href="../messages/index.php">Messages</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
                 </ul>
             </nav>
         </div>

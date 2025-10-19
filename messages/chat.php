@@ -213,6 +213,73 @@ $messages = $messages_stmt->fetchAll();
         .input-group input {
             flex: 1;
         }
+        
+        /* Added styles for file attachments */
+        .attachment-preview {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #f1f5f9;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .attachment-preview button {
+            background: none;
+            border: none;
+            color: var(--error-color);
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+        
+        .message-attachment {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .message.own .message-attachment {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .message-attachment img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 4px;
+        }
+        
+        .attachment-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .attachment-info {
+            flex: 1;
+        }
+        
+        .attachment-name {
+            font-weight: 500;
+            word-break: break-word;
+        }
+        
+        .attachment-size {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .message.own .attachment-size {
+            color: rgba(255,255,255,0.8);
+        }
     </style>
 </head>
 <body>
@@ -311,7 +378,41 @@ $messages = $messages_stmt->fetchAll();
                                     </div>
                                 <?php endif; ?>
                                 <div class="message-content">
-                                    <div><?php echo nl2br(htmlspecialchars($message['message'])); ?></div>
+                                    <?php if (!empty($message['message'])): ?>
+                                        <div><?php echo nl2br(htmlspecialchars($message['message'])); ?></div>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Display file attachments -->
+                                    <?php if (!empty($message['attachment_path'])): ?>
+                                        <div class="message-attachment">
+                                            <?php 
+                                            $isImage = strpos($message['attachment_type'], 'image/') === 0;
+                                            if ($isImage && file_exists('../' . $message['attachment_path'])): 
+                                            ?>
+                                                <a href="../api/download-attachment.php?message_id=<?php echo $message['id']; ?>" target="_blank">
+                                                    <img src="../<?php echo htmlspecialchars($message['attachment_path']); ?>" 
+                                                         alt="<?php echo htmlspecialchars($message['attachment_name']); ?>">
+                                                </a>
+                                            <?php else: ?>
+                                                <div class="attachment-icon">
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                                        <polyline points="13 2 13 9 20 9"></polyline>
+                                                    </svg>
+                                                </div>
+                                                <div class="attachment-info">
+                                                    <div class="attachment-name"><?php echo htmlspecialchars($message['attachment_name']); ?></div>
+                                                    <div class="attachment-size"><?php echo number_format($message['attachment_size'] / 1024, 1); ?> KB</div>
+                                                </div>
+                                                <a href="../api/download-attachment.php?message_id=<?php echo $message['id']; ?>" 
+                                                   class="btn btn-sm btn-outline" 
+                                                   style="padding: 0.25rem 0.75rem;">
+                                                    Download
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    
                                     <div class="message-time">
                                         <?php 
                                         $time_diff = time() - strtotime($message['created_at']);
@@ -333,12 +434,23 @@ $messages = $messages_stmt->fetchAll();
                 </div>
 
                 <div class="chat-input">
-                    <form method="POST" action="">
+                    <!-- Added file attachment preview area -->
+                    <div id="attachmentPreview" style="display: none;"></div>
+                    
+                    <form method="POST" action="" id="messageForm">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip">
                         <div class="input-group">
-                            <input type="text" name="message" class="form-input" 
+                            <!-- Added file attachment button -->
+                            <button type="button" class="btn btn-outline" onclick="document.getElementById('fileInput').click()" 
+                                    style="padding: 0.5rem 0.75rem;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                                </svg>
+                            </button>
+                            <input type="text" name="message" id="messageInput" class="form-input" 
                                    placeholder="Type your message..." 
-                                   required maxlength="1000" 
+                                   maxlength="1000" 
                                    autocomplete="off">
                             <button type="submit" name="send_message" class="btn btn-primary">Send</button>
                         </div>
@@ -452,6 +564,88 @@ $messages = $messages_stmt->fetchAll();
                 this.closest('form').submit();
             }
         });
+        
+        const fileInput = document.getElementById('fileInput');
+        const attachmentPreview = document.getElementById('attachmentPreview');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        let selectedFile = null;
+        
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Validate file size (10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File size must be less than 10MB');
+                fileInput.value = '';
+                return;
+            }
+            
+            selectedFile = file;
+            showAttachmentPreview(file);
+        });
+        
+        function showAttachmentPreview(file) {
+            attachmentPreview.style.display = 'block';
+            attachmentPreview.innerHTML = `
+                <div class="attachment-preview">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                    <span>${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>
+                    <button type="button" onclick="clearAttachment()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            `;
+        }
+        
+        function clearAttachment() {
+            selectedFile = null;
+            fileInput.value = '';
+            attachmentPreview.style.display = 'none';
+            attachmentPreview.innerHTML = '';
+        }
+        
+        // Handle form submission with file upload
+        messageForm.addEventListener('submit', async function(e) {
+            if (selectedFile) {
+                e.preventDefault();
+                await uploadFileMessage();
+            }
+        });
+        
+        async function uploadFileMessage() {
+            const formData = new FormData();
+            formData.append('attachment', selectedFile);
+            formData.append('message', messageInput.value);
+            formData.append('match_id', <?php echo $match_id; ?>);
+            
+            try {
+                const response = await fetch('../api/upload-attachment.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Clear form and reload
+                    messageInput.value = '';
+                    clearAttachment();
+                    location.reload();
+                } else {
+                    alert(data.error || 'Failed to upload file');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Failed to upload file. Please try again.');
+            }
+        }
     </script>
 </body>
 </html>

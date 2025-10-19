@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get user's matches
+// Get user's matches with partner ratings
 $matches_query = "
     SELECT m.*, 
            CASE 
@@ -88,7 +88,19 @@ $matches_query = "
            CASE 
                WHEN m.student_id = ? THEN u2.profile_picture
                ELSE u1.profile_picture
-           END as partner_profile_picture
+           END as partner_profile_picture,
+           (SELECT AVG(sr.rating) 
+            FROM session_ratings sr 
+            WHERE sr.rated_id = CASE 
+                WHEN m.student_id = ? THEN u2.id 
+                ELSE u1.id 
+            END) as partner_avg_rating,
+           (SELECT COUNT(*) 
+            FROM session_ratings sr 
+            WHERE sr.rated_id = CASE 
+                WHEN m.student_id = ? THEN u2.id 
+                ELSE u1.id 
+            END) as partner_rating_count
     FROM matches m
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
@@ -103,7 +115,7 @@ $matches_query = "
 ";
 
 $stmt = $db->prepare($matches_query);
-$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
+$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $matches = $stmt->fetchAll();
 
 // Separate matches by status
@@ -281,6 +293,205 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         .profile-dropdown-item.logout:hover {
             background-color: #fee2e2;
         }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .partner-profile-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .partner-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .partner-avatar-placeholder {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 600;
+            color: white;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .info-section h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-section h4 i {
+            color: #667eea;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .info-value {
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        /* Match card action buttons container */
+        .match-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-left: 1.5rem;
+            min-width: 160px;
+            align-self: flex-start;
+        }
+
+        .match-actions .btn {
+            width: 100%;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .awaiting-status {
+            padding: 0.75rem 1rem;
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        /* Ensure match card layout is proper */
+        .match-card-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .match-info {
+            flex: 1;
+            min-width: 0;
+        }
     </style>
 </head>
 <body>
@@ -378,7 +589,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <div class="alert alert-success"><?php echo $success; ?></div>
             <?php endif; ?>
 
-            <!-- Added commission warning banner for mentors with overdue payments -->
+            <!-- Commission warning banner -->
             <?php if (!$can_accept_matches): ?>
                 <div class="alert alert-warning mb-4">
                     <div style="display: flex; align-items: start; gap: 1rem;">
@@ -404,70 +615,96 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
                             <?php foreach ($pending_matches as $match): ?>
                                 <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: #fffbeb;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div style="flex: 1;">
+                                    <div class="match-card-content">
+                                        <div class="match-info">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                                                 <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
                                                     <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
                                                          alt="<?php echo htmlspecialchars($match['partner_name']); ?>" 
-                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                                         style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 3px solid #fbbf24;">
                                                 <?php else: ?>
-                                                    <div style="width: 50px; height: 50px; background: var(--warning-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
+                                                    <div style="width: 60px; height: 60px; background: var(--warning-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.25rem; border: 3px solid #fbbf24;">
                                                         <?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>
                                                     </div>
                                                 <?php endif; ?>
-                                                <div>
-                                                    <h4 class="font-semibold"><?php echo htmlspecialchars($match['partner_name']); ?></h4>
-                                                    <div class="text-sm text-secondary">
-                                                        <?php echo ucfirst($match['partner_role']); ?> • <?php echo htmlspecialchars($match['subject']); ?>
+                                                <div style="flex: 1;">
+                                                    <h4 class="font-semibold" style="margin-bottom: 0.5rem; font-size: 1.125rem;"><?php echo htmlspecialchars($match['partner_name']); ?></h4>
+                                                    
+                                                    <?php if ($match['partner_avg_rating'] && $match['partner_rating_count'] > 0): ?>
+                                                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                                            <?php
+                                                            $rating = round($match['partner_avg_rating'], 1);
+                                                            $fullStars = floor($rating);
+                                                            $hasHalfStar = ($rating - $fullStars) >= 0.5;
+                                                            ?>
+                                                            <div style="display: flex; align-items: center; gap: 0.125rem;">
+                                                                <?php for ($i = 0; $i < $fullStars; $i++): ?>
+                                                                    <i class="fas fa-star" style="color: #fbbf24; font-size: 0.875rem;"></i>
+                                                                <?php endfor; ?>
+                                                                <?php if ($hasHalfStar): ?>
+                                                                    <i class="fas fa-star-half-alt" style="color: #fbbf24; font-size: 0.875rem;"></i>
+                                                                <?php endif; ?>
+                                                                <?php for ($i = $fullStars + ($hasHalfStar ? 1 : 0); $i < 5; $i++): ?>
+                                                                    <i class="far fa-star" style="color: #d1d5db; font-size: 0.875rem;"></i>
+                                                                <?php endfor; ?>
+                                                            </div>
+                                                            <span style="color: #6b7280; font-size: 0.875rem; font-weight: 600;"><?php echo $rating; ?></span>
+                                                            <span style="color: #9ca3af; font-size: 0.875rem;">(<?php echo $match['partner_rating_count']; ?> <?php echo $match['partner_rating_count'] == 1 ? 'review' : 'reviews'; ?>)</span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    
+                                                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                                                        <span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: #fef3c7; border-radius: 4px; font-size: 0.75rem; color: #92400e; font-weight: 500;">
+                                                            <i class="fas fa-graduation-cap"></i>
+                                                            <?php echo ucfirst($match['partner_role']); ?>
+                                                        </span>
+                                                        <span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: #dbeafe; border-radius: 4px; font-size: 0.75rem; color: #1e40af; font-weight: 500;">
+                                                            <i class="fas fa-book"></i>
+                                                            <?php echo htmlspecialchars($match['subject']); ?>
+                                                        </span>
                                                         <?php if ($match['partner_location']): ?>
-                                                            • <?php echo htmlspecialchars($match['partner_location']); ?>
+                                                            <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: #6b7280;">
+                                                                <i class="fas fa-map-marker-alt"></i>
+                                                                <?php echo htmlspecialchars($match['partner_location']); ?>
+                                                            </span>
                                                         <?php endif; ?>
-                                                    </div>
-                                                    <div class="text-sm text-secondary">
-                                                        Match Score: <?php echo $match['match_score']; ?>% • 
-                                                        Requested <?php echo date('M j, Y', strtotime($match['created_at'])); ?>
                                                     </div>
                                                 </div>
                                             </div>
                                             
                                             <?php if ($match['partner_bio']): ?>
-                                                <p class="text-secondary mb-3"><?php echo nl2br(htmlspecialchars(substr($match['partner_bio'], 0, 150))); ?><?php echo strlen($match['partner_bio']) > 150 ? '...' : ''; ?></p>
+                                                <div style="padding: 0.75rem; background: #fffbeb; border-left: 3px solid #fbbf24; border-radius: 4px;">
+                                                    <p style="color: #78716c; font-size: 0.875rem; line-height: 1.5; margin: 0;">
+                                                        <i class="fas fa-quote-left" style="color: #fbbf24; margin-right: 0.25rem; font-size: 0.75rem;"></i>
+                                                        <?php echo nl2br(htmlspecialchars(substr($match['partner_bio'], 0, 120))); ?><?php echo strlen($match['partner_bio']) > 120 ? '...' : ''; ?>
+                                                        <i class="fas fa-quote-right" style="color: #fbbf24; margin-left: 0.25rem; font-size: 0.75rem;"></i>
+                                                    </p>
+                                                </div>
                                             <?php endif; ?>
                                         </div>
                                         
-                                        <!-- Updated button layout to include Accept, Reject, and View Details buttons -->
                                         <?php 
-                                        // Determine if current user is the receiver of this match request
-                                        // If initiated_by field exists, use it; otherwise infer from roles
                                         $is_receiver = false;
                                         if (isset($match['initiated_by'])) {
-                                            // Use initiated_by field if available
                                             $is_receiver = ($match['initiated_by'] != $user['id']);
                                         } else {
-                                            // Fallback: Infer based on typical flow (student requests mentor)
-                                            // Mentor is receiver if they're the mentor in the match
-                                            // Student is receiver if they're the student AND the other person initiated
                                             if ($user['role'] === 'mentor' && $match['mentor_id'] == $user['id']) {
                                                 $is_receiver = true;
                                             } elseif ($user['role'] === 'student' && $match['student_id'] == $user['id']) {
-                                                // Student is sender in typical flow
                                                 $is_receiver = false;
                                             } elseif ($user['role'] === 'peer') {
-                                                // For peers, check who is in which position
-                                                // If I'm the mentor_id, I'm likely the receiver
                                                 $is_receiver = ($match['mentor_id'] == $user['id']);
                                             }
                                         }
                                         ?>
                                         
                                         <?php if ($is_receiver): ?>
-                                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
-                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                            <div class="match-actions">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </button>
                                                 
-                                                <form method="POST" action="" style="display: inline;">
+                                                <form method="POST" action="">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="response" value="accepted">
@@ -476,7 +713,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                                     </button>
                                                 </form>
                                                 
-                                                <form method="POST" action="" style="display: inline;">
+                                                <form method="POST" action="">
                                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="response" value="rejected">
@@ -486,19 +723,19 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                                 </form>
                                             </div>
                                         <?php else: ?>
-                                            <div style="margin-left: 2rem; text-align: center;">
-                                                <button type="button" class="btn btn-outline-primary btn-sm mb-2" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                            <div class="match-actions">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </button>
-                                                <div style="padding: 0.5rem 1rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px;">
+                                                <div class="awaiting-status">
                                                     <i class="fas fa-clock text-warning"></i>
-                                                    <div class="text-warning font-medium mt-1">Awaiting Response</div>
+                                                    <div class="text-warning font-medium mt-1" style="font-size: 0.875rem;">Awaiting Response</div>
                                                 </div>
                                             </div>
                                         <?php endif; ?>
                                     </div>
                                     
-                                    <!-- Added collapsible details section -->
+                                    <!-- Details section -->
                                     <div id="details-<?php echo $match['id']; ?>" class="match-details" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
                                         <div class="row">
                                             <div class="col-md-6">
@@ -540,8 +777,8 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                         <div class="grid grid-cols-1" style="gap: 1rem;">
                             <?php foreach ($accepted_matches as $match): ?>
                                 <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: #f0fdf4;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div style="flex: 1;">
+                                    <div class="match-card-content">
+                                        <div class="match-info">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                                                 <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
                                                     <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
@@ -567,9 +804,8 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                             </div>
                                         </div>
                                         
-                                        <!-- Updated active match buttons to include View Details -->
-                                        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-left: 2rem; min-width: 140px;">
-                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDetails(<?php echo $match['id']; ?>)">
+                                        <div class="match-actions">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
                                                 <i class="fas fa-eye"></i> View Details
                                             </button>
                                             <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary btn-sm">
@@ -581,7 +817,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                         </div>
                                     </div>
                                     
-                                    <!-- Added details section for active matches -->
+                                    <!-- Details section -->
                                     <div id="details-<?php echo $match['id']; ?>" class="match-details" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
                                         <div class="row">
                                             <div class="col-md-6">
@@ -651,10 +887,149 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             <?php endif; ?>
         </div>
     </main>
+
+    <!-- Match Details Modal -->
+    <div id="matchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-circle"></i> Partner Details</h3>
+                <button class="modal-close" onclick="closeMatchModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
     
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
+
+        function openMatchModal(match) {
+            const modal = document.getElementById('matchModal');
+            const modalBody = document.getElementById('modalBody');
+            
+            // Determine status badge
+            let statusBadge = '';
+            if (match.status === 'accepted') {
+                statusBadge = '<span style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600;">Active</span>';
+            } else if (match.status === 'pending') {
+                statusBadge = '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600;">Pending</span>';
+            }
+            
+            // Build profile picture HTML
+            let profilePicHtml = '';
+            if (match.partner_profile_picture && match.partner_profile_picture !== '') {
+                profilePicHtml = `<img src="../${escapeHtml(match.partner_profile_picture)}" alt="${escapeHtml(match.partner_name)}" class="partner-avatar-large">`;
+            } else {
+                const initials = match.partner_name.substring(0, 2).toUpperCase();
+                const bgColor = match.status === 'accepted' ? '#10b981' : '#f59e0b';
+                profilePicHtml = `<div class="partner-avatar-placeholder" style="background: ${bgColor};">${initials}</div>`;
+            }
+            
+            modalBody.innerHTML = `
+                <div class="partner-profile-section">
+                    ${profilePicHtml}
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #1f2937;">${escapeHtml(match.partner_name)}</h3>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span style="color: #6b7280; font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                            ${statusBadge}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4><i class="fas fa-info-circle"></i> Basic Information</h4>
+                    <div class="info-row">
+                        <span class="info-label">Role</span>
+                        <span class="info-value">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Location</span>
+                        <span class="info-value">${escapeHtml(match.partner_location || 'Not specified')}</span>
+                    </div>
+                    ${match.partner_grade_level ? `
+                    <div class="info-row">
+                        <span class="info-label">Grade Level</span>
+                        <span class="info-value">${escapeHtml(match.partner_grade_level)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="info-section">
+                    <h4><i class="fas fa-handshake"></i> Match Information</h4>
+                    <div class="info-row">
+                        <span class="info-label">Subject</span>
+                        <span class="info-value">${escapeHtml(match.subject)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Match Score</span>
+                        <span class="info-value">
+                            <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 600;">
+                                ${match.match_score}%
+                            </span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">${escapeHtml(match.status.charAt(0).toUpperCase() + match.status.slice(1))}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">${match.status === 'accepted' ? 'Started' : 'Requested'}</span>
+                        <span class="info-value">${formatDate(match.status === 'accepted' ? match.updated_at : match.created_at)}</span>
+                    </div>
+                </div>
+
+                ${match.partner_bio ? `
+                <div class="info-section">
+                    <h4><i class="fas fa-user"></i> About ${escapeHtml(match.partner_name.split(' ')[0])}</h4>
+                    <p style="color: #6b7280; line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
+                </div>
+                ` : ''}
+
+                ${match.status === 'accepted' ? `
+                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb;">
+                    <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center;">
+                        <i class="fas fa-comment"></i> Send Message
+                    </a>
+                    <a href="../sessions/schedule.php?match_id=${match.id}" class="btn btn-secondary" style="flex: 1; text-align: center;">
+                        <i class="fas fa-calendar"></i> Schedule Session
+                    </a>
+                </div>
+                ` : ''}
+            `;
+            
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMatchModal() {
+            const modal = document.getElementById('matchModal');
+            modal.classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('matchModal');
+            if (event.target === modal) {
+                closeMatchModal();
+            }
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeMatchModal();
+            }
+        });
 
         function toggleDetails(matchId) {
             const detailsElement = document.getElementById('details-' + matchId);
