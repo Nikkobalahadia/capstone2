@@ -1,46 +1,32 @@
 <?php
 require_once '../config/config.php';
+require_once '../config/notification_helper.php';
 
-// Check if user is logged in
-if (!is_logged_in()) {
-    redirect('auth/login.php');
-}
-
+if (!is_logged_in()) redirect('auth/login.php');
 $user = get_logged_in_user();
-if (!$user) {
-    redirect('auth/login.php');
-}
+if (!$user) redirect('auth/login.php');
 
 $session_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if (!$session_id) {
-    redirect('index.php');
-}
+if (!$session_id) redirect('index.php');
 
 $db = getDB();
 
 // Get session details and verify user access
 $session_stmt = $db->prepare("
-    SELECT s.*, m.subject,
-           CASE 
-               WHEN m.student_id = ? THEN CONCAT(u2.first_name, ' ', u2.last_name)
-               ELSE CONCAT(u1.first_name, ' ', u1.last_name)
-           END as partner_name,
-           CASE 
-               WHEN m.student_id = ? THEN u2.id
-               ELSE u1.id
-           END as partner_id
+    SELECT s.*, m.subject, m.student_id, m.mentor_id,
+           CASE WHEN m.student_id = ? THEN CONCAT(u2.first_name, ' ', u2.last_name)
+                ELSE CONCAT(u1.first_name, ' ', u1.last_name) END as partner_name,
+           CASE WHEN m.student_id = ? THEN u2.id ELSE u1.id END as partner_id
     FROM sessions s
     JOIN matches m ON s.match_id = m.id
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
-    WHERE s.id = ? AND (m.student_id = ? OR m.mentor_id = ?) AND s.status = 'scheduled'
+    WHERE s.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
 ");
 $session_stmt->execute([$user['id'], $user['id'], $session_id, $user['id'], $user['id']]);
 $session = $session_stmt->fetch();
 
-if (!$session) {
-    redirect('index.php');
-}
+if (!$session) redirect('index.php');
 
 $error = '';
 $success = '';
@@ -48,294 +34,633 @@ $success = '';
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
-        $error = 'Invalid security token. Please try again.';
+        $error = 'Invalid security token.';
     } else {
-        $action = $_POST['action'];
+        $action = $_POST['action'] ?? '';
         
-        if ($action === 'update') {
-            $session_date = $_POST['session_date'];
-            $start_time = $_POST['start_time'];
-            $end_time = $_POST['end_time'];
-            $location = sanitize_input($_POST['location']);
-            $notes = sanitize_input($_POST['notes']);
+        try {
+            $db->beginTransaction();
             
-            // Validation
-            if (empty($session_date) || empty($start_time) || empty($end_time)) {
-                $error = 'Please fill in all required fields.';
-            } elseif (strtotime($session_date) < strtotime(date('Y-m-d'))) {
-                $error = 'Session date cannot be in the past.';
-            } elseif (strtotime($start_time) >= strtotime($end_time)) {
-                $error = 'End time must be after start time.';
-            } else {
-                try {
-                    $stmt = $db->prepare("
-                        UPDATE sessions 
-                        SET session_date = ?, start_time = ?, end_time = ?, location = ?, notes = ? 
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$session_date, $start_time, $end_time, $location, $notes, $session_id]);
+            if ($action === 'mark_completed') {
+                // Mark session as completed
+                $update_stmt = $db->prepare("UPDATE sessions SET status = 'completed', updated_at = NOW() WHERE id = ?");
+                $update_stmt->execute([$session_id]);
+                
+                if ($update_stmt->rowCount() > 0) {
+                    // Create notification for partner
+                    create_notification(
+                        $session['partner_id'],
+                        'session_completed',
+                        'Session Completed',
+                        'A session for ' . $session['subject'] . ' has been marked as completed.',
+                        '../sessions/rate.php?id=' . $session_id
+                    );
                     
+                    // Log activity
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_completed', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $db->commit();
+                    $success = 'Session marked as completed successfully! Redirecting to rate the session...';
+                    header("refresh:2;url=rate.php?id=" . $session_id);
+                } else {
+                    throw new Exception('Failed to update session status');
+                }
+                
+            } elseif ($action === 'update') {
+                // Update session details
+                $session_date = sanitize_input($_POST['session_date']);
+                $start_time = sanitize_input($_POST['start_time']);
+                $end_time = sanitize_input($_POST['end_time']);
+                $location = sanitize_input($_POST['location']);
+                $notes = sanitize_input($_POST['notes']);
+                
+                // Validation
+                if (empty($session_date) || empty($start_time) || empty($end_time)) {
+                    throw new Exception('Please fill in all required fields.');
+                }
+                
+                if (strtotime($end_time) <= strtotime($start_time)) {
+                    throw new Exception('End time must be after start time.');
+                }
+                
+                $update_stmt = $db->prepare("
+                    UPDATE sessions 
+                    SET session_date = ?, start_time = ?, end_time = ?, location = ?, notes = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $update_stmt->execute([$session_date, $start_time, $end_time, $location, $notes, $session_id]);
+                
+                if ($update_stmt->rowCount() > 0) {
+                    // Create notification for partner
+                    create_notification(
+                        $session['partner_id'],
+                        'session_updated',
+                        'Session Updated',
+                        'A session for ' . $session['subject'] . ' has been updated.',
+                        '../sessions/index.php'
+                    );
+                    
+                    $db->commit();
                     $success = 'Session updated successfully!';
                     
                     // Refresh session data
-                    $session['session_date'] = $session_date;
-                    $session['start_time'] = $start_time;
-                    $session['end_time'] = $end_time;
-                    $session['location'] = $location;
-                    $session['notes'] = $notes;
-                    
-                } catch (Exception $e) {
-                    $error = 'Failed to update session. Please try again.';
+                    $session_stmt->execute([$user['id'], $user['id'], $session_id, $user['id'], $user['id']]);
+                    $session = $session_stmt->fetch();
+                } else {
+                    throw new Exception('No changes were made to the session.');
                 }
-            }
-        } elseif ($action === 'cancel') {
-            $cancellation_reason = sanitize_input($_POST['cancellation_reason'] ?? 'User cancelled session');
-            
-            try {
-                $stmt = $db->prepare("
+                
+            } elseif ($action === 'cancel') {
+                // Cancel session
+                $cancel_reason = sanitize_input($_POST['cancel_reason']);
+                
+                if (empty($cancel_reason)) {
+                    throw new Exception('Please provide a reason for cancellation.');
+                }
+                
+                $update_stmt = $db->prepare("
                     UPDATE sessions 
-                    SET status = 'cancelled', 
-                        cancellation_reason = ?, 
-                        cancelled_by = ?, 
-                        cancelled_at = NOW() 
+                    SET status = 'cancelled', cancellation_reason = ?, cancelled_by = ?, updated_at = NOW()
                     WHERE id = ?
                 ");
-                $stmt->execute([$cancellation_reason, $user['id'], $session_id]);
+                $update_stmt->execute([$cancel_reason, $user['id'], $session_id]);
                 
-                // Log activity
-                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_cancelled', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id, 'reason' => $cancellation_reason]), $_SERVER['REMOTE_ADDR']]);
-                
-                redirect('index.php');
-                
-            } catch (Exception $e) {
-                $error = 'Failed to cancel session. Please try again.';
-            }
-        } elseif ($action === 'complete') {
-            try {
-                $db->beginTransaction();
-                
-                $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
-                $stmt->execute([$session_id]);
-                
-                // Get mentor info and calculate commission
-                $commission_stmt = $db->prepare("
-                    SELECT m.mentor_id, u.hourly_rate, s.start_time, s.end_time
-                    FROM sessions s
-                    JOIN matches m ON s.match_id = m.id
-                    JOIN users u ON m.mentor_id = u.id
-                    WHERE s.id = ?
-                ");
-                $commission_stmt->execute([$session_id]);
-                $commission_data = $commission_stmt->fetch();
-                
-                if ($commission_data && $commission_data['hourly_rate'] > 0) {
-                    // Calculate duration in hours
-                    $start = new DateTime($commission_data['start_time']);
-                    $end = new DateTime($commission_data['end_time']);
-                    $duration_hours = $end->diff($start)->h + ($end->diff($start)->i / 60);
+                if ($update_stmt->rowCount() > 0) {
+                    // Create notification for partner
+                    create_notification(
+                        $session['partner_id'],
+                        'session_cancelled',
+                        'Session Cancelled',
+                        'A session for ' . $session['subject'] . ' has been cancelled.',
+                        '../sessions/index.php'
+                    );
                     
-                    // Calculate session amount and commission (10%)
-                    $session_amount = $commission_data['hourly_rate'] * $duration_hours;
-                    $commission_amount = $session_amount * 0.10;
-                    
-                    // Insert commission payment record
-                    $insert_commission = $db->prepare("
-                        INSERT INTO commission_payments 
-                        (mentor_id, session_id, session_amount, amount, commission_rate, status, created_at) 
-                        VALUES (?, ?, ?, ?, 0.10, 'pending', NOW())
-                    ");
-                    $insert_commission->execute([
-                        $commission_data['mentor_id'],
-                        $session_id,
-                        $session_amount,
-                        $commission_amount
-                    ]);
+                    $db->commit();
+                    $success = 'Session cancelled successfully!';
+                    header("refresh:2;url=index.php");
+                } else {
+                    throw new Exception('Failed to cancel session');
                 }
-                
-                // Log activity
-                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_completed', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
-                
-                $db->commit();
-                
-                redirect('index.php');
-                
-            } catch (Exception $e) {
-                $db->rollBack();
-                $error = 'Failed to mark session as completed. Please try again.';
             }
+            
+        } catch (Exception $e) {
+            $db->rollBack();
+            $error = $e->getMessage();
+            error_log("Session edit error: " . $e->getMessage()); // Log for debugging
         }
     }
 }
+
+$unread_notifications = get_unread_count($user['id']);
+
+// Check if session has already ended (for completion notice)
+$session_ended = strtotime($session['session_date'] . ' ' . $session['end_time']) <= time();
+$can_mark_completed = in_array($session['status'], ['scheduled']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Edit Session - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --border-color: #e5e5e5;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary-color);
+        }
+
+        main {
+            padding: 2rem 0;
+        }
+
+        .form-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.9375rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn {
+            padding: 0.875rem 1.75rem;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: var(--text-primary);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .button-group .btn {
+            flex: 1;
+        }
+
+        .alert {
+            padding: 1.25rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 2px solid #fecaca;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 2px solid #a7f3d0;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 2px solid #93c5fd;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 2px solid #fcd34d;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #60a5fa;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box h4 {
+            color: var(--primary-color);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-box p {
+            color: #1e40af;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h3 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-container {
+                padding: 1.5rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
 </head>
 <body>
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../dashboard.php" class="logo">StudyConnect</a>
+                <a href="../dashboard.php" class="logo">
+                    <i class="fas fa-book-open"></i> StudyConnect
+                </a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="../profile/index.php">Profile</a></li>
-                    <li><a href="../matches/index.php">Matches</a></li>
                     <li><a href="index.php">Sessions</a></li>
-                    <li><a href="../messages/index.php">Messages</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
+                    <li><a href="../auth/logout.php">Logout</a></li>
                 </ul>
             </nav>
         </div>
     </header>
 
-    <main style="padding: 2rem 0;">
+    <main>
         <div class="container">
-            <div class="form-container" style="max-width: 600px;">
-                <h2 class="text-center mb-4">Edit Session</h2>
-                
-                <!-- Session Details -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div style="display: flex; align-items: center; gap: 1rem;">
-                            <div style="width: 50px; height: 50px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                                <?php echo strtoupper(substr($session['partner_name'], 0, 2)); ?>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold"><?php echo htmlspecialchars($session['partner_name']); ?></h4>
-                                <div class="text-sm text-secondary">
-                                    <?php echo htmlspecialchars($session['subject']); ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="form-container">
+                <div class="page-header">
+                    <h1><i class="fas fa-edit"></i> Edit Session</h1>
+                    <p style="color: var(--text-secondary);">Update session details or manage session status</p>
                 </div>
-                
+
                 <?php if ($error): ?>
-                    <div class="alert alert-error"><?php echo $error; ?></div>
+                    <div class="alert alert-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span><?php echo htmlspecialchars($error); ?></span>
+                    </div>
                 <?php endif; ?>
-                
+
                 <?php if ($success): ?>
-                    <div class="alert alert-success"><?php echo $success; ?></div>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        <span><?php echo htmlspecialchars($success); ?></span>
+                    </div>
                 <?php endif; ?>
-                
+
+                <?php if ($can_mark_completed && !$session_ended): ?>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span><strong>Note:</strong> You can mark this session as completed even if it hasn't occurred yet. This is useful if you completed the session early or want to close it out.</span>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($can_mark_completed && $session_ended): ?>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock"></i>
+                        <span><strong>Session Ended:</strong> This session has passed its scheduled time. Please mark it as completed or cancel it.</span>
+                    </div>
+                <?php endif; ?>
+
+                <div class="info-box">
+                    <h4><i class="fas fa-user"></i> Session Partner</h4>
+                    <p><strong><?php echo htmlspecialchars($session['partner_name']); ?></strong> - <?php echo htmlspecialchars($session['subject']); ?></p>
+                </div>
+
                 <form method="POST" action="">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <input type="hidden" name="action" value="update">
-                    
+
                     <div class="form-group">
-                        <label for="session_date" class="form-label">Session Date</label>
-                        <input type="date" id="session_date" name="session_date" class="form-input" required
-                               min="<?php echo date('Y-m-d'); ?>"
-                               value="<?php echo $session['session_date']; ?>">
+                        <label for="session_date" class="form-label">
+                            <i class="fas fa-calendar"></i> Session Date
+                        </label>
+                        <input type="date" 
+                               id="session_date" 
+                               name="session_date" 
+                               class="form-input" 
+                               value="<?php echo htmlspecialchars($session['session_date']); ?>" 
+                               required>
                     </div>
-                    
-                    <div class="grid grid-cols-2" style="gap: 1rem;">
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
-                            <label for="start_time" class="form-label">Start Time</label>
-                            <input type="time" id="start_time" name="start_time" class="form-input" required
-                                   value="<?php echo $session['start_time']; ?>">
+                            <label for="start_time" class="form-label">
+                                <i class="fas fa-clock"></i> Start Time
+                            </label>
+                            <input type="time" 
+                                   id="start_time" 
+                                   name="start_time" 
+                                   class="form-input" 
+                                   value="<?php echo htmlspecialchars($session['start_time']); ?>" 
+                                   required>
                         </div>
-                        
+
                         <div class="form-group">
-                            <label for="end_time" class="form-label">End Time</label>
-                            <input type="time" id="end_time" name="end_time" class="form-input" required
-                                   value="<?php echo $session['end_time']; ?>">
+                            <label for="end_time" class="form-label">
+                                <i class="fas fa-clock"></i> End Time
+                            </label>
+                            <input type="time" 
+                                   id="end_time" 
+                                   name="end_time" 
+                                   class="form-input" 
+                                   value="<?php echo htmlspecialchars($session['end_time']); ?>" 
+                                   required>
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
-                        <label for="location" class="form-label">Location</label>
-                        <input type="text" id="location" name="location" class="form-input" 
-                               placeholder="e.g., Library, Online (Zoom), Coffee Shop"
-                               value="<?php echo htmlspecialchars($session['location'] ?? ''); ?>">
+                        <label for="location" class="form-label">
+                            <i class="fas fa-map-marker-alt"></i> Location
+                        </label>
+                        <input type="text" 
+                               id="location" 
+                               name="location" 
+                               class="form-input" 
+                               value="<?php echo htmlspecialchars($session['location'] ?? ''); ?>" 
+                               placeholder="e.g., Library, Online, Room 101">
                     </div>
-                    
+
                     <div class="form-group">
-                        <label for="notes" class="form-label">Session Notes (Optional)</label>
-                        <textarea id="notes" name="notes" class="form-input" rows="4" 
-                                  placeholder="What topics will you cover? Any materials to bring?"><?php echo htmlspecialchars($session['notes'] ?? ''); ?></textarea>
+                        <label for="notes" class="form-label">
+                            <i class="fas fa-sticky-note"></i> Notes
+                        </label>
+                        <textarea id="notes" 
+                                  name="notes" 
+                                  class="form-input" 
+                                  rows="4" 
+                                  placeholder="Add any additional notes or instructions..."><?php echo htmlspecialchars($session['notes'] ?? ''); ?></textarea>
                     </div>
-                    
-                    <div style="display: flex; gap: 1rem;">
-                        <button type="submit" class="btn btn-primary" style="flex: 1;">Update Session</button>
-                        <a href="index.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancel</a>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                        <a href="index.php" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
                     </div>
                 </form>
-                
-                <!-- Session Actions -->
-                <div class="mt-4" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                    <h4 class="mb-3">Session Actions</h4>
+
+                <?php if ($can_mark_completed): ?>
+                    <hr style="margin: 2rem 0; border: none; border-top: 2px dashed var(--border-color);">
                     
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                        <!-- Mark Complete button -->
-                        <form method="POST" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to mark this session as completed?');">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="action" value="complete">
-                            <button type="submit" class="btn btn-success" style="width: 100%;">Mark as Complete</button>
-                        </form>
+                    <form method="POST" action="" onsubmit="return confirm('Are you sure you want to mark this session as completed? You will be redirected to rate the session.');">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="action" value="mark_completed">
                         
-                        <!-- Enhanced cancel form with reason selection -->
-                        <div style="flex: 1;">
-                            <button type="button" class="btn btn-danger" style="width: 100%;" onclick="showCancelModal()">Cancel Session</button>
-                        </div>
-                    </div>
-                    
-                    <p class="text-secondary">Mark the session as complete once it has taken place, or cancel if it cannot happen as scheduled.</p>
-                </div>
+                        <button type="submit" class="btn btn-success" style="width: 100%;">
+                            <i class="fas fa-check-circle"></i> Mark as Completed
+                        </button>
+                    </form>
+
+                    <button onclick="openCancelModal()" class="btn btn-danger" style="width: 100%; margin-top: 1rem;">
+                        <i class="fas fa-times-circle"></i> Cancel Session
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
     </main>
 
-    <!-- Added cancellation reason modal -->
-    <div id="cancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%;">
-            <h3 style="margin-bottom: 1rem;">Cancel Session</h3>
+    <!-- Cancel Modal -->
+    <div id="cancelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i> Cancel Session</h3>
+            </div>
             <form method="POST" action="">
                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                 <input type="hidden" name="action" value="cancel">
                 
                 <div class="form-group">
-                    <label for="cancellation_reason" class="form-label">Reason for cancellation:</label>
-                    <select id="cancellation_reason" name="cancellation_reason" class="form-input" required>
-                        <option value="">Select a reason...</option>
-                        <option value="Student unavailable">Student unavailable</option>
-                        <option value="Mentor unavailable">Mentor unavailable</option>
-                        <option value="Technical issues">Technical issues</option>
-                        <option value="Emergency">Emergency</option>
-                        <option value="Rescheduling needed">Rescheduling needed</option>
-                        <option value="Personal reasons">Personal reasons</option>
-                        <option value="Other">Other</option>
-                    </select>
+                    <label for="cancel_reason" class="form-label">Reason for Cancellation</label>
+                    <textarea id="cancel_reason" 
+                              name="cancel_reason" 
+                              class="form-input" 
+                              rows="4" 
+                              placeholder="Please provide a reason for cancelling this session..." 
+                              required></textarea>
                 </div>
-                
-                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                    <button type="submit" class="btn btn-danger" style="flex: 1;">Cancel Session</button>
-                    <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="hideCancelModal()">Keep Session</button>
+
+                <div class="button-group">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times-circle"></i> Confirm Cancel
+                    </button>
+                    <button type="button" onclick="closeCancelModal()" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Go Back
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
-        function showCancelModal() {
-            document.getElementById('cancelModal').style.display = 'block';
+        function openCancelModal() {
+            document.getElementById('cancelModal').classList.add('active');
         }
-        
-        function hideCancelModal() {
-            document.getElementById('cancelModal').style.display = 'none';
+
+        function closeCancelModal() {
+            document.getElementById('cancelModal').classList.remove('active');
         }
-        
+
         // Close modal when clicking outside
         document.getElementById('cancelModal').addEventListener('click', function(e) {
             if (e.target === this) {
-                hideCancelModal();
+                closeCancelModal();
+            }
+        });
+
+        // Validate end time is after start time
+        document.getElementById('end_time').addEventListener('change', function() {
+            const startTime = document.getElementById('start_time').value;
+            const endTime = this.value;
+            
+            if (startTime && endTime && endTime <= startTime) {
+                alert('End time must be after start time');
+                this.value = '';
             }
         });
     </script>

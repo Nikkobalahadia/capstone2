@@ -2,40 +2,18 @@
 require_once '../config/config.php';
 require_once '../config/notification_helper.php';
 
-// Check if user is logged in
-if (!is_logged_in()) {
-    redirect('auth/login.php');
-}
-
+if (!is_logged_in()) redirect('auth/login.php');
 $user = get_logged_in_user();
-if (!$user) {
-    redirect('auth/login.php');
-}
+if (!$user) redirect('auth/login.php');
 
-// Get unread notifications count
 $unread_notifications = get_unread_count($user['id']);
-
-// Get user's active matches with latest message
 $db = getDB();
+
 $conversations_query = "
-    SELECT m.id as match_id,
-           m.subject,
-           CASE 
-               WHEN m.student_id = ? THEN CONCAT(u2.first_name, ' ', u2.last_name)
-               ELSE CONCAT(u1.first_name, ' ', u1.last_name)
-           END as partner_name,
-           CASE 
-               WHEN m.student_id = ? THEN u2.id
-               ELSE u1.id
-           END as partner_id,
-           CASE 
-               WHEN m.student_id = ? THEN u2.role
-               ELSE u1.role
-           END as partner_role,
-           CASE 
-               WHEN m.student_id = ? THEN u2.profile_picture
-               ELSE u1.profile_picture
-           END as partner_profile_picture,
+    SELECT m.id as match_id, m.subject,
+           CASE WHEN m.student_id = ? THEN CONCAT(u2.first_name, ' ', u2.last_name) ELSE CONCAT(u1.first_name, ' ', u1.last_name) END as partner_name,
+           CASE WHEN m.student_id = ? THEN u2.role ELSE u1.role END as partner_role,
+           CASE WHEN m.student_id = ? THEN u2.profile_picture ELSE u1.profile_picture END as partner_profile_picture,
            (SELECT msg.message FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_message,
            (SELECT msg.created_at FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_message_time,
            (SELECT msg.sender_id FROM messages msg WHERE msg.match_id = m.id ORDER BY msg.created_at DESC LIMIT 1) as last_sender_id,
@@ -43,367 +21,856 @@ $conversations_query = "
     FROM matches m
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
-    WHERE (m.student_id = ? OR m.mentor_id = ?) 
-    AND m.status = 'accepted'
-    ORDER BY 
-        CASE WHEN last_message_time IS NULL THEN 1 ELSE 0 END,
-        last_message_time DESC, 
-        m.created_at DESC
+    WHERE (m.student_id = ? OR m.mentor_id = ?) AND m.status = 'accepted'
+    ORDER BY CASE WHEN last_message_time IS NULL THEN 1 ELSE 0 END, last_message_time DESC, m.created_at DESC
 ";
 
 $stmt = $db->prepare($conversations_query);
-$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
+$stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $conversations = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Messages - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
-        /* Notification bell styles */
+        :root {
+            --primary-color: #2563eb;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --border-color: #e5e5e5;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #fafafa;
+            color: #1a1a1a;
+        }
+
+        /* ===== HEADER & NAVIGATION ===== */
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 60px;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            height: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Hamburger Menu */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            z-index: 1001;
+        }
+
+        .hamburger span {
+            width: 25px;
+            height: 3px;
+            background-color: var(--text-primary);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(8px, 8px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -7px);
+        }
+
+        /* Logo */
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            white-space: nowrap;
+        }
+
+        /* Navigation Links */
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary-color);
+        }
+
+        /* Notification Bell */
         .notification-bell {
             position: relative;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 50%;
-            transition: background-color 0.2s;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            transition: background 0.2s;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
         }
+
         .notification-bell:hover {
-            background-color: #f3f4f6;
+            background: #f0f0f0;
+            color: var(--primary-color);
         }
+
         .notification-badge {
             position: absolute;
-            top: 0;
-            right: 0;
-            background-color: #ef4444;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
             color: white;
             border-radius: 10px;
-            padding: 0.125rem 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            min-width: 18px;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            min-width: 20px;
             text-align: center;
+            border: 2px solid white;
         }
+
         .notification-dropdown {
             display: none;
             position: absolute;
-            right: 0;
+            right: -10px;
             top: 100%;
-            margin-top: 0.5rem;
+            margin-top: 0.75rem;
             width: 380px;
-            max-height: 500px;
-            overflow-y: auto;
+            max-height: 450px;
             background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
             z-index: 1000;
+            overflow: hidden;
+            flex-direction: column;
         }
+
         .notification-dropdown.show {
-            display: block;
+            display: flex;
         }
+
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #f0f0f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+
         .notification-list {
-            max-height: 400px;
+            max-height: 350px;
             overflow-y: auto;
         }
+
         .notification-item-dropdown {
-            padding: 1rem;
-            border-bottom: 1px solid #f3f4f6;
+            padding: 0.875rem;
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background 0.15s;
+            display: flex;
+            gap: 0.75rem;
         }
+
         .notification-item-dropdown:hover {
-            background-color: #f9fafb;
+            background: #fafafa;
         }
+
         .notification-item-dropdown.unread {
-            background-color: #eff6ff;
+            background: #f0f7ff;
         }
+
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid #f0f0f0;
         }
 
-        /* Profile dropdown styles */
+        /* Profile Menu */
         .profile-menu {
             position: relative;
-            display: inline-block;
         }
+
         .profile-icon {
             display: flex;
             align-items: center;
             justify-content: center;
             width: 40px;
             height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
             cursor: pointer;
-            font-size: 1.25rem;
-            transition: transform 0.2s, box-shadow 0.2s;
+            font-size: 1.1rem;
             border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
+
         .profile-icon:hover {
             transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
+
         .profile-dropdown {
             display: none;
             position: absolute;
             right: 0;
             top: 100%;
             margin-top: 0.5rem;
-            width: 220px;
+            width: 240px;
             background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
             z-index: 1000;
-            overflow: hidden;
         }
+
         .profile-dropdown.show {
             display: block;
         }
+
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #f0f0f0;
             text-align: center;
         }
-        .profile-dropdown-header .user-name {
+
+        .user-name {
             font-weight: 600;
-            color: #1f2937;
-            margin: 0;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
         }
-        .profile-dropdown-header .user-role {
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin: 0.25rem 0 0 0;
+
+        .user-role {
+            font-size: 0.8rem;
+            color: #999;
         }
+
         .profile-dropdown-menu {
             padding: 0.5rem 0;
         }
+
         .profile-dropdown-item {
             display: flex;
             align-items: center;
             gap: 0.75rem;
             padding: 0.75rem 1rem;
-            color: #374151;
+            color: var(--text-secondary);
             text-decoration: none;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
             cursor: pointer;
             border: none;
             width: 100%;
             text-align: left;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
+            background: transparent;
         }
+
         .profile-dropdown-item:hover {
-            background-color: #f3f4f6;
+            background: #f5f5f5;
+            color: var(--primary-color);
         }
-        .profile-dropdown-item i {
-            width: 18px;
-            text-align: center;
-        }
-        .profile-dropdown-divider {
-            height: 1px;
-            background-color: #e5e7eb;
-            margin: 0.5rem 0;
-        }
+
         .profile-dropdown-item.logout {
             color: #dc2626;
         }
+
         .profile-dropdown-item.logout:hover {
-            background-color: #fee2e2;
+            background: #fee2e2;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        main {
+            padding: 2rem 0;
+            margin-top: 60px;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-header h1 i {
+            color: var(--primary-color);
+        }
+
+        .page-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            min-height: 44px;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        /* Card */
+        .card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 0;
+        }
+
+        /* Conversation Item */
+        .conversation-item {
+            display: block;
+            padding: 1.25rem;
+            text-decoration: none;
+            color: inherit;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+
+        .conversation-item:hover {
+            background: #f8fafc;
+        }
+
+        .conversation-item:last-child {
+            border-bottom: none;
+        }
+
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .conversation-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .conversation-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+            background: #3b82f6;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .conversation-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .unread-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border: 2px solid white;
+        }
+
+        .conversation-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .conversation-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .conversation-meta {
+            font-size: 0.85rem;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .conversation-meta i {
+            color: #9ca3af;
+        }
+
+        .conversation-preview {
+            font-size: 0.85rem;
+            color: #666;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .conversation-preview.you {
+            color: #999;
+        }
+
+        .conversation-right {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .conversation-time {
+            font-size: 0.8rem;
+            color: #999;
+            margin-bottom: 0.5rem;
+        }
+
+        .unread-count {
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.625rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: #e5e5e5;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .empty-state h3 {
+            color: #1a1a1a;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ===== MOBILE RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .hamburger {
+                display: flex;
+            }
+
+            .navbar {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .logo {
+                font-size: 1.1rem;
+            }
+
+            .nav-links {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: white;
+                flex-direction: column;
+                gap: 0;
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                box-shadow: var(--shadow-lg);
+                z-index: 999;
+            }
+
+            .nav-links.active {
+                max-height: 500px;
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 1rem;
+                border-bottom: 1px solid var(--border-color);
+                display: block;
+                text-align: left;
+            }
+
+            main {
+                padding: 1rem 0;
+            }
+
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .conversation-item {
+                padding: 1rem;
+            }
+
+            .conversation-left {
+                gap: 0.75rem;
+            }
+
+            .conversation-avatar {
+                width: 45px;
+                height: 45px;
+            }
+
+            .conversation-name {
+                font-size: 0.9rem;
+            }
+
+            .conversation-meta {
+                font-size: 0.8rem;
+            }
+
+            .conversation-preview {
+                font-size: 0.8rem;
+            }
+
+            .container {
+                padding: 0 0.75rem;
+            }
+
+            .notification-dropdown {
+                width: 320px;
+                right: -60px;
+            }
+
+            input, select, textarea, button {
+                font-size: 16px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 1rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.25rem;
+            }
+
+            .conversation-item {
+                padding: 0.875rem;
+            }
+
+            .conversation-avatar {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+
+            .conversation-header {
+                gap: 0.75rem;
+            }
+
+            .conversation-left {
+                gap: 0.625rem;
+            }
+
+            .card-body {
+                padding: 0;
+            }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Header Navigation -->
     <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="../dashboard.php" class="logo">StudyConnect</a>
-                <ul class="nav-links">
-                    <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="../matches/index.php">Matches</a></li>
-                    <li><a href="../sessions/index.php">Sessions</a></li>
-                    <li><a href="index.php">Messages</a></li>
-                    
-                    <!-- Notification bell -->
-                    <li style="position: relative;">
-                        <div class="notification-bell" onclick="toggleNotifications(event)">
-                            <i class="fas fa-bell" style="font-size: 1.25rem;"></i>
-                            <?php if ($unread_notifications > 0): ?>
-                                <span class="notification-badge" id="notificationBadge"><?php echo $unread_notifications; ?></span>
+        <div class="navbar">
+            <!-- Mobile Hamburger -->
+            <button class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <!-- Logo -->
+            <a href="../dashboard.php" class="logo">
+                <i class="fas fa-book-open"></i> StudyConnect
+            </a>
+
+            <!-- Desktop Navigation -->
+            <ul class="nav-links" id="navLinks">
+                <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
+                <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
+                <li><a href="index.php"><i class="fas fa-envelope"></i> Messages</a></li>
+            </ul>
+
+            <!-- Right Icons -->
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <!-- Notifications -->
+                <div style="position: relative;">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <?php if ($unread_notifications > 0): ?>
+                            <span class="notification-badge"><?php echo $unread_notifications; ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">
+                            <h4><i class="fas fa-bell"></i> Notifications</h4>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <div style="text-align: center; padding: 1.5rem; color: #999;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        <div class="notification-footer">
+                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Menu -->
+                <div class="profile-menu">
+                    <button class="profile-icon" onclick="toggleProfileMenu(event)">
+                        <i class="fas fa-user"></i>
+                    </button>
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <div class="profile-dropdown-header">
+                            <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
+                            <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
+                        </div>
+                        <div class="profile-dropdown-menu">
+                            <a href="../profile/index.php" class="profile-dropdown-item">
+                                <i class="fas fa-user-circle"></i>
+                                <span>View Profile</span>
+                            </a>
+                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                                <a href="../profile/commission-payments.php" class="profile-dropdown-item">
+                                    <i class="fas fa-wallet"></i>
+                                    <span>Commissions</span>
+                                </a>
                             <?php endif; ?>
+                            <a href="../profile/settings.php" class="profile-dropdown-item">
+                                <i class="fas fa-sliders-h"></i>
+                                <span>Settings</span>
+                            </a>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <a href="../auth/logout.php" class="profile-dropdown-item logout">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
+                            </a>
                         </div>
-                        <div class="notification-dropdown" id="notificationDropdown">
-                            <div class="notification-header">
-                                <h4 class="font-semibold">Notifications</h4>
-                                <?php if ($unread_notifications > 0): ?>
-                                    <button onclick="markAllRead(event)" class="btn btn-sm btn-outline">Mark all read</button>
-                                <?php endif; ?>
-                            </div>
-                            <div class="notification-list" id="notificationList">
-                                <div class="text-center py-4">
-                                    <i class="fas fa-spinner fa-spin"></i> Loading...
-                                </div>
-                            </div>
-                            <div class="notification-footer">
-                                <a href="../notifications/index.php" class="text-primary font-medium">View All Notifications</a>
-                            </div>
-                        </div>
-                    </li>
-                    
-                    <!-- Profile menu with dropdown -->
-                    <li style="position: relative;">
-                        <div class="profile-menu">
-                            <button class="profile-icon" onclick="toggleProfileMenu(event)" title="Profile Menu">
-                                <i class="fas fa-user"></i>
-                            </button>
-                            <div class="profile-dropdown" id="profileDropdown">
-                                <div class="profile-dropdown-header">
-                                    <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
-                                    <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
-                                </div>
-                                <div class="profile-dropdown-menu">
-                                    <a href="../profile/index.php" class="profile-dropdown-item">
-                                        <i class="fas fa-user-circle"></i>
-                                        <span>View Profile</span>
-                                    </a>
-                                    <?php if (in_array($user['role'], ['mentor'])): ?>
-                                        <a href="profile/commission-payments.php" class="profile-dropdown-item">
-                                            <i class="fas fa-money-bill-wave"></i>
-                                            <span>Commission Payments</span>
-                                        </a>
-                                    <?php endif; ?>
-                                    <a href="../profile/settings.php" class="profile-dropdown-item">
-                                        <i class="fas fa-cog"></i>
-                                        <span>Settings</span>
-                                    </a>
-                                    <div class="profile-dropdown-divider"></div>
-                                    <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                        <i class="fas fa-sign-out-alt"></i>
-                                        <span>Logout</span>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
-            </nav>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <main style="padding: 2rem 0;">
+    <main>
         <div class="container">
-            <div class="mb-4">
-                <h1>Messages</h1>
-                <p class="text-secondary">Chat with your study partners and mentors.</p>
+            <div class="page-header">
+                <h1><i class="fas fa-comments"></i> Messages</h1>
+                <p class="page-subtitle">Chat with your study partners and mentors</p>
             </div>
 
             <?php if (empty($conversations)): ?>
                 <div class="card">
-                    <div class="card-body text-center">
+                    <div class="card-body empty-state">
+                        <i class="fas fa-inbox"></i>
                         <h3>No conversations yet</h3>
-                        <p class="text-secondary mb-4">Start messaging your study partners once you have active matches.</p>
-                        <a href="../matches/find.php" class="btn btn-primary">Find Study Partners</a>
+                        <p>Start messaging your study partners once you have active matches</p>
+                        <a href="../matches/find.php" class="btn">
+                            <i class="fas fa-search"></i> Find Study Partners
+                        </a>
                     </div>
                 </div>
             <?php else: ?>
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Conversations</h3>
+                        <i class="fas fa-comments" style="color: var(--primary-color);"></i>
+                        <h3 class="card-title">Conversations (<?php echo count($conversations); ?>)</h3>
                     </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div style="display: flex; flex-direction: column;">
-                            <?php foreach ($conversations as $index => $conversation): ?>
-                                <a href="chat.php?match_id=<?php echo $conversation['match_id']; ?>" 
-                                   style="display: block; padding: 1.5rem; text-decoration: none; color: inherit; border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;"
-                                   onmouseover="this.style.backgroundColor='#f8fafc'" 
-                                   onmouseout="this.style.backgroundColor='transparent'">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-                                            <?php if (!empty($conversation['partner_profile_picture']) && file_exists('../' . $conversation['partner_profile_picture'])): ?>
-                                                <div style="width: 50px; height: 50px; position: relative;">
-                                                    <img src="../<?php echo htmlspecialchars($conversation['partner_profile_picture']); ?>" 
-                                                         alt="<?php echo htmlspecialchars($conversation['partner_name']); ?>" 
-                                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
-                                                    <?php if ($conversation['unread_count'] > 0): ?>
-                                                        <div style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
-                                                            <?php echo min($conversation['unread_count'], 9); ?><?php echo $conversation['unread_count'] > 9 ? '+' : ''; ?>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </div>
+                    <div class="card-body">
+                        <?php foreach ($conversations as $conv): ?>
+                            <a href="chat.php?match_id=<?php echo $conv['match_id']; ?>" class="conversation-item">
+                                <div class="conversation-header">
+                                    <div class="conversation-left">
+                                        <div class="conversation-avatar">
+                                            <?php if (!empty($conv['partner_profile_picture']) && file_exists('../' . $conv['partner_profile_picture'])): ?>
+                                                <img src="../<?php echo htmlspecialchars($conv['partner_profile_picture']); ?>" alt="<?php echo htmlspecialchars($conv['partner_name']); ?>">
                                             <?php else: ?>
-                                                <div style="width: 50px; height: 50px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; position: relative;">
-                                                    <?php echo strtoupper(substr($conversation['partner_name'], 0, 2)); ?>
-                                                    <?php if ($conversation['unread_count'] > 0): ?>
-                                                        <div style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;">
-                                                            <?php echo min($conversation['unread_count'], 9); ?><?php echo $conversation['unread_count'] > 9 ? '+' : ''; ?>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </div>
+                                                <?php echo strtoupper(substr($conv['partner_name'], 0, 2)); ?>
                                             <?php endif; ?>
-                                            <div style="flex: 1; min-width: 0;">
-                                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                                                    <h4 class="font-semibold" style="margin: 0;"><?php echo htmlspecialchars($conversation['partner_name']); ?></h4>
-                                                    <span class="text-sm text-secondary">•</span>
-                                                    <span class="text-sm text-secondary"><?php echo htmlspecialchars($conversation['subject']); ?></span>
-                                                </div>
-                                                <?php if ($conversation['last_message']): ?>
-                                                    <div class="text-sm text-secondary" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                        <?php if ($conversation['last_sender_id'] == $user['id']): ?>
-                                                            <span>You: </span>
-                                                        <?php endif; ?>
-                                                        <?php echo htmlspecialchars(substr($conversation['last_message'], 0, 60)); ?>
-                                                        <?php echo strlen($conversation['last_message']) > 60 ? '...' : ''; ?>
-                                                    </div>
+                                            <?php if ($conv['unread_count'] > 0): ?>
+                                                <div class="unread-badge"><?php echo min($conv['unread_count'], 9); ?><?php echo $conv['unread_count'] > 9 ? '+' : ''; ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="conversation-info">
+                                            <div class="conversation-name"><?php echo htmlspecialchars($conv['partner_name']); ?></div>
+                                            <div class="conversation-meta">
+                                                <i class="fas fa-graduation-cap"></i> <?php echo ucfirst($conv['partner_role']); ?>
+                                                <span>•</span>
+                                                <i class="fas fa-book"></i> <?php echo htmlspecialchars($conv['subject']); ?>
+                                            </div>
+                                            <div class="conversation-preview <?php echo ($conv['last_sender_id'] == $user['id']) ? 'you' : ''; ?>">
+                                                <?php if ($conv['last_message']): ?>
+                                                    <?php if ($conv['last_sender_id'] == $user['id']): ?>
+                                                        <span>You: </span>
+                                                    <?php endif; ?>
+                                                    <?php echo htmlspecialchars(substr($conv['last_message'], 0, 60)); ?><?php echo strlen($conv['last_message']) > 60 ? '...' : ''; ?>
                                                 <?php else: ?>
-                                                    <div class="text-sm text-secondary">No messages yet</div>
+                                                    <i class="fas fa-comments"></i> No messages yet
                                                 <?php endif; ?>
                                             </div>
                                         </div>
-                                        <div style="text-align: right; margin-left: 1rem;">
-                                            <?php if ($conversation['last_message_time']): ?>
-                                                <div class="text-sm text-secondary">
-                                                    <?php 
-                                                    $time_diff = time() - strtotime($conversation['last_message_time']);
-                                                    if ($time_diff < 60) {
-                                                        echo 'Just now';
-                                                    } elseif ($time_diff < 3600) {
-                                                        echo floor($time_diff / 60) . 'm ago';
-                                                    } elseif ($time_diff < 86400) {
-                                                        echo floor($time_diff / 3600) . 'h ago';
-                                                    } elseif ($time_diff < 604800) {
-                                                        echo floor($time_diff / 86400) . 'd ago';
-                                                    } else {
-                                                        echo date('M j', strtotime($conversation['last_message_time']));
-                                                    }
-                                                    ?>
-                                                </div>
-                                            <?php endif; ?>
-                                            <?php if ($conversation['unread_count'] > 0): ?>
-                                                <div style="margin-top: 0.25rem;">
-                                                    <span style="background: var(--error-color); color: white; padding: 0.125rem 0.5rem; border-radius: 1rem; font-size: 0.75rem;">
-                                                        <?php echo $conversation['unread_count']; ?> new
-                                                    </span>
-                                                </div>
-                                            <?php endif; ?>
-                                        </div>
                                     </div>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
+                                    <div class="conversation-right">
+                                        <?php if ($conv['last_message_time']): ?>
+                                            <div class="conversation-time">
+                                                <?php 
+                                                $diff = time() - strtotime($conv['last_message_time']);
+                                                echo ($diff < 60) ? 'Just now' : (($diff < 3600) ? floor($diff / 60) . 'm ago' : (($diff < 86400) ? floor($diff / 3600) . 'h ago' : (($diff < 604800) ? floor($diff / 86400) . 'd ago' : date('M j', strtotime($conv['last_message_time'])))));
+                                                ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if ($conv['unread_count'] > 0): ?>
+                                            <span class="unread-count"><i class="fas fa-circle"></i> <?php echo $conv['unread_count']; ?> new</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -413,6 +880,37 @@ $conversations = $stmt->fetchAll();
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
+
+        // Mobile Menu Toggle
+        document.addEventListener("DOMContentLoaded", () => {
+            const hamburger = document.querySelector(".hamburger");
+            const navLinks = document.querySelector(".nav-links");
+            
+            if (hamburger) {
+                hamburger.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    hamburger.classList.toggle("active");
+                    navLinks.classList.toggle("active");
+                });
+
+                // Close menu when clicking on links
+                const links = navLinks.querySelectorAll("a");
+                links.forEach((link) => {
+                    link.addEventListener("click", () => {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    });
+                });
+
+                // Close menu when clicking outside
+                document.addEventListener("click", (event) => {
+                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    }
+                });
+            }
+        });
 
         function toggleNotifications(event) {
             event.stopPropagation();
@@ -449,36 +947,22 @@ $conversations = $stmt->fetchAll();
                 .then(data => {
                     const list = document.getElementById('notificationList');
                     
-                    if (data.notifications.length === 0) {
-                        list.innerHTML = '<div class="text-center py-4 text-secondary">No notifications</div>';
+                    if (!data.notifications || data.notifications.length === 0) {
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
                         return;
                     }
                     
-                    list.innerHTML = data.notifications.slice(0, 5).map(notif => `
+                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
                         <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
                              onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <div style="display: flex; gap: 0.75rem;">
-                                <div style="flex-shrink: 0;">
-                                    <i class="fas ${getNotificationIcon(notif.type)} text-${getNotificationColor(notif.type)}-600"></i>
-                                </div>
-                                <div style="flex: 1;">
-                                    <div class="font-medium text-sm mb-1">${escapeHtml(notif.title)}</div>
-                                    <div class="text-xs text-secondary">${escapeHtml(notif.message)}</div>
-                                    <div class="text-xs text-gray-400 mt-1">${timeAgo(notif.created_at)}</div>
-                                </div>
+                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
+                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
                     `).join('');
-                    
-                    // Update badge
-                    const badge = document.getElementById('notificationBadge');
-                    if (data.unread_count > 0) {
-                        if (badge) {
-                            badge.textContent = data.unread_count;
-                        }
-                    } else if (badge) {
-                        badge.remove();
-                    }
                 });
         }
 
@@ -486,52 +970,37 @@ $conversations = $stmt->fetchAll();
             fetch('../api/notifications.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    action: 'mark_read',
-                    notification_id: notificationId
-                })
+                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
             }).then(() => {
-                if (link) {
-                    window.location.href = link;
-                } else {
-                    loadNotifications();
-                }
-            });
-        }
-
-        function markAllRead(event) {
-            event.stopPropagation();
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_all_read'})
-            }).then(() => {
-                loadNotifications();
+                if (link) window.location.href = link;
+                else loadNotifications();
             });
         }
 
         function getNotificationIcon(type) {
             const icons = {
-                'session_scheduled': 'fa-calendar-plus',
+                'session_scheduled': 'fa-calendar-check',
                 'session_accepted': 'fa-check-circle',
                 'session_rejected': 'fa-times-circle',
                 'match_request': 'fa-handshake',
                 'match_accepted': 'fa-user-check',
-                'announcement': 'fa-bullhorn',
-                'commission_due': 'fa-money-bill-wave'
+                'announcement': 'fa-megaphone',
+                'commission_due': 'fa-file-invoice-dollar'
             };
             return icons[type] || 'fa-bell';
         }
 
         function getNotificationColor(type) {
             const colors = {
-                'session_accepted': 'success',
-                'session_rejected': 'danger',
-                'match_accepted': 'success',
-                'announcement': 'primary',
-                'commission_due': 'warning'
+                'session_accepted': '#16a34a',
+                'session_rejected': '#dc2626',
+                'match_accepted': '#16a34a',
+                'announcement': '#2563eb',
+                'commission_due': '#d97706',
+                'session_scheduled': '#2563eb',
+                'match_request': '#2563eb'
             };
-            return colors[type] || 'secondary';
+            return colors[type] || '#666';
         }
 
         function escapeHtml(text) {
@@ -543,43 +1012,38 @@ $conversations = $stmt->fetchAll();
         function timeAgo(dateString) {
             const date = new Date(dateString);
             const seconds = Math.floor((new Date() - date) / 1000);
-            
             if (seconds < 60) return 'Just now';
             if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
             if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-            return Math.floor(seconds / 86400) + 'd ago';
+            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+            return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function() {
             if (notificationDropdownOpen) {
-                const dropdown = document.getElementById('notificationDropdown');
-                dropdown.classList.remove('show');
+                document.getElementById('notificationDropdown').classList.remove('show');
                 notificationDropdownOpen = false;
             }
             if (profileDropdownOpen) {
-                const dropdown = document.getElementById('profileDropdown');
-                dropdown.classList.remove('show');
+                document.getElementById('profileDropdown').classList.remove('show');
                 profileDropdownOpen = false;
             }
         });
 
-        // Refresh notifications every 30 seconds
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();
             } else {
-                // Just update the badge count
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.getElementById('notificationBadge');
+                        const badge = document.querySelector('.notification-badge');
                         if (data.unread_count > 0) {
                             if (badge) {
                                 badge.textContent = data.unread_count;
                             } else {
-                                document.querySelector('.notification-bell').innerHTML += 
-                                    `<span class="notification-badge" id="notificationBadge">${data.unread_count}</span>`;
+                                const bell = document.querySelector('.notification-bell');
+                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
                             }
                         } else if (badge) {
                             badge.remove();

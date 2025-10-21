@@ -1,5 +1,6 @@
 <?php
 require_once '../config/config.php';
+require_once '../config/notification_helper.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -11,10 +12,12 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-// Only mentors and peers can access this page
+// Only mentors can access this page
 if (!in_array($user['role'], ['mentor'])) {
     redirect('../dashboard.php');
 }
+
+$unread_notifications = get_unread_count($user['id']);
 
 $db = getDB();
 
@@ -151,124 +154,363 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Commission Payments - StudyConnect</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
+        :root {
+            --primary-color: #2563eb;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --border-color: #e5e5e5;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
-            min-height: 100vh;
+            background: #fafafa;
+            color: #1a1a1a;
         }
 
+        /* ===== HEADER & NAVIGATION ===== */
         .header {
             background: white;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            padding: 1rem 0;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 60px;
         }
 
         .navbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 0.75rem 1rem;
+            height: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
         }
 
+        /* Hamburger Menu */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+            background: none;
+            border: none;
+            padding: 0.5rem;
+            z-index: 1001;
+        }
+
+        .hamburger span {
+            width: 25px;
+            height: 3px;
+            background-color: var(--text-primary);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(8px, 8px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -7px);
+        }
+
+        /* Logo */
         .logo {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            color: #7c3aed;
+            color: var(--primary-color);
             text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            white-space: nowrap;
         }
 
+        /* Navigation Links */
         .nav-links {
             display: flex;
             list-style: none;
             gap: 2rem;
             align-items: center;
+            margin: 0;
+            padding: 0;
         }
 
         .nav-links a {
             text-decoration: none;
-            color: #4b5563;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
             font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             transition: color 0.2s;
         }
 
         .nav-links a:hover {
-            color: #7c3aed;
+            color: var(--primary-color);
         }
 
-        .btn {
-            padding: 0.625rem 1.25rem;
-            border-radius: 8px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.2s;
-            border: none;
+        /* Notification Bell */
+        .notification-bell {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            font-size: 0.875rem;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            transition: background 0.2s;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
         }
 
-        .btn-primary {
-            background: #7c3aed;
+        .notification-bell:hover {
+            background: #f0f0f0;
+            color: var(--primary-color);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
             color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            min-width: 20px;
+            text-align: center;
+            border: 2px solid white;
         }
 
-        .btn-primary:hover {
-            background: #6d28d9;
-        }
-
-        .btn-outline {
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: -10px;
+            top: 100%;
+            margin-top: 0.75rem;
+            width: 380px;
+            max-height: 450px;
             background: white;
-            color: #7c3aed;
-            border: 2px solid #7c3aed;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            overflow: hidden;
+            flex-direction: column;
         }
 
-        .btn-outline:hover {
-            background: #7c3aed;
+        .notification-dropdown.show {
+            display: flex;
+        }
+
+        .notification-header {
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .notification-item-dropdown {
+            padding: 0.875rem;
+            border-bottom: 1px solid #f5f5f5;
+            cursor: pointer;
+            transition: background 0.15s;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .notification-item-dropdown:hover {
+            background: #fafafa;
+        }
+
+        .notification-item-dropdown.unread {
+            background: #f0f7ff;
+        }
+
+        .notification-footer {
+            padding: 0.75rem;
+            text-align: center;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        /* Profile Menu */
+        .profile-menu {
+            position: relative;
+        }
+
+        .profile-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
+            cursor: pointer;
+            font-size: 1.1rem;
+            border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
 
-        .btn-success {
-            background: #10b981;
-            color: white;
+        .profile-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
 
-        .btn-success:hover {
-            background: #059669;
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.5rem;
+            width: 240px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
+        }
+
+        .profile-dropdown-header {
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            text-align: center;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .user-role {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        .profile-dropdown-menu {
+            padding: 0.5rem 0;
+        }
+
+        .profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 0.9rem;
+            background: transparent;
+        }
+
+        .profile-dropdown-item:hover {
+            background: #f5f5f5;
+            color: var(--primary-color);
+        }
+
+        .profile-dropdown-item.logout {
+            color: #dc2626;
+        }
+
+        .profile-dropdown-item.logout:hover {
+            background: #fee2e2;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
         }
 
         main {
             padding: 2rem 0;
+            margin-top: 60px;
         }
 
+        /* Page Header */
         .page-header {
             margin-bottom: 2rem;
         }
 
         .page-header h1 {
             font-size: 2rem;
-            color: #111827;
+            font-weight: 700;
             margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        .page-header p {
-            color: #6b7280;
+        .page-header h1 i {
+            color: var(--primary-color);
         }
 
+        .page-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -280,19 +522,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             background: white;
             border-radius: 12px;
             padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
         }
 
         .stat-label {
             font-size: 0.875rem;
-            color: #6b7280;
+            color: var(--text-secondary);
             margin-bottom: 0.5rem;
         }
 
         .stat-value {
             font-size: 1.875rem;
             font-weight: 700;
-            color: #111827;
+            color: var(--text-primary);
         }
 
         .stat-card.pending .stat-value {
@@ -307,21 +549,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             color: #10b981;
         }
 
-        .payments-card {
+        /* Card */
+        .card {
             background: white;
             border-radius: 12px;
+            border: 1px solid var(--border-color);
             padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .payments-card h2 {
-            font-size: 1.25rem;
-            color: #111827;
             margin-bottom: 1.5rem;
         }
 
+        .card h2 {
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+        }
+
+        /* Payment Item */
         .payment-item {
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1.25rem;
             margin-bottom: 1rem;
@@ -332,32 +577,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             justify-content: space-between;
             align-items: start;
             margin-bottom: 1rem;
+            gap: 1rem;
         }
 
         .payment-info h3 {
             font-size: 1rem;
-            color: #111827;
+            color: var(--text-primary);
             margin-bottom: 0.25rem;
         }
 
         .payment-info p {
             font-size: 0.875rem;
-            color: #6b7280;
+            color: var(--text-secondary);
         }
 
         .payment-amount {
             text-align: right;
+            flex-shrink: 0;
         }
 
         .payment-amount .amount {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #7c3aed;
+            color: var(--primary-color);
         }
 
         .payment-amount .commission {
             font-size: 0.875rem;
-            color: #6b7280;
+            color: var(--text-secondary);
         }
 
         .payment-details {
@@ -366,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             gap: 1rem;
             margin-bottom: 1rem;
             padding-top: 1rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
         }
 
         .detail-item {
@@ -374,15 +621,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         .detail-label {
-            color: #6b7280;
+            color: var(--text-secondary);
             margin-bottom: 0.25rem;
         }
 
         .detail-value {
-            color: #111827;
+            color: var(--text-primary);
             font-weight: 500;
         }
 
+        /* Status Badge */
         .status-badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -411,11 +659,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             color: #991b1b;
         }
 
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            min-height: 44px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
         .payment-actions {
             display: flex;
             gap: 0.75rem;
         }
 
+        /* Alerts */
         .alert {
             padding: 1rem;
             border-radius: 8px;
@@ -447,6 +742,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            padding: 1rem;
         }
 
         .modal.active {
@@ -458,7 +754,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             border-radius: 12px;
             padding: 2rem;
             max-width: 500px;
-            width: 90%;
+            width: 100%;
             max-height: 90vh;
             overflow-y: auto;
         }
@@ -473,7 +769,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .modal-icon {
             width: 40px;
             height: 40px;
-            background: #7c3aed;
+            background: var(--primary-color);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -484,16 +780,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         .modal-header h3 {
             font-size: 1.25rem;
-            color: #111827;
+            color: var(--text-primary);
+            flex: 1;
         }
 
         .modal-close {
-            margin-left: auto;
             background: none;
             border: none;
             font-size: 1.5rem;
             cursor: pointer;
-            color: #6b7280;
+            color: var(--text-secondary);
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
         }
 
         .form-group {
@@ -511,38 +818,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .form-input {
             width: 100%;
             padding: 0.75rem;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 0.875rem;
-            color: #111827;
+            color: var(--text-primary);
             font-family: 'Inter', sans-serif;
         }
 
         .form-input:focus {
             outline: none;
-            border-color: #7c3aed;
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         .gcash-number-display {
             background: #f3f4f6;
-            border: 2px solid #7c3aed;
+            border: 2px solid var(--primary-color);
             border-radius: 8px;
             padding: 1rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 1.25rem;
+            gap: 1rem;
         }
 
         .gcash-number-display .number {
             font-size: 1.25rem;
             font-weight: 600;
-            color: #7c3aed;
+            color: var(--primary-color);
+            word-break: break-all;
         }
 
         .copy-btn {
-            background: #7c3aed;
+            background: var(--primary-color);
             color: white;
             border: none;
             padding: 0.5rem 1rem;
@@ -550,10 +858,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             cursor: pointer;
             font-size: 0.875rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .copy-btn:hover {
-            background: #6d28d9;
+            background: #1d4ed8;
         }
 
         .info-box {
@@ -570,12 +879,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             display: flex;
             align-items: start;
             gap: 0.5rem;
+            margin: 0;
         }
 
         .info-box p::before {
             content: "✓";
             color: #10b981;
             font-weight: 700;
+            flex-shrink: 0;
         }
 
         .modal-actions {
@@ -587,61 +898,283 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .modal-actions .btn {
             flex: 1;
             padding: 0.875rem;
-            justify-content: center;
+        }
+
+        /* ===== MOBILE RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .hamburger {
+                display: flex;
+            }
+
+            .navbar {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .logo {
+                font-size: 1.1rem;
+            }
+
+            .nav-links {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: white;
+                flex-direction: column;
+                gap: 0;
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                box-shadow: var(--shadow-lg);
+                z-index: 999;
+            }
+
+            .nav-links.active {
+                max-height: 500px;
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 1rem;
+                border-bottom: 1px solid var(--border-color);
+                display: block;
+                text-align: left;
+            }
+
+            main {
+                padding: 1rem 0;
+            }
+
+            .container {
+                padding: 0 0.75rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .payment-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .payment-amount {
+                text-align: left;
+            }
+
+            .payment-details {
+                grid-template-columns: 1fr;
+            }
+
+            .payment-actions {
+                flex-direction: column;
+            }
+
+            .payment-actions .btn {
+                width: 100%;
+            }
+
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: 0;
+                left: 1rem;
+            }
+
+            .modal-content {
+                padding: 1.5rem;
+            }
+
+            .gcash-number-display {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .gcash-number-display .number {
+                font-size: 1rem;
+                text-align: center;
+            }
+
+            .copy-btn {
+                width: 100%;
+            }
+
+            .modal-actions {
+                flex-direction: column;
+            }
+
+            input, select, textarea, button {
+                font-size: 16px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 1rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.25rem;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .payment-amount .amount {
+                font-size: 1.25rem;
+            }
+
+            .card {
+                padding: 1rem;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Header Navigation -->
     <header class="header">
-        <div class="container">
-            <nav class="navbar">
-                <a href="../dashboard.php" class="logo">StudyConnect</a>
-                <ul class="nav-links">
-                    <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="../matches/index.php">Matches</a></li>
-                    <li><a href="../sessions/index.php">Sessions</a></li>
-                    <li><a href="../messages/index.php">Messages</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
-            </nav>
+        <div class="navbar">
+            <!-- Mobile Hamburger -->
+            <button class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <!-- Logo -->
+            <a href="../dashboard.php" class="logo">
+                <i class="fas fa-book-open"></i> StudyConnect
+            </a>
+
+            <!-- Desktop Navigation -->
+            <ul class="nav-links" id="navLinks">
+                <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
+                <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
+                <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
+            </ul>
+
+            <!-- Right Icons -->
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <!-- Notifications -->
+                <div style="position: relative;">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <?php if ($unread_notifications > 0): ?>
+                            <span class="notification-badge"><?php echo $unread_notifications; ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">
+                            <h4><i class="fas fa-bell"></i> Notifications</h4>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <div style="text-align: center; padding: 1.5rem; color: #999;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        <div class="notification-footer">
+                            <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Menu -->
+                <div class="profile-menu">
+                    <button class="profile-icon" onclick="toggleProfileMenu(event)">
+                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
+                    </button>
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <div class="profile-dropdown-header">
+                            <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
+                            <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
+                        </div>
+                        <div class="profile-dropdown-menu">
+                            <a href="../profile/index.php" class="profile-dropdown-item">
+                                <i class="fas fa-user-circle"></i>
+                                <span>View Profile</span>
+                            </a>
+                            <a href="commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i>
+                                <span>Commissions</span>
+                            </a>
+                            <a href="../profile/settings.php" class="profile-dropdown-item">
+                                <i class="fas fa-sliders-h"></i>
+                                <span>Settings</span>
+                            </a>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <a href="../auth/logout.php" class="profile-dropdown-item logout">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
     <main>
         <div class="container">
             <div class="page-header">
-                <h1>Commission Payments</h1>
-                <p>Manage your commission payments to the admin</p>
+                <h1><i class="fas fa-wallet"></i> Commission Payments</h1>
+                <p class="page-subtitle">Manage your commission payments to the admin</p>
             </div>
 
             <?php if ($error): ?>
-                <div class="alert alert-error"><?php echo $error; ?></div>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
+                </div>
             <?php endif; ?>
             
             <?php if ($success): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> <?php echo $success; ?>
+                </div>
             <?php endif; ?>
 
             <div class="stats-grid">
                 <div class="stat-card pending">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
                     <div class="stat-label">Pending Payments</div>
                     <div class="stat-value">₱<?php echo number_format($total_pending, 2); ?></div>
                 </div>
                 <div class="stat-card submitted">
+                    <div class="stat-icon">
+                        <i class="fas fa-paper-plane"></i>
+                    </div>
                     <div class="stat-label">Submitted (Awaiting Verification)</div>
                     <div class="stat-value">₱<?php echo number_format($total_submitted, 2); ?></div>
                 </div>
                 <div class="stat-card verified">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
                     <div class="stat-label">Verified Payments</div>
                     <div class="stat-value">₱<?php echo number_format($total_verified, 2); ?></div>
                 </div>
             </div>
 
-            <div class="payments-card">
+            <div class="card">
                 <h2>Payment History</h2>
                 
                 <?php if (empty($payments)): ?>
-                    <p style="text-align: center; color: #6b7280; padding: 2rem;">No commission payments yet.</p>
+                    <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                        <i class="fas fa-inbox" style="font-size: 3rem; color: #e5e5e5; display: block; margin-bottom: 1rem;"></i>
+                        No commission payments yet.
+                    </p>
                 <?php else: ?>
                     <?php foreach ($payments as $payment): ?>
                         <div class="payment-item">
@@ -697,7 +1230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             ?>
                                 <div class="payment-actions">
                                     <button onclick="openPaymentModal(<?php echo $payment['id']; ?>, <?php echo $payment['commission_amount']; ?>)" class="btn btn-success">
-                                        Pay via GCash
+                                        <i class="fas fa-credit-card"></i> Pay via GCash
                                     </button>
                                 </div>
                             <?php endif; ?>
@@ -717,7 +1250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <button class="modal-close" onclick="closePaymentModal()">×</button>
             </div>
 
-            <p style="color: #6b7280; margin-bottom: 1.5rem; font-size: 0.875rem;">
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.875rem;">
                 Send your commission payment to the admin's GCash number
             </p>
 
@@ -732,7 +1265,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <div class="form-label">Admin GCash Number</div>
                 <div class="gcash-number-display">
                     <span class="number"><?php echo htmlspecialchars($admin_gcash); ?></span>
-                    <button class="copy-btn" onclick="copyGCashNumber()">Copy</button>
+                    <button class="copy-btn" onclick="copyGCashNumber()">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
                 </div>
             </div>
 
@@ -757,13 +1292,190 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 <div class="modal-actions">
                     <button type="button" onclick="closePaymentModal()" class="btn btn-outline">Cancel</button>
-                    <button type="submit" class="btn btn-success">Submit Payment</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> Submit Payment
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
+        let notificationDropdownOpen = false;
+        let profileDropdownOpen = false;
+
+        // Mobile Menu Toggle
+        document.addEventListener("DOMContentLoaded", () => {
+            const hamburger = document.querySelector(".hamburger");
+            const navLinks = document.querySelector(".nav-links");
+            
+            if (hamburger) {
+                hamburger.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    hamburger.classList.toggle("active");
+                    navLinks.classList.toggle("active");
+                });
+
+                // Close menu when clicking on links
+                const links = navLinks.querySelectorAll("a");
+                links.forEach((link) => {
+                    link.addEventListener("click", () => {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    });
+                });
+
+                // Close menu when clicking outside
+                document.addEventListener("click", (event) => {
+                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    }
+                });
+            }
+        });
+
+        function toggleNotifications(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('notificationDropdown');
+            notificationDropdownOpen = !notificationDropdownOpen;
+            
+            if (notificationDropdownOpen) {
+                dropdown.classList.add('show');
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
+                loadNotifications();
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function toggleProfileMenu(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('profileDropdown');
+            profileDropdownOpen = !profileDropdownOpen;
+            
+            if (profileDropdownOpen) {
+                dropdown.classList.add('show');
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function loadNotifications() {
+            fetch('../api/notifications.php')
+                .then(response => response.json())
+                .then(data => {
+                    const list = document.getElementById('notificationList');
+                    
+                    if (!data.notifications || data.notifications.length === 0) {
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        return;
+                    }
+                    
+                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
+                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
+                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
+                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
+                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                });
+        }
+
+        function handleNotificationClick(notificationId, link) {
+            fetch('../api/notifications.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
+            }).then(() => {
+                if (link) window.location.href = link;
+                else loadNotifications();
+            });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'session_scheduled': 'fa-calendar-check',
+                'session_accepted': 'fa-check-circle',
+                'session_rejected': 'fa-times-circle',
+                'match_request': 'fa-handshake',
+                'match_accepted': 'fa-user-check',
+                'announcement': 'fa-megaphone',
+                'commission_due': 'fa-file-invoice-dollar'
+            };
+            return icons[type] || 'fa-bell';
+        }
+
+        function getNotificationColor(type) {
+            const colors = {
+                'session_accepted': '#16a34a',
+                'session_rejected': '#dc2626',
+                'match_accepted': '#16a34a',
+                'announcement': '#2563eb',
+                'commission_due': '#d97706',
+                'session_scheduled': '#2563eb',
+                'match_request': '#2563eb'
+            };
+            return colors[type] || '#666';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function timeAgo(dateString) {
+            const date = new Date(dateString);
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+            return Math.floor(seconds / 604800) + 'w ago';
+        }
+
+        document.addEventListener('click', function() {
+            if (notificationDropdownOpen) {
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
+            }
+            if (profileDropdownOpen) {
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
+            }
+        });
+
+        setInterval(() => {
+            if (notificationDropdownOpen) {
+                loadNotifications();
+            } else {
+                fetch('../api/notifications.php')
+                    .then(response => response.json())
+                    .then(data => {
+                        const badge = document.querySelector('.notification-badge');
+                        if (data.unread_count > 0) {
+                            if (badge) {
+                                badge.textContent = data.unread_count;
+                            } else {
+                                const bell = document.querySelector('.notification-bell');
+                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                            }
+                        } else if (badge) {
+                            badge.remove();
+                        }
+                    });
+            }
+        }, 30000);
+
+        // Payment Modal Functions
         function openPaymentModal(paymentId, amount) {
             document.getElementById('modalPaymentId').value = paymentId;
             document.getElementById('modalAmount').textContent = '₱' + amount.toFixed(2);
@@ -777,7 +1489,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         function copyGCashNumber() {
             const number = '<?php echo $admin_gcash; ?>';
             navigator.clipboard.writeText(number).then(() => {
-                alert('GCash number copied to clipboard!');
+                const btn = event.target.closest('.copy-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 2000);
             });
         }
 
