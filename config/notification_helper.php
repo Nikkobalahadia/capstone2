@@ -63,6 +63,65 @@ function get_unread_count($user_id) {
 }
 
 /**
+ * Get unread messages count
+ */
+function get_unread_messages_count($user_id) {
+    try {
+        $db = getDB();
+        
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count 
+            FROM messages m
+            WHERE m.match_id IN (
+                SELECT id FROM matches 
+                WHERE student_id = ? OR mentor_id = ?
+            )
+            AND m.sender_id != ?
+            AND m.is_read = FALSE
+        ");
+        
+        $stmt->execute([$user_id, $user_id, $user_id]);
+        $result = $stmt->fetch();
+        
+        return $result['count'] ?? 0;
+    } catch (PDOException $e) {
+        error_log("Error getting unread messages count: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Get recent unread messages
+ */
+function get_recent_unread_messages($user_id, $limit = 5) {
+    try {
+        $db = getDB();
+        
+        $limit = intval($limit);
+        $stmt = $db->prepare("
+            SELECT m.*, u.username, u.first_name, u.last_name, u.profile_picture
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.match_id IN (
+                SELECT id FROM matches 
+                WHERE student_id = ? OR mentor_id = ?
+            )
+            AND m.sender_id != ?
+            AND m.is_read = FALSE
+            ORDER BY m.created_at DESC
+            LIMIT " . $limit
+        );
+        
+        $stmt->execute([$user_id, $user_id, $user_id]);
+        
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Error getting unread messages: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Get recent notifications for a user
  */
 function get_recent_notifications($user_id, $limit = 10) {

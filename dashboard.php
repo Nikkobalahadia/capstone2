@@ -55,7 +55,11 @@ $recent_matches_stmt = $db->prepare("
            CASE 
                WHEN m.student_id = ? THEN u2.role
                ELSE u1.role
-           END as partner_role
+           END as partner_role,
+           CASE 
+               WHEN m.student_id = ? THEN u2.profile_picture
+               ELSE u1.profile_picture
+           END as partner_picture
     FROM matches m
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
@@ -63,7 +67,7 @@ $recent_matches_stmt = $db->prepare("
     ORDER BY m.created_at DESC 
     LIMIT 5
 ");
-$recent_matches_stmt->execute([$user['id'], $user['id'], $user['id'], $user['id']]);
+$recent_matches_stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $recent_matches = $recent_matches_stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -86,6 +90,18 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             --border-color: #e5e5e5;
             --shadow: 0 1px 3px rgba(0,0,0,0.05);
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -102,13 +118,14 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
+            background: var(--bg-color);
             color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* Header */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             padding: 0;
             position: fixed;
@@ -117,6 +134,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -166,7 +184,9 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             font-weight: 700;
             color: var(--primary-color);
             text-decoration: none;
-            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             flex: 1;
             white-space: nowrap;
         }
@@ -177,6 +197,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             gap: 2rem;
             align-items: center;
             margin: 0;
+            padding: 0;
         }
 
         .nav-links a {
@@ -215,18 +236,25 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
         .profile-icon {
             background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
+            overflow: hidden;
         }
 
         .profile-icon:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .notification-badge {
@@ -241,7 +269,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         /* Dropdowns */
@@ -251,12 +279,14 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             position: absolute;
             right: 0;
             top: 100%;
-            margin-top: 0.5rem;
-            background: white;
+            margin-top: 0.75rem;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease;
         }
 
         .notification-dropdown {
@@ -276,7 +306,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -289,7 +319,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -297,13 +327,42 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
+        }
+
+        .notification-footer {
+            padding: 0.75rem;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
         }
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .user-role {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .profile-dropdown-menu {
+            padding: 0.5rem 0;
         }
 
         .profile-dropdown-item {
@@ -323,12 +382,16 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
         .profile-dropdown-item.logout {
             color: #dc2626;
+        }
+
+        .profile-dropdown-item.logout:hover {
+            background: rgba(220, 38, 38, 0.1);
         }
 
         /* Main Content */
@@ -381,6 +444,18 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: #991b1b;
         }
 
+        [data-theme="dark"] .alert-warning {
+            background: rgba(254, 243, 199, 0.1);
+            border-color: rgba(252, 211, 77, 0.3);
+            color: #fcd34d;
+        }
+
+        [data-theme="dark"] .alert-error {
+            background: rgba(254, 226, 226, 0.1);
+            border-color: rgba(252, 165, 165, 0.3);
+            color: #fca5a5;
+        }
+
         .alert i {
             flex-shrink: 0;
             font-size: 1.25rem;
@@ -401,7 +476,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             padding: 1.5rem;
             border-radius: 12px;
             border: 1px solid var(--border-color);
@@ -439,6 +514,18 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: #d97706;
         }
 
+        [data-theme="dark"] .stat-icon.primary {
+            background: rgba(219, 234, 254, 0.1);
+        }
+
+        [data-theme="dark"] .stat-icon.success {
+            background: rgba(220, 252, 231, 0.1);
+        }
+
+        [data-theme="dark"] .stat-icon.warning {
+            background: rgba(254, 243, 199, 0.1);
+        }
+
         .stat-value {
             font-size: 1.875rem;
             font-weight: 700;
@@ -460,10 +547,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .card-header {
@@ -472,6 +560,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            background: var(--bg-color);
         }
 
         .card-header i {
@@ -518,14 +607,22 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .btn-secondary {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
         }
 
         .btn-outline {
             border: 1px solid var(--border-color);
             color: var(--text-primary);
             background: transparent;
+        }
+
+        .btn-outline:hover {
+            background: var(--border-color);
         }
 
         /* Action List */
@@ -541,7 +638,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             justify-content: space-between;
             align-items: center;
             padding: 1rem;
-            background: #fafafa;
+            background: var(--bg-color);
             border-radius: 10px;
             border: 1px solid var(--border-color);
             transition: all 0.2s;
@@ -550,7 +647,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         .match-item:hover {
             border-color: var(--primary-color);
-            background: #f0f7ff;
+            background: rgba(37, 99, 235, 0.05);
         }
 
         .match-info-icon {
@@ -564,10 +661,22 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: var(--primary-color);
             font-size: 0.95rem;
             flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .match-info-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        [data-theme="dark"] .match-info-icon {
+            background: rgba(219, 234, 254, 0.1);
         }
 
         .match-info {
             flex: 1;
+            min-width: 0;
         }
 
         .match-name {
@@ -600,16 +709,26 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: #92400e;
         }
 
+        [data-theme="dark"] .status-accepted {
+            background: rgba(220, 252, 231, 0.15);
+            color: #86efac;
+        }
+
+        [data-theme="dark"] .status-pending {
+            background: rgba(254, 243, 199, 0.15);
+            color: #fcd34d;
+        }
+
         .empty-state {
             text-align: center;
             padding: 2rem 1rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .empty-state i {
             font-size: 2rem;
             margin-bottom: 0.5rem;
-            color: #e5e5e5;
+            color: var(--border-color);
         }
 
         /* Mobile */
@@ -632,7 +751,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -702,9 +821,8 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             .notification-dropdown {
                 width: calc(100vw - 2rem);
                 max-width: 380px;
-                right: auto;
-                left: 50%;
-                transform: translateX(-50%);
+                right: 0;
+                left: 1rem;
             }
 
             .profile-dropdown {
@@ -847,34 +965,45 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                         </div>
+                        <div class="notification-footer">
+                            <a href="notifications/index.php">View All</a>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Profile Menu -->
                 <div style="position: relative;">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <i class="fas fa-user"></i>
+                        <?php if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])): ?>
+                            <img src="<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
-                            <p style="font-weight: 600; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
-                            <p style="font-size: 0.8rem; color: #999;"><?php echo ucfirst($user['role']); ?></p>
+                            <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
+                            <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="profile/index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i> View Profile
+                                <i class="fas fa-user-circle"></i>
+                                <span>View Profile</span>
                             </a>
                             <?php if (in_array($user['role'], ['mentor'])): ?>
                                 <a href="profile/commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i> Commissions
+                                    <i class="fas fa-wallet"></i>
+                                    <span>Commissions</span>
                                 </a>
                             <?php endif; ?>
                             <a href="profile/settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i> Settings
+                                <i class="fas fa-sliders-h"></i>
+                                <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i> Logout
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
                             </a>
                         </div>
                     </div>
@@ -985,9 +1114,13 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                             <div class="action-list">
                                 <?php foreach ($recent_matches as $match): ?>
                                     <div class="match-item">
-                                        <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
+                                        <div style="display: flex; align-items: center; flex: 1; min-width: 0; gap: 0.75rem;">
                                             <div class="match-info-icon">
-                                                <i class="fas fa-<?php echo $match['partner_role'] === 'mentor' ? 'chalkboard-user' : 'user'; ?>"></i>
+                                                <?php if (!empty($match['partner_picture']) && file_exists($match['partner_picture'])): ?>
+                                                    <img src="<?php echo htmlspecialchars($match['partner_picture']); ?>" alt="<?php echo htmlspecialchars($match['partner_name']); ?>">
+                                                <?php else: ?>
+                                                    <i class="fas fa-<?php echo $match['partner_role'] === 'mentor' ? 'chalkboard-user' : 'user'; ?>"></i>
+                                                <?php endif; ?>
                                             </div>
                                             <div class="match-info">
                                                 <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
@@ -1012,6 +1145,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
+
+        // Dark Mode Handler
+        const htmlElement = document.documentElement;
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        htmlElement.setAttribute('data-theme', currentTheme);
 
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
@@ -1078,7 +1216,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     const list = document.getElementById('notificationList');
                     
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
                         return;
                     }
                     
@@ -1086,13 +1224,17 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                         <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
                              onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-primary);">${escapeHtml(notif.title)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
                     `).join('');
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    document.getElementById('notificationList').innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);">Error loading notifications</div>';
                 });
         }
 
@@ -1160,6 +1302,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             }
         });
 
+        // Update notification badge periodically
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();
@@ -1167,19 +1310,23 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 fetch('api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.getElementById('notificationBadge');
+                        const badge = document.querySelector('.notification-badge');
                         if (data.unread_count > 0) {
-                            if (badge) badge.textContent = data.unread_count;
-                            else {
+                            if (badge) {
+                                badge.textContent = data.unread_count;
+                            } else {
                                 const bell = document.querySelector('.notification-bell');
                                 if (bell) {
-                                    bell.innerHTML += `<span class="notification-badge" id="notificationBadge">${data.unread_count}</span>`;
+                                    bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
                                 }
                             }
-                        } else if (badge) badge.remove();
-                    });
+                        } else if (badge) {
+                            badge.remove();
+                        }
+                    })
+                    .catch(error => console.error('Error updating badge:', error));
             }
-        }, 30000);
+        }, 30000); // Check every 30 seconds
     </script>
 </body>
 </html>

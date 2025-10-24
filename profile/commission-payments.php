@@ -40,6 +40,7 @@ try {
             verified_by INT,
             verified_at DATETIME,
             rejection_reason TEXT,
+            is_overdue TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (mentor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -47,6 +48,12 @@ try {
             FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL
         )
     ");
+}
+
+try {
+    $db->query("SELECT is_overdue FROM commission_payments LIMIT 1");
+} catch (PDOException $e) {
+    $db->exec("ALTER TABLE commission_payments ADD COLUMN is_overdue TINYINT(1) DEFAULT 0");
 }
 
 // Get system settings
@@ -61,6 +68,7 @@ $commission_percentage = $settings['commission_percentage'] ?? 10;
 $payments_stmt = $db->prepare("
     SELECT 
         cp.*,
+        cp.is_overdue,
         s.session_date,
         s.start_time,
         s.end_time,
@@ -74,6 +82,7 @@ $payments_stmt = $db->prepare("
     LEFT JOIN users student ON m.student_id = student.id
     WHERE cp.mentor_id = ?
     ORDER BY 
+        cp.is_overdue DESC,
         CASE COALESCE(cp.payment_status, 'pending')
             WHEN 'pending' THEN 1
             WHEN 'submitted' THEN 2
@@ -94,9 +103,13 @@ try {
 $total_pending = 0;
 $total_submitted = 0;
 $total_verified = 0;
+$total_overdue = 0;
 
 foreach ($payments as $payment) {
     $status = $payment['payment_status'] ?? 'pending';
+    if ($payment['is_overdue'] && $status !== 'verified') {
+        $total_overdue += $payment['commission_amount'];
+    }
     if ($status === 'pending' || empty($status)) {
         $total_pending += $payment['commission_amount'];
     } elseif ($status === 'submitted') {
@@ -549,6 +562,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             color: #10b981;
         }
 
+        .stat-card.overdue .stat-value {
+            color: #dc2626;
+        }
+
         /* Card */
         .card {
             background: white;
@@ -570,6 +587,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             border-radius: 8px;
             padding: 1.25rem;
             margin-bottom: 1rem;
+        }
+
+        .payment-item.overdue {
+            background: #fef2f2;
+            border-color: #fecaca;
         }
 
         .payment-header {
@@ -657,6 +679,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .status-rejected {
             background: #fee2e2;
             color: #991b1b;
+        }
+
+        /* Added overdue status badge styling */
+        .status-overdue {
+            background: #fee2e2;
+            color: #991b1b;
+            font-weight: 700;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
 
         /* Buttons */
@@ -1143,7 +1178,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 </div>
             <?php endif; ?>
 
+            <!-- Added overdue stat card to stats grid -->
             <div class="stats-grid">
+                <div class="stat-card overdue">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-label">Overdue Payments</div>
+                    <div class="stat-value">₱<?php echo number_format($total_overdue, 2); ?></div>
+                </div>
                 <div class="stat-card pending">
                     <div class="stat-icon">
                         <i class="fas fa-clock"></i>
@@ -1177,7 +1220,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     </p>
                 <?php else: ?>
                     <?php foreach ($payments as $payment): ?>
-                        <div class="payment-item">
+                        <!-- Added overdue class to payment item when is_overdue is true -->
+                        <div class="payment-item <?php echo ($payment['is_overdue'] && $payment['payment_status'] !== 'verified') ? 'overdue' : ''; ?>">
                             <div class="payment-header">
                                 <div class="payment-info">
                                     <h3><?php echo htmlspecialchars($payment['subject']); ?></h3>
@@ -1196,10 +1240,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                         <?php 
                                         $status = $payment['payment_status'] ?? 'pending';
                                         if (empty($status)) $status = 'pending';
-                                        $status_class = 'status-' . strtolower($status);
+                                        
+                                        if ($payment['is_overdue'] && $status !== 'verified') {
+                                            $status_class = 'status-overdue';
+                                            $display_status = 'OVERDUE';
+                                        } else {
+                                            $status_class = 'status-' . strtolower($status);
+                                            $display_status = ucfirst($status);
+                                        }
                                         ?>
                                         <span class="status-badge <?php echo $status_class; ?>">
-                                            <?php echo ucfirst($status); ?>
+                                            <?php echo $display_status; ?>
                                         </span>
                                     </div>
                                 </div>

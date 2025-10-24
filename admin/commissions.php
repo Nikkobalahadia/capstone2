@@ -15,6 +15,9 @@ $db = getDB();
 $error = '';
 $success = '';
 
+require_once '../config/commission_helper.php';
+update_overdue_status($db);
+
 try {
     $db->query("SELECT 1 FROM commission_payments LIMIT 1");
     
@@ -55,7 +58,8 @@ try {
         'payment_date' => "ALTER TABLE commission_payments ADD COLUMN payment_date DATETIME",
         'verified_by' => "ALTER TABLE commission_payments ADD COLUMN verified_by INT",
         'verified_at' => "ALTER TABLE commission_payments ADD COLUMN verified_at DATETIME",
-        'rejection_reason' => "ALTER TABLE commission_payments ADD COLUMN rejection_reason TEXT"
+        'rejection_reason' => "ALTER TABLE commission_payments ADD COLUMN rejection_reason TEXT",
+        'is_overdue' => "ALTER TABLE commission_payments ADD COLUMN is_overdue BOOLEAN DEFAULT FALSE"
     ];
     
     foreach ($columns_to_check as $column => $alter_sql) {
@@ -77,6 +81,7 @@ try {
             commission_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
             commission_percentage DECIMAL(5,2) DEFAULT 10.00,
             payment_status ENUM('pending', 'submitted', 'verified', 'rejected') DEFAULT 'pending',
+            is_overdue BOOLEAN DEFAULT FALSE,
             mentor_gcash_number VARCHAR(20),
             reference_number VARCHAR(100),
             payment_date DATETIME,
@@ -104,7 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 UPDATE commission_payments 
                 SET payment_status = 'verified',
                     verified_by = ?,
-                    verified_at = NOW()
+                    verified_at = NOW(),
+                    is_overdue = 0
                 WHERE id = ?
             ");
             $stmt->execute([$user['id'], $payment_id]);
@@ -160,6 +166,7 @@ $where_sql = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses
 $query = "
     SELECT 
         cp.*,
+        cp.is_overdue,
         CONCAT(mentor.first_name, ' ', mentor.last_name) as mentor_name,
         mentor.email as mentor_email,
         CONCAT(verifier.first_name, ' ', verifier.last_name) as verifier_name,
@@ -167,8 +174,7 @@ $query = "
         s.start_time,
         s.end_time,
         CONCAT(student.first_name, ' ', student.last_name) as student_name,
-        student.email as student_email,
-        DATEDIFF(NOW(), cp.created_at) as days_overdue
+        student.email as student_email
     FROM commission_payments cp
     JOIN users mentor ON cp.mentor_id = mentor.id
     LEFT JOIN users verifier ON cp.verified_by = verifier.id
@@ -177,6 +183,7 @@ $query = "
     LEFT JOIN users student ON m.student_id = student.id
     $where_sql
     ORDER BY 
+        cp.is_overdue DESC,
         CASE cp.payment_status
             WHEN 'submitted' THEN 1
             WHEN 'pending' THEN 2
@@ -205,6 +212,17 @@ foreach ($stats_result as $row) {
     $stats[$row['payment_status']] = $row['count'];
     $amounts[$row['payment_status']] = $row['total'];
 }
+
+$overdue_query = "
+    SELECT 
+        COUNT(*) as overdue_count,
+        SUM(commission_amount) as overdue_amount
+    FROM commission_payments
+    WHERE is_overdue = 1 AND payment_status != 'verified'
+";
+$overdue_result = $db->query($overdue_query)->fetch(PDO::FETCH_ASSOC);
+$total_overdue = $overdue_result['overdue_count'] ?? 0;
+$amount_overdue = $overdue_result['overdue_amount'] ?? 0;
 
 try {
     $db->exec("UPDATE commission_payments SET payment_status = 'pending' WHERE payment_status IS NULL OR payment_status = ''");
@@ -243,12 +261,13 @@ $amount_verified = $amounts['verified'] ?? 0;
         .badge-submitted { background-color: #0dcaf0; }
         .badge-verified { background-color: #198754; }
         .badge-rejected { background-color: #dc3545; }
+        .badge-overdue { background-color: #dc3545; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
     </style>
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
-    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">
@@ -275,6 +294,16 @@ $amount_verified = $amounts['verified'] ?? 0;
 
             <!-- Statistics Cards -->
             <div class="row mb-4">
+                <!-- Added overdue stat card -->
+                <div class="col-md-3 mb-3">
+                    <div class="stat-card">
+                        <div class="stat-label">
+                            <i class="fas fa-exclamation-circle text-danger"></i> Overdue
+                        </div>
+                        <div class="stat-value text-danger"><?php echo $total_overdue; ?></div>
+                        <div class="text-muted small">₱<?php echo number_format($amount_overdue, 2); ?></div>
+                    </div>
+                </div>
                 <div class="col-md-3 mb-3">
                     <div class="stat-card">
                         <div class="stat-label">Pending</div>
@@ -294,12 +323,6 @@ $amount_verified = $amounts['verified'] ?? 0;
                         <div class="stat-label">Verified</div>
                         <div class="stat-value text-success"><?php echo $total_verified; ?></div>
                         <div class="text-muted small">₱<?php echo number_format($amount_verified, 2); ?></div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="stat-card">
-                        <div class="stat-label">Rejected</div>
-                        <div class="stat-value text-danger"><?php echo $total_rejected; ?></div>
                     </div>
                 </div>
             </div>
@@ -356,20 +379,12 @@ $amount_verified = $amounts['verified'] ?? 0;
                                 </thead>
                                 <tbody>
                                     <?php foreach ($payments as $payment): ?>
-                                        <tr>
+                                        <tr <?php echo $payment['is_overdue'] && $payment['payment_status'] !== 'verified' ? 'style="background-color: #fff5f5;"' : ''; ?>>
                                             <td>
                                                 <strong><?php echo htmlspecialchars($payment['mentor_name']); ?></strong>
                                                 <div class="small text-muted"><?php echo htmlspecialchars($payment['mentor_email']); ?></div>
                                                 <?php if (!empty($payment['mentor_gcash_number'])): ?>
                                                     <div class="small text-muted">GCash: <?php echo htmlspecialchars($payment['mentor_gcash_number']); ?></div>
-                                                <?php endif; ?>
-                                                <?php 
-                                                $days_overdue = $payment['days_overdue'] ?? 0;
-                                                if ($payment['payment_status'] !== 'verified' && $days_overdue > 7): 
-                                                ?>
-                                                    <span class="badge bg-warning text-dark mt-1">
-                                                        <?php echo $days_overdue; ?> days overdue
-                                                    </span>
                                                 <?php endif; ?>
                                             </td>
                                             <td><?php echo !empty($payment['student_name']) ? htmlspecialchars($payment['student_name']) : '<span class="text-muted">N/A</span>'; ?></td>
@@ -391,48 +406,58 @@ $amount_verified = $amounts['verified'] ?? 0;
                                             <td>
                                                 <?php if (!empty($payment['reference_number'])): ?>
                                                     <code><?php echo htmlspecialchars($payment['reference_number']); ?></code>
-                                                    <?php if (!empty($payment['payment_date'])): ?>
-                                                        <div class="small text-muted"><?php echo date('M d, Y', strtotime($payment['payment_date'])); ?></div>
-                                                    <?php endif; ?>
-                                                <?php else: ?>
-                                                    <span class="text-muted">-</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <span class="badge badge-<?php echo $payment['payment_status']; ?>">
-                                                    <?php echo ucfirst($payment['payment_status']); ?>
-                                                </span>
-                                                <?php if ($payment['payment_status'] === 'rejected' && $payment['rejection_reason']): ?>
-                                                    <div class="small text-danger mt-1"><?php echo htmlspecialchars($payment['rejection_reason']); ?></div>
+                                                <!-- Display overdue status prominently in status column -->
+                                                <?php if ($payment['is_overdue'] && $payment['payment_status'] !== 'verified'): ?>
+                                                    <span class="badge badge-overdue">
+                                                        <i class="fas fa-exclamation-circle"></i> OVERDUE
+                                                    </span>
+                                                <?php elseif ($payment['payment_status'] === 'pending'): ?>
+                                                    <span class="badge badge-pending">Pending</span>
+                                                <?php elseif ($payment['payment_status'] === 'submitted'): ?>
+                                                    <span class="badge badge-submitted">Submitted</span>
+                                                <?php elseif ($payment['payment_status'] === 'verified'): ?>
+                                                    <span class="badge badge-verified">Verified</span>
+                                                <?php elseif ($payment['payment_status'] === 'rejected'): ?>
+                                                    <span class="badge badge-rejected">Rejected</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <?php 
-                                                $status = $payment['payment_status'] ?? 'pending';
-                                                $has_reference = !empty($payment['reference_number']);
-                                                $days_overdue = $payment['days_overdue'] ?? 0;
-                                                
-                                                if ($has_reference && $status !== 'verified'): 
-                                                ?>
-                                                    <button class="btn btn-sm btn-success mb-1" onclick="verifyPayment(<?php echo $payment['id']; ?>)">
-                                                        <i class="fas fa-check"></i> Verify
-                                                    </button>
-                                                    <button class="btn btn-sm btn-danger mb-1" onclick="rejectPayment(<?php echo $payment['id']; ?>)">
-                                                        <i class="fas fa-times"></i> Reject
-                                                    </button>
-                                                <?php elseif ($status === 'verified'): ?>
-                                                    <span class="text-success small">
-                                                        <i class="fas fa-check-circle"></i> Verified
-                                                        <?php if ($payment['verifier_name']): ?>
-                                                            by <?php echo htmlspecialchars($payment['verifier_name']); ?>
-                                                        <?php endif; ?>
-                                                    </span>
-                                                <?php elseif (!$has_reference): ?>
-                                                    <span class="text-muted small">
-                                                        <i class="fas fa-clock"></i> Awaiting mentor payment
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="text-muted small">-</span>
+                                                <?php if ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted'): ?>
+                                                    <form method="POST" action="" class="d-inline">
+                                                        <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <button type="submit" name="action" value="verify" class="btn btn-sm btn-success">
+                                                            <i class="fas fa-check"></i> Verify
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" action="" class="d-inline">
+                                                        <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <button type="submit" name="action" value="reject" class="btn btn-sm btn-danger">
+                                                            <i class="fas fa-times"></i> Reject
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                                <?php if ($payment['payment_status'] === 'pending'): ?>
+                                                    <form method="POST" action="" class="d-inline">
+                                                        <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <button type="submit" name="action" value="suspend_mentor" class="btn btn-sm btn-warning">
+                                                            <i class="fas fa-ban"></i> Suspend Mentor
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                                <?php if ($payment['payment_status'] === 'verified'): ?>
+                                                    <form method="POST" action="" class="d-inline">
+                                                        <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                        <button type="submit" name="action" value="unsuspend_mentor" class="btn btn-sm btn-info">
+                                                            <i class="fas fa-unlock"></i> Reactivate Mentor
+                                                        </button>
+                                                    </form>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -445,130 +470,5 @@ $amount_verified = $amounts['verified'] ?? 0;
             </div>
         </div>
     </div>
-
-    <!-- Verify Modal -->
-    <div class="modal fade" id="verifyModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <input type="hidden" name="action" value="verify">
-                    <input type="hidden" name="payment_id" id="verifyPaymentId">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Verify Commission Payment</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p>Are you sure you want to verify this commission payment?</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success">Verify Payment</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Reject Modal -->
-    <div class="modal fade" id="rejectModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <input type="hidden" name="action" value="reject">
-                    <input type="hidden" name="payment_id" id="rejectPaymentId">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Reject Commission Payment</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Rejection Reason</label>
-                            <textarea name="rejection_reason" class="form-control" rows="3" required placeholder="Enter reason for rejection..."></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Reject Payment</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Suspend Mentor Modal -->
-    <div class="modal fade" id="suspendModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <input type="hidden" name="action" value="suspend_mentor">
-                    <input type="hidden" name="mentor_id" id="suspendMentorId">
-                    <div class="modal-header bg-warning">
-                        <h5 class="modal-title">Suspend Mentor Account</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p>Are you sure you want to suspend <strong id="suspendMentorName"></strong>'s account?</p>
-                        <p class="text-danger">This will prevent them from accepting new sessions until commissions are paid.</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-warning">Suspend Account</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Unsuspend Mentor Modal -->
-    <div class="modal fade" id="unsuspendModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <input type="hidden" name="action" value="unsuspend_mentor">
-                    <input type="hidden" name="mentor_id" id="unsuspendMentorId">
-                    <div class="modal-header bg-info text-white">
-                        <h5 class="modal-title">Reactivate Mentor Account</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p>Are you sure you want to reactivate this mentor's account?</p>
-                        <p class="text-muted">They will be able to accept new sessions again.</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-info">Reactivate Account</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function verifyPayment(paymentId) {
-            document.getElementById('verifyPaymentId').value = paymentId;
-            new bootstrap.Modal(document.getElementById('verifyModal')).show();
-        }
-
-        function rejectPayment(paymentId) {
-            document.getElementById('rejectPaymentId').value = paymentId;
-            new bootstrap.Modal(document.getElementById('rejectModal')).show();
-        }
-
-        function suspendMentor(mentorId, mentorName) {
-            document.getElementById('suspendMentorId').value = mentorId;
-            document.getElementById('suspendMentorName').textContent = mentorName;
-            new bootstrap.Modal(document.getElementById('suspendModal')).show();
-        }
-
-        function unsuspendMentor(mentorId) {
-            document.getElementById('unsuspendMentorId').value = mentorId;
-            new bootstrap.Modal(document.getElementById('unsuspendModal')).show();
-        }
-    </script>
 </body>
 </html>

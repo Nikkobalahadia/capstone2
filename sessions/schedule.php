@@ -92,158 +92,171 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $send_reminder = isset($_POST['send_reminder']) ? 1 : 0;
         $terms_accepted = isset($_POST['terms_accepted']) ? 1 : 0;
         
-        $start_datetime = new DateTime($session_date . ' ' . $start_time);
-        $end_datetime = clone $start_datetime;
-        $end_datetime->add(new DateInterval('PT' . $duration . 'M'));
-        $end_time = $end_datetime->format('H:i:s');
-        
         if (empty($selected_match_id) || empty($session_date) || empty($start_time) || empty($duration)) {
             $error = 'Please fill in all required fields.';
         } elseif (!$terms_accepted) {
             $error = 'You must accept the terms and conditions to schedule a session.';
-        } elseif (strtotime($session_date) < strtotime(date('Y-m-d'))) {
-            $error = 'Session date cannot be in the past.';
         } else {
-            $match_info_stmt = $db->prepare("
-                SELECT m.student_id, m.mentor_id, u.hourly_rate
-                FROM matches m
-                JOIN users u ON u.id = CASE WHEN m.mentor_id != ? THEN m.mentor_id ELSE m.student_id END
-                WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
-            ");
-            $match_info_stmt->execute([$user['id'], $selected_match_id, $user['id'], $user['id']]);
-            $match_info = $match_info_stmt->fetch();
+            // Create DateTime objects for validation
+            $now = new DateTime();
+            $session_datetime = new DateTime($session_date . ' ' . $start_time);
             
-            if (!$match_info) {
-                $error = 'Invalid match selection.';
+            // Calculate minimum allowed time (1 hour from now)
+            $minimum_time = clone $now;
+            $minimum_time->add(new DateInterval('PT1H'));
+            
+            // Validate session is not in the past and is at least 1 hour ahead
+            if ($session_datetime < $now) {
+                $error = 'Session date and time cannot be in the past.';
+            } elseif ($session_datetime < $minimum_time) {
+                $error = 'Sessions must be scheduled at least 1 hour in advance. Please choose a later time.';
             } else {
-                $partner_id = ($match_info['student_id'] == $user['id']) 
-                    ? $match_info['mentor_id'] 
-                    : $match_info['student_id'];
-                $mentor_id = $match_info['mentor_id'];
+                $start_datetime = new DateTime($session_date . ' ' . $start_time);
+                $end_datetime = clone $start_datetime;
+                $end_datetime->add(new DateInterval('PT' . $duration . 'M'));
+                $end_time = $end_datetime->format('H:i:s');
                 
-                $hourly_rate = $match_info['hourly_rate'] ?? 0;
-                $payment_amount = ($hourly_rate * $duration) / 60;
-                
-                $conflict_check = $db->prepare("
-                    SELECT COUNT(*) as conflict_count,
-                           GROUP_CONCAT(DISTINCT 
-                               CASE 
-                                   WHEN m.student_id = ? OR m.mentor_id = ? THEN 'you'
-                                   WHEN m.student_id = ? OR m.mentor_id = ? THEN 'partner'
-                               END
-                           ) as conflicting_parties
-                    FROM sessions s
-                    JOIN matches m ON s.match_id = m.id
-                    WHERE (m.student_id IN (?, ?) OR m.mentor_id IN (?, ?))
-                    AND s.session_date = ?
-                    AND s.status = 'scheduled'
-                    AND (
-                        (s.start_time < ? AND s.end_time > ?) OR
-                        (s.start_time < ? AND s.end_time > ?) OR
-                        (s.start_time >= ? AND s.end_time <= ?)
-                    )
+                $match_info_stmt = $db->prepare("
+                    SELECT m.student_id, m.mentor_id, u.hourly_rate
+                    FROM matches m
+                    JOIN users u ON u.id = CASE WHEN m.mentor_id != ? THEN m.mentor_id ELSE m.student_id END
+                    WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
                 ");
-                $conflict_check->execute([
-                    $user['id'], $user['id'],
-                    $partner_id, $partner_id,
-                    $user['id'], $partner_id, $user['id'], $partner_id,
-                    $session_date,
-                    $end_time, $start_time,
-                    $end_time, $start_time,
-                    $start_time, $end_time
-                ]);
-                $conflict = $conflict_check->fetch();
+                $match_info_stmt->execute([$user['id'], $selected_match_id, $user['id'], $user['id']]);
+                $match_info = $match_info_stmt->fetch();
                 
-                if ($conflict['conflict_count'] > 0) {
-                    $conflicting_parties = $conflict['conflicting_parties'];
-                    if (strpos($conflicting_parties, 'you') !== false && strpos($conflicting_parties, 'partner') !== false) {
-                        $error = 'Both you and your partner already have sessions scheduled during this time. Please choose a different time.';
-                    } elseif (strpos($conflicting_parties, 'partner') !== false) {
-                        $error = 'Your partner already has a session scheduled during this time. Please choose a different time.';
-                    } else {
-                        $error = 'You already have a session scheduled during this time. Please choose a different time.';
-                    }
+                if (!$match_info) {
+                    $error = 'Invalid match selection.';
                 } else {
-                    try {
-                        $db->beginTransaction();
-                        
-                        $stmt = $db->prepare("
-                            INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes, terms_accepted, terms_accepted_at, payment_amount) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
-                        ");
-                        $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes, $terms_accepted, $payment_amount]);
-                        $session_id = $db->lastInsertId();
-                        
-                        if ($payment_amount > 0) {
-                            $commission_amount = ($payment_amount * $commission_percentage) / 100;
-                            $commission_stmt = $db->prepare("
-                                INSERT INTO commission_payments (session_id, mentor_id, session_amount, commission_amount, commission_percentage, payment_status)
-                                VALUES (?, ?, ?, ?, ?, 'pending')
-                            ");
-                            $commission_stmt->execute([$session_id, $mentor_id, $payment_amount, $commission_amount, $commission_percentage]);
-                        }
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['match_id' => $selected_match_id, 'date' => $session_date]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $db->commit();
-                        
-                        $email_sent = false;
-                        $email_error = '';
-                        
-                        try {
-                            $partner_stmt = $db->prepare("SELECT u.id, u.email, u.first_name, u.last_name FROM users u WHERE u.id = ?");
-                            $partner_stmt->execute([$partner_id]);
-                            $partner = $partner_stmt->fetch();
-                            
-                            $match_stmt = $db->prepare("SELECT subject FROM matches WHERE id = ?");
-                            $match_stmt->execute([$selected_match_id]);
-                            $match = $match_stmt->fetch();
-                            
-                            $session_details = [
-                                'subject' => $match['subject'],
-                                'date' => $session_date,
-                                'start_time' => $start_time,
-                                'end_time' => $end_time,
-                                'location' => $location,
-                                'notes' => $notes,
-                                'partner_name' => $partner['first_name'] . ' ' . $partner['last_name']
-                            ];
-                            
-                            $result1 = send_session_notification(
-                                $user['email'],
-                                $user['first_name'] . ' ' . $user['last_name'],
-                                $session_details
-                            );
-                            
-                            $session_details['partner_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                            $result2 = send_session_notification(
-                                $partner['email'],
-                                $partner['first_name'] . ' ' . $partner['last_name'],
-                                $session_details
-                            );
-                            
-                            $email_sent = $result1 && $result2;
-                            
-                            if (SMTP_USERNAME === 'your-email@gmail.com' || empty(SMTP_USERNAME)) {
-                                $email_error = 'SMTP not configured. Emails are being logged but not sent.';
-                            }
-                        } catch (Exception $e) {
-                            $email_error = 'Failed to send email notifications: ' . $e->getMessage();
-                        }
-                        
-                        if ($email_sent) {
-                            $success = 'Session scheduled successfully! Email notifications sent to both participants.';
-                        } else if (!empty($email_error)) {
-                            $success = 'Session scheduled successfully! Note: ' . $email_error;
+                    $partner_id = ($match_info['student_id'] == $user['id']) 
+                        ? $match_info['mentor_id'] 
+                        : $match_info['student_id'];
+                    $mentor_id = $match_info['mentor_id'];
+                    
+                    $hourly_rate = $match_info['hourly_rate'] ?? 0;
+                    $payment_amount = ($hourly_rate * $duration) / 60;
+                    
+                    $conflict_check = $db->prepare("
+                        SELECT COUNT(*) as conflict_count,
+                               GROUP_CONCAT(DISTINCT 
+                                   CASE 
+                                       WHEN m.student_id = ? OR m.mentor_id = ? THEN 'you'
+                                       WHEN m.student_id = ? OR m.mentor_id = ? THEN 'partner'
+                                   END
+                               ) as conflicting_parties
+                        FROM sessions s
+                        JOIN matches m ON s.match_id = m.id
+                        WHERE (m.student_id IN (?, ?) OR m.mentor_id IN (?, ?))
+                        AND s.session_date = ?
+                        AND s.status = 'scheduled'
+                        AND (
+                            (s.start_time < ? AND s.end_time > ?) OR
+                            (s.start_time < ? AND s.end_time > ?) OR
+                            (s.start_time >= ? AND s.end_time <= ?)
+                        )
+                    ");
+                    $conflict_check->execute([
+                        $user['id'], $user['id'],
+                        $partner_id, $partner_id,
+                        $user['id'], $partner_id, $user['id'], $partner_id,
+                        $session_date,
+                        $end_time, $start_time,
+                        $end_time, $start_time,
+                        $start_time, $end_time
+                    ]);
+                    $conflict = $conflict_check->fetch();
+                    
+                    if ($conflict['conflict_count'] > 0) {
+                        $conflicting_parties = $conflict['conflicting_parties'];
+                        if (strpos($conflicting_parties, 'you') !== false && strpos($conflicting_parties, 'partner') !== false) {
+                            $error = 'Both you and your partner already have sessions scheduled during this time. Please choose a different time.';
+                        } elseif (strpos($conflicting_parties, 'partner') !== false) {
+                            $error = 'Your partner already has a session scheduled during this time. Please choose a different time.';
                         } else {
-                            $success = 'Session scheduled successfully!';
+                            $error = 'You already have a session scheduled during this time. Please choose a different time.';
                         }
-                        
-                        header("refresh:3;url=history.php");
-                    } catch (Exception $e) {
-                        $db->rollBack();
-                        $error = 'Failed to schedule session. Please try again.';
+                    } else {
+                        try {
+                            $db->beginTransaction();
+                            
+                            $stmt = $db->prepare("
+                                INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes, terms_accepted, terms_accepted_at, payment_amount) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                            ");
+                            $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes, $terms_accepted, $payment_amount]);
+                            $session_id = $db->lastInsertId();
+                            
+                            if ($payment_amount > 0) {
+                                $commission_amount = ($payment_amount * $commission_percentage) / 100;
+                                $commission_stmt = $db->prepare("
+                                    INSERT INTO commission_payments (session_id, mentor_id, session_amount, commission_amount, commission_percentage, payment_status)
+                                    VALUES (?, ?, ?, ?, ?, 'pending')
+                                ");
+                                $commission_stmt->execute([$session_id, $mentor_id, $payment_amount, $commission_amount, $commission_percentage]);
+                            }
+                            
+                            $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
+                            $log_stmt->execute([$user['id'], json_encode(['match_id' => $selected_match_id, 'date' => $session_date]), $_SERVER['REMOTE_ADDR']]);
+                            
+                            $db->commit();
+                            
+                            $email_sent = false;
+                            $email_error = '';
+                            
+                            try {
+                                $partner_stmt = $db->prepare("SELECT u.id, u.email, u.first_name, u.last_name FROM users u WHERE u.id = ?");
+                                $partner_stmt->execute([$partner_id]);
+                                $partner = $partner_stmt->fetch();
+                                
+                                $match_stmt = $db->prepare("SELECT subject FROM matches WHERE id = ?");
+                                $match_stmt->execute([$selected_match_id]);
+                                $match = $match_stmt->fetch();
+                                
+                                $session_details = [
+                                    'subject' => $match['subject'],
+                                    'date' => $session_date,
+                                    'start_time' => $start_time,
+                                    'end_time' => $end_time,
+                                    'location' => $location,
+                                    'notes' => $notes,
+                                    'partner_name' => $partner['first_name'] . ' ' . $partner['last_name']
+                                ];
+                                
+                                $result1 = send_session_notification(
+                                    $user['email'],
+                                    $user['first_name'] . ' ' . $user['last_name'],
+                                    $session_details
+                                );
+                                
+                                $session_details['partner_name'] = $user['first_name'] . ' ' . $user['last_name'];
+                                $result2 = send_session_notification(
+                                    $partner['email'],
+                                    $partner['first_name'] . ' ' . $partner['last_name'],
+                                    $session_details
+                                );
+                                
+                                $email_sent = $result1 && $result2;
+                                
+                                if (SMTP_USERNAME === 'your-email@gmail.com' || empty(SMTP_USERNAME)) {
+                                    $email_error = 'SMTP not configured. Emails are being logged but not sent.';
+                                }
+                            } catch (Exception $e) {
+                                $email_error = 'Failed to send email notifications: ' . $e->getMessage();
+                            }
+                            
+                            if ($email_sent) {
+                                $success = 'Session scheduled successfully! Email notifications sent to both participants.';
+                            } else if (!empty($email_error)) {
+                                $success = 'Session scheduled successfully! Note: ' . $email_error;
+                            } else {
+                                $success = 'Session scheduled successfully!';
+                            }
+                            
+                            header("refresh:3;url=history.php");
+                        } catch (Exception $e) {
+                            $db->rollBack();
+                            $error = 'Failed to schedule session. Please try again.';
+                        }
                     }
                 }
             }
@@ -853,6 +866,13 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 8px;
             margin-bottom: 1.5rem;
             font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert i {
+            font-size: 1.1rem;
         }
 
         .alert-error {
@@ -865,6 +885,21 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #d1fae5;
             color: #065f46;
             border: 1px solid #a7f3d0;
+        }
+
+        #time-validation-error {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .no-matches-card {
@@ -1093,11 +1128,11 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <?php if ($error): ?>
-                <div class="alert alert-error" style="max-width: 1200px; margin: 0 auto 1.5rem;"><?php echo $error; ?></div>
+                <div class="alert alert-error" style="max-width: 1200px; margin: 0 auto 1.5rem;"><i class="fas fa-exclamation-circle"></i> <?php echo $error; ?></div>
             <?php endif; ?>
             
             <?php if ($success): ?>
-                <div class="alert alert-success" style="max-width: 1200px; margin: 0 auto 1.5rem;"><?php echo $success; ?></div>
+                <div class="alert alert-success" style="max-width: 1200px; margin: 0 auto 1.5rem;"><i class="fas fa-check-circle"></i> <?php echo $success; ?></div>
             <?php endif; ?>
 
             <?php if ($no_matches): ?>
@@ -1138,7 +1173,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="form-card">
                         <h3>Session Details</h3>
-                        <form method="POST" action="">
+                        <form method="POST" action="" id="sessionForm">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="session_date" id="session_date" value="<?php echo $preselected_date ?: date('Y-m-d'); ?>">
                             
@@ -1157,7 +1192,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">Start Time *</label>
-                                    <input type="time" name="start_time" class="form-input" value="14:00" required>
+                                    <input type="time" name="start_time" id="start_time" class="form-input" value="14:00" required>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Duration (minutes) *</label>
@@ -1258,7 +1293,80 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 });
             }
+
+            // Initialize time validation
+            initializeTimeValidation();
         });
+
+        function initializeTimeValidation() {
+            const dateInput = document.getElementById('session_date');
+            const timeInput = document.getElementById('start_time');
+            const form = document.getElementById('sessionForm');
+            
+            function validateDateTime() {
+                const selectedDate = dateInput.value;
+                const selectedTime = timeInput.value;
+                
+                if (!selectedDate || !selectedTime) return true;
+                
+                const now = new Date();
+                const selectedDateTime = new Date(selectedDate + 'T' + selectedTime);
+                
+                // Calculate minimum time (1 hour from now)
+                const minimumTime = new Date(now.getTime() + 60 * 60 * 1000);
+                
+                if (selectedDateTime < now) {
+                    showValidationError('The selected date and time is in the past. Please choose a future time.');
+                    return false;
+                } else if (selectedDateTime < minimumTime) {
+                    showValidationError('Sessions must be scheduled at least 1 hour in advance. Please choose a later time.');
+                    return false;
+                } else {
+                    clearValidationError();
+                    return true;
+                }
+            }
+            
+            function showValidationError(message) {
+                clearValidationError();
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'time-validation-error';
+                errorDiv.className = 'alert alert-error';
+                errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+                errorDiv.style.marginTop = '1rem';
+                
+                const durationGroup = document.querySelector('select[name="duration"]').closest('.form-group').parentNode;
+                durationGroup.appendChild(errorDiv);
+            }
+            
+            function clearValidationError() {
+                const existingError = document.getElementById('time-validation-error');
+                if (existingError) {
+                    existingError.remove();
+                }
+            }
+            
+            if (dateInput) {
+                dateInput.addEventListener('change', validateDateTime);
+            }
+            if (timeInput) {
+                timeInput.addEventListener('change', validateDateTime);
+                timeInput.addEventListener('blur', validateDateTime);
+            }
+            
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    if (!validateDateTime()) {
+                        e.preventDefault();
+                        const errorElement = document.getElementById('time-validation-error');
+                        if (errorElement) {
+                            errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                });
+            }
+        }
 
         function toggleNotifications(event) {
             event.stopPropagation();
@@ -1410,6 +1518,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const selectedDate = document.getElementById('session_date').value;
             
             let html = '';
@@ -1424,9 +1533,12 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isToday = dateStr === today.toISOString().split('T')[0];
+                const dateObj = new Date(dateStr);
+                dateObj.setHours(0, 0, 0, 0);
+                
+                const isToday = dateStr === new Date().toISOString().split('T')[0];
                 const isSelected = dateStr === selectedDate;
-                const isPast = new Date(dateStr) < new Date(today.toISOString().split('T')[0]);
+                const isPast = dateObj < today;
                 const hasSession = existingSessions[dateStr] > 0;
                 
                 let classes = 'calendar-day';
@@ -1436,7 +1548,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (hasSession) classes += ' has-session';
                 
                 html += `<div class="${classes}" onclick="${!isPast ? `selectDate('${dateStr}')` : ''}" 
-                         title="${hasSession ? existingSessions[dateStr] + ' session(s) scheduled' : ''}">${day}</div>`;
+                         title="${hasSession ? existingSessions[dateStr] + ' session(s) scheduled' : (isPast ? 'Past date' : '')}">${day}</div>`;
             }
             
             document.getElementById('calendarGrid').innerHTML = html;
@@ -1445,6 +1557,9 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         function selectDate(dateStr) {
             document.getElementById('session_date').value = dateStr;
             renderCalendar();
+            
+            const event = new Event('change');
+            document.getElementById('session_date').dispatchEvent(event);
         }
 
         function previousMonth() {

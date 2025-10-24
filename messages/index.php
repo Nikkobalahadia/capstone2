@@ -40,7 +40,6 @@ $conversations = $stmt->fetchAll();
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -48,6 +47,18 @@ $conversations = $stmt->fetchAll();
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -64,13 +75,14 @@ $conversations = $stmt->fetchAll();
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -78,6 +90,7 @@ $conversations = $stmt->fetchAll();
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -91,7 +104,6 @@ $conversations = $stmt->fetchAll();
             width: 100%;
         }
 
-        /* Hamburger Menu */
         .hamburger {
             display: none;
             flex-direction: column;
@@ -123,7 +135,6 @@ $conversations = $stmt->fetchAll();
             transform: rotate(-45deg) translate(7px, -7px);
         }
 
-        /* Logo */
         .logo {
             font-size: 1.25rem;
             font-weight: 700;
@@ -136,7 +147,6 @@ $conversations = $stmt->fetchAll();
             white-space: nowrap;
         }
 
-        /* Navigation Links */
         .nav-links {
             display: flex;
             list-style: none;
@@ -161,7 +171,6 @@ $conversations = $stmt->fetchAll();
             color: var(--primary-color);
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -179,7 +188,7 @@ $conversations = $stmt->fetchAll();
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -195,7 +204,7 @@ $conversations = $stmt->fetchAll();
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -206,12 +215,13 @@ $conversations = $stmt->fetchAll();
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -220,10 +230,11 @@ $conversations = $stmt->fetchAll();
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .notification-header h4 {
+            color: var(--text-primary);
         }
 
         .notification-list {
@@ -233,7 +244,7 @@ $conversations = $stmt->fetchAll();
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -241,20 +252,20 @@ $conversations = $stmt->fetchAll();
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
-        }
-
-        .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: var(--border-color);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
         }
 
-        /* Profile Menu */
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
         .profile-menu {
             position: relative;
         }
@@ -272,11 +283,18 @@ $conversations = $stmt->fetchAll();
             font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
 
         .profile-icon:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-dropdown {
@@ -286,10 +304,11 @@ $conversations = $stmt->fetchAll();
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -298,7 +317,7 @@ $conversations = $stmt->fetchAll();
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -311,7 +330,7 @@ $conversations = $stmt->fetchAll();
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -335,7 +354,7 @@ $conversations = $stmt->fetchAll();
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -344,10 +363,9 @@ $conversations = $stmt->fetchAll();
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
 
-        /* Main Content */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -359,7 +377,6 @@ $conversations = $stmt->fetchAll();
             margin-top: 60px;
         }
 
-        /* Page Header */
         .page-header {
             margin-bottom: 2rem;
         }
@@ -371,6 +388,7 @@ $conversations = $stmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            color: var(--text-primary);
         }
 
         .page-header h1 i {
@@ -404,12 +422,12 @@ $conversations = $stmt->fetchAll();
             background: #1d4ed8;
         }
 
-        /* Card */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             overflow: hidden;
+            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -418,6 +436,7 @@ $conversations = $stmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            background: var(--card-bg);
         }
 
         .card-title {
@@ -429,20 +448,20 @@ $conversations = $stmt->fetchAll();
 
         .card-body {
             padding: 0;
+            background: var(--card-bg);
         }
 
-        /* Conversation Item */
         .conversation-item {
             display: block;
             padding: 1.25rem;
             text-decoration: none;
             color: inherit;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             transition: background-color 0.2s;
         }
 
         .conversation-item:hover {
-            background: #f8fafc;
+            background: var(--border-color);
         }
 
         .conversation-item:last-child {
@@ -499,7 +518,7 @@ $conversations = $stmt->fetchAll();
             justify-content: center;
             font-size: 0.7rem;
             font-weight: 700;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .conversation-info {
@@ -511,11 +530,12 @@ $conversations = $stmt->fetchAll();
             font-weight: 600;
             font-size: 0.95rem;
             margin-bottom: 0.25rem;
+            color: var(--text-primary);
         }
 
         .conversation-meta {
             font-size: 0.85rem;
-            color: #666;
+            color: var(--text-secondary);
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -524,19 +544,19 @@ $conversations = $stmt->fetchAll();
         }
 
         .conversation-meta i {
-            color: #9ca3af;
+            color: var(--text-secondary);
         }
 
         .conversation-preview {
             font-size: 0.85rem;
-            color: #666;
+            color: var(--text-secondary);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
         .conversation-preview.you {
-            color: #999;
+            opacity: 0.7;
         }
 
         .conversation-right {
@@ -546,7 +566,7 @@ $conversations = $stmt->fetchAll();
 
         .conversation-time {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
             margin-bottom: 0.5rem;
         }
 
@@ -567,18 +587,18 @@ $conversations = $stmt->fetchAll();
 
         .empty-state i {
             font-size: 3rem;
-            color: #e5e5e5;
+            color: var(--border-color);
             margin-bottom: 1rem;
             display: block;
         }
 
         .empty-state h3 {
-            color: #1a1a1a;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
 
         .empty-state p {
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 1.5rem;
         }
 
@@ -602,7 +622,7 @@ $conversations = $stmt->fetchAll();
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -662,8 +682,9 @@ $conversations = $stmt->fetchAll();
             }
 
             .notification-dropdown {
-                width: 320px;
-                right: -60px;
+                width: calc(100vw - 2rem);
+                right: 0;
+                left: 1rem;
             }
 
             input, select, textarea, button {
@@ -697,35 +718,22 @@ $conversations = $stmt->fetchAll();
             .conversation-left {
                 gap: 0.625rem;
             }
-
-            .card-body {
-                padding: 0;
-            }
-
-            .notification-dropdown {
-                width: calc(100vw - 20px);
-                right: -10px;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> StudyConnect
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -733,11 +741,9 @@ $conversations = $stmt->fetchAll();
                 <li><a href="index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                    <button class="notification-bell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -753,17 +759,18 @@ $conversations = $stmt->fetchAll();
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-arrow-right"></i> View All
-                            </a>
+                            <a href="../notifications/index.php">View All</a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <i class="fas fa-user"></i>
+                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
@@ -785,7 +792,7 @@ $conversations = $stmt->fetchAll();
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -881,6 +888,10 @@ $conversations = $stmt->fetchAll();
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
+        // Theme management
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -893,7 +904,6 @@ $conversations = $stmt->fetchAll();
                     navLinks.classList.toggle("active");
                 });
 
-                // Close menu when clicking on links
                 const links = navLinks.querySelectorAll("a");
                 links.forEach((link) => {
                     link.addEventListener("click", () => {
@@ -902,7 +912,6 @@ $conversations = $stmt->fetchAll();
                     });
                 });
 
-                // Close menu when clicking outside
                 document.addEventListener("click", (event) => {
                     if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
                         hamburger.classList.remove("active");
@@ -1030,6 +1039,7 @@ $conversations = $stmt->fetchAll();
             }
         });
 
+        // Periodic notification check
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();

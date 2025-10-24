@@ -61,6 +61,10 @@ class HybridNotificationSystem {
       if (data.notifications) {
         this.processNotifications(data.notifications)
       }
+
+      if (data.unread_count !== undefined) {
+        this.updateNotificationBadge(data.unread_count)
+      }
     } catch (error) {
       console.error("[v0] Notification polling failed:", error)
     }
@@ -92,6 +96,27 @@ class HybridNotificationSystem {
   }
 
   createNotificationElement(notification) {
+    if (notification.type === "message") {
+      return `
+        <div class="notification-toast" data-id="${notification.id}">
+          <div class="notification-header">
+            <span class="notification-icon">💬</span>
+            <strong>New Message</strong>
+            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+          </div>
+          <div class="notification-body">
+            <p><strong>${notification.sender_name}</strong> sent you a message</p>
+            <p><small>${notification.message.substring(0, 50)}${notification.message.length > 50 ? "..." : ""}</small></p>
+          </div>
+          <div class="notification-actions">
+            <button class="btn btn-sm btn-primary" onclick="window.location.href='${notification.link}'">
+              View Message
+            </button>
+          </div>
+        </div>
+      `
+    }
+
     const type = notification.type === "request" ? "Match Request" : "Match Response"
     const icon = notification.type === "request" ? "🤝" : "✅"
 
@@ -152,6 +177,18 @@ class HybridNotificationSystem {
       const element = container.querySelector(`[data-id="${notificationDiv.firstElementChild.dataset.id}"]`)
       if (element) element.remove()
     }, 10000)
+  }
+
+  updateNotificationBadge(count) {
+    const badge = document.querySelector(".notification-badge")
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count
+        badge.style.display = "inline-block"
+      } else {
+        badge.style.display = "none"
+      }
+    }
   }
 
   async markAsDelivered(notificationId) {

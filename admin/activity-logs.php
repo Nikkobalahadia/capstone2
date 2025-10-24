@@ -12,27 +12,6 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
-// Create activity_logs table if it doesn't exist
-try {
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS activity_logs (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            user_id INT,
-            action VARCHAR(100) NOT NULL,
-            description TEXT,
-            ip_address VARCHAR(45),
-            user_agent TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-            INDEX idx_user_id (user_id),
-            INDEX idx_action (action),
-            INDEX idx_created_at (created_at)
-        )
-    ");
-} catch (PDOException $e) {
-    // Table already exists
-}
-
 // Get filter parameters
 $action_filter = $_GET['action'] ?? 'all';
 $user_filter = $_GET['user_id'] ?? '';
@@ -41,22 +20,23 @@ $date_to = $_GET['date_to'] ?? date('Y-m-d');
 $search = $_GET['search'] ?? '';
 
 // Build query
-$where_clauses = ["DATE(al.created_at) BETWEEN ? AND ?"];
+$where_clauses = ["DATE(ual.created_at) BETWEEN ? AND ?"];
 $params = [$date_from, $date_to];
 
 if ($action_filter !== 'all') {
-    $where_clauses[] = "al.action = ?";
+    $where_clauses[] = "ual.action = ?";
     $params[] = $action_filter;
 }
 
 if (!empty($user_filter)) {
-    $where_clauses[] = "al.user_id = ?";
+    $where_clauses[] = "ual.user_id = ?";
     $params[] = $user_filter;
 }
 
 if (!empty($search)) {
-    $where_clauses[] = "(al.description LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)";
+    $where_clauses[] = "(ual.details LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ? OR ual.action LIKE ?)";
     $search_param = "%$search%";
+    $params[] = $search_param;
     $params[] = $search_param;
     $params[] = $search_param;
 }
@@ -65,14 +45,14 @@ $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
 
 $query = "
     SELECT 
-        al.*,
+        ual.*,
         CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
         u.role as user_role
-    FROM activity_logs al
-    LEFT JOIN users u ON al.user_id = u.id
+    FROM user_activity_logs ual
+    LEFT JOIN users u ON ual.user_id = u.id
     $where_sql
-    ORDER BY al.created_at DESC
+    ORDER BY ual.created_at DESC
     LIMIT 500
 ";
 
@@ -81,7 +61,7 @@ $stmt->execute($params);
 $logs = $stmt->fetchAll();
 
 // Get unique actions for filter
-$actions = $db->query("SELECT DISTINCT action FROM activity_logs ORDER BY action")->fetchAll(PDO::FETCH_COLUMN);
+$actions = $db->query("SELECT DISTINCT action FROM user_activity_logs ORDER BY action")->fetchAll(PDO::FETCH_COLUMN);
 
 // Get statistics
 $stats = $db->query("
@@ -89,7 +69,7 @@ $stats = $db->query("
         COUNT(*) as total_actions,
         COUNT(DISTINCT user_id) as unique_users,
         COUNT(DISTINCT DATE(created_at)) as active_days
-    FROM activity_logs
+    FROM user_activity_logs
     WHERE DATE(created_at) BETWEEN '$date_from' AND '$date_to'
 ")->fetch();
 ?>
@@ -104,6 +84,9 @@ $stats = $db->query("
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
         .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
         .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .log-entry { border-left: 3px solid #667eea; padding-left: 15px; margin-bottom: 15px; }
@@ -114,11 +97,12 @@ $stats = $db->query("
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
+    <?php include '../includes/admin-sidebar.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">
+            
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h1 class="h3 mb-0">Activity Logs</h1>
@@ -212,8 +196,8 @@ $stats = $db->query("
                                 </div>
                                 <div class="mt-2">
                                     <span class="badge bg-primary"><?php echo ucfirst(str_replace('_', ' ', $log['action'])); ?></span>
-                                    <?php if ($log['description']): ?>
-                                        <div class="mt-1"><?php echo htmlspecialchars($log['description']); ?></div>
+                                    <?php if ($log['details']): ?>
+                                        <div class="mt-1 text-muted small"><?php echo htmlspecialchars($log['details']); ?></div>
                                     <?php endif; ?>
                                 </div>
                             </div>

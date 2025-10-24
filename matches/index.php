@@ -3,7 +3,6 @@ require_once '../config/config.php';
 require_once '../config/notification_helper.php';
 require_once '../includes/matchmaking.php';
 
-// Check if user is logged in
 if (!is_logged_in()) {
     redirect('auth/login.php');
 }
@@ -13,7 +12,6 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-// Get unread notifications count
 $unread_notifications = get_unread_count($user['id']);
 
 $can_accept_matches = true;
@@ -33,11 +31,9 @@ if ($user['role'] === 'mentor') {
 $error = '';
 $success = '';
 
-// Initialize matchmaking engine
 $db = getDB();
 $matchmaker = new MatchmakingEngine($db);
 
-// Handle match response
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
@@ -58,7 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get user's matches with partner ratings
 $matches_query = "
     SELECT m.*, 
            CASE 
@@ -118,7 +113,6 @@ $stmt = $db->prepare($matches_query);
 $stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $matches = $stmt->fetchAll();
 
-// Separate matches by status
 $pending_matches = array_filter($matches, function($match) { return $match['status'] === 'pending'; });
 $accepted_matches = array_filter($matches, function($match) { return $match['status'] === 'accepted'; });
 $other_matches = array_filter($matches, function($match) { return !in_array($match['status'], ['pending', 'accepted']); });
@@ -134,7 +128,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -142,6 +135,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -158,13 +163,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -172,6 +177,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -185,7 +191,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             width: 100%;
         }
 
-        /* Hamburger Menu */
         .hamburger {
             display: none;
             flex-direction: column;
@@ -217,7 +222,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             transform: rotate(-45deg) translate(7px, -7px);
         }
 
-        /* Logo */
         .logo {
             font-size: 1.25rem;
             font-weight: 700;
@@ -230,7 +234,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             white-space: nowrap;
         }
 
-        /* Navigation Links */
         .nav-links {
             display: flex;
             list-style: none;
@@ -255,7 +258,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: var(--primary-color);
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -273,7 +275,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -289,7 +291,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -300,12 +302,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -314,10 +317,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .notification-list {
@@ -327,7 +327,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -335,16 +335,15 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
         }
 
-        /* Profile Menu */
         .profile-menu {
             position: relative;
         }
@@ -362,11 +361,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
 
         .profile-icon:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-dropdown {
@@ -376,10 +382,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -388,7 +395,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -401,7 +408,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -425,7 +432,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -434,10 +441,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
 
-        /* Main Content */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -449,7 +455,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             margin-top: 60px;
         }
 
-        /* Page Header */
         .page-header {
             display: flex;
             justify-content: space-between;
@@ -522,7 +527,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-size: 0.85rem;
         }
 
-        /* Alert */
         .alert {
             padding: 1rem;
             border-radius: 10px;
@@ -544,13 +548,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: #92400e;
         }
 
-        /* Card */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             margin-bottom: 1.5rem;
             overflow: hidden;
+            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -559,6 +563,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            background: var(--bg-color);
         }
 
         .card-title {
@@ -572,7 +577,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             padding: 1.25rem;
         }
 
-        /* Match Card */
         .match-card {
             padding: 1.25rem;
             border: 1px solid var(--border-color);
@@ -581,6 +585,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             gap: 1.25rem;
             align-items: flex-start;
+            background: var(--card-bg);
         }
 
         .match-card.pending {
@@ -588,9 +593,19 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             border-color: #fcd34d;
         }
 
+        [data-theme="dark"] .match-card.pending {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: #f59e0b;
+        }
+
         .match-card.accepted {
             background: #f0fdf4;
             border-color: #bbf7d0;
+        }
+
+        [data-theme="dark"] .match-card.accepted {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: #10b981;
         }
 
         .match-avatar {
@@ -647,6 +662,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: #1e40af;
         }
 
+        [data-theme="dark"] .match-badge {
+            background: rgba(37, 99, 235, 0.2);
+            color: #60a5fa;
+        }
+
         .match-actions {
             display: flex;
             gap: 0.5rem;
@@ -658,7 +678,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             width: 130px;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -677,7 +696,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .modal-content {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             width: 90%;
             max-width: 600px;
@@ -715,10 +734,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             justify-content: space-between;
             padding: 0.5rem 0;
-            border-bottom: 1px solid #f3f4f6;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
@@ -738,7 +756,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -796,6 +814,12 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             input, select, textarea, button {
                 font-size: 16px !important;
             }
+
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: 0;
+                left: 1rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -833,22 +857,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> StudyConnect
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -856,11 +876,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                    <button class="notification-bell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -876,15 +894,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
+                            <a href="../notifications/index.php">View All</a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <i class="fas fa-user"></i>
+                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
@@ -906,7 +927,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -1163,6 +1184,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
+        // Dark Mode Theme Toggle
+        const htmlElement = document.documentElement;
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        htmlElement.setAttribute('data-theme', currentTheme);
+
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -1175,7 +1201,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     navLinks.classList.toggle("active");
                 });
 
-                // Close menu when clicking on links
                 const links = navLinks.querySelectorAll("a");
                 links.forEach((link) => {
                     link.addEventListener("click", () => {
@@ -1184,7 +1209,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     });
                 });
 
-                // Close menu when clicking outside
                 document.addEventListener("click", (event) => {
                     if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
                         hamburger.classList.remove("active");
@@ -1214,50 +1238,50 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             }
             
             modalBody.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #f0f0f0;">
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
                     ${profilePicHtml}
                     <div>
-                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #1a1a1a;">${escapeHtml(match.partner_name)}</h3>
+                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">${escapeHtml(match.partner_name)}</h3>
                         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span style="color: #666; font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                            <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
                             ${statusBadge}
                         </div>
                     </div>
                 </div>
 
                 <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                         <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> Information
                     </h4>
                     <div class="info-row">
-                        <span style="color: #666; font-weight: 500;">Role</span>
-                        <span style="color: #1a1a1a; font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                        <span style="color: var(--text-secondary); font-weight: 500;">Role</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
                     </div>
                     <div class="info-row">
-                        <span style="color: #666; font-weight: 500;">Location</span>
-                        <span style="color: #1a1a1a; font-weight: 500;">${escapeHtml(match.partner_location || 'Not specified')}</span>
+                        <span style="color: var(--text-secondary); font-weight: 500;">Location</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_location || 'Not specified')}</span>
                     </div>
                     <div class="info-row">
-                        <span style="color: #666; font-weight: 500;">Subject</span>
-                        <span style="color: #1a1a1a; font-weight: 500;">${escapeHtml(match.subject)}</span>
+                        <span style="color: var(--text-secondary); font-weight: 500;">Subject</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.subject)}</span>
                     </div>
                     <div class="info-row">
-                        <span style="color: #666; font-weight: 500;">Match Score</span>
+                        <span style="color: var(--text-secondary); font-weight: 500;">Match Score</span>
                         <span style="background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%); color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;">${match.match_score}%</span>
                     </div>
                 </div>
 
                 ${match.partner_bio ? `
                 <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                         <i class="fas fa-quote-left" style="color: var(--primary-color);"></i> About ${escapeHtml(match.partner_name.split(' ')[0])}
                     </h4>
-                    <p style="color: #666; line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
+                    <p style="color: var(--text-secondary); line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
                 </div>
                 ` : ''}
 
                 ${match.status === 'accepted' ? `
-                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f0;">
+                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
                     <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center;">
                         <i class="fas fa-comment"></i> Message
                     </a>
@@ -1337,7 +1361,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
                             <div>
                                 <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
                                 <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
@@ -1416,11 +1440,17 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.getElementById('notificationBadge');
+                        const badge = document.querySelector('.notification-badge');
                         if (data.unread_count > 0) {
-                            if (badge) badge.textContent = data.unread_count;
-                            else document.querySelector('.notification-bell').innerHTML += `<span class="notification-badge" id="notificationBadge">${data.unread_count}</span>`;
-                        } else if (badge) badge.remove();
+                            if (badge) {
+                                badge.textContent = data.unread_count;
+                            } else {
+                                const bell = document.querySelector('.notification-bell');
+                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                            }
+                        } else if (badge) {
+                            badge.remove();
+                        }
                     });
             }
         }, 30000);

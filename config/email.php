@@ -21,9 +21,9 @@
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
 define('SMTP_USERNAME', 'studybuddy.mentorship@gmail.com'); // Change this
-define('SMTP_PASSWORD', 'vkci ophi bzbl awvc'); // Change this (use App Password, not regular password)
+define('SMTP_PASSWORD', 'mavo fmkj edbm xzhr'); // Change this (use App Password, not regular password)
 define('SMTP_FROM_EMAIL', 'studybuddy.mentorship@gmail.com'); // Change this
-define('SMTP_FROM_NAME', 'StudyConnect');
+define('SMTP_FROM_NAME', 'StudyBuddy');
 define('SMTP_ENCRYPTION', 'tls'); // 'tls' or 'ssl'
 
 // OTP Configuration

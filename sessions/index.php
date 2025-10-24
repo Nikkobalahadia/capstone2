@@ -43,7 +43,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -51,6 +50,18 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -67,13 +78,14 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -81,6 +93,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -182,7 +195,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -198,7 +211,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -209,12 +222,13 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -223,10 +237,11 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .notification-header h4 {
+            color: var(--text-primary);
         }
 
         .notification-list {
@@ -236,7 +251,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -244,17 +259,18 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
-        }
-
-        .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: var(--border-color);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
         }
 
         /* Profile Menu */
@@ -275,11 +291,18 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
 
         .profile-icon:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-dropdown {
@@ -289,10 +312,11 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -301,7 +325,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -314,7 +338,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -338,7 +362,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -347,7 +371,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
 
         /* Main Content */
@@ -378,6 +402,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            color: var(--text-primary);
         }
 
         .page-header h1 i {
@@ -415,12 +440,14 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .btn-secondary {
-            background: #f0f0f0;
-            color: #1a1a1a;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
         }
 
         .btn-secondary:hover {
-            background: #e5e5e5;
+            background: var(--border-color);
+            color: var(--text-primary);
         }
 
         .btn-success {
@@ -439,7 +466,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .btn-outline:hover {
-            background: #f9f9f9;
+            background: var(--border-color);
         }
 
         .btn-warning {
@@ -458,11 +485,12 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         /* Card */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             margin-bottom: 1.5rem;
             overflow: hidden;
+            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -471,6 +499,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            background: var(--card-bg);
         }
 
         .card-title {
@@ -482,6 +511,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .card-body {
             padding: 1.25rem;
+            background: var(--card-bg);
         }
 
         /* Session Card */
@@ -493,26 +523,27 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             gap: 1.25rem;
             align-items: flex-start;
+            background: var(--card-bg);
         }
 
         .session-card.upcoming {
-            background: #f0f9ff;
-            border-color: #bfdbfe;
+            background: rgba(37, 99, 235, 0.1);
+            border-color: rgba(37, 99, 235, 0.3);
         }
 
         .session-card.pending {
-            background: #fffbeb;
-            border-color: #fcd34d;
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.3);
         }
 
         .session-card.completed {
-            background: #f0fdf4;
-            border-color: #bbf7d0;
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
         }
 
         .session-card.cancelled {
-            background: #fef2f2;
-            border-color: #fecaca;
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
         }
 
         .session-avatar {
@@ -554,6 +585,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             font-weight: 600;
             font-size: 1rem;
             margin-bottom: 0.25rem;
+            color: var(--text-primary);
         }
 
         .session-meta {
@@ -574,12 +606,24 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             color: #2563eb;
         }
 
+        [data-theme="dark"] .session-time.upcoming {
+            color: #60a5fa;
+        }
+
         .session-time.pending {
             color: #f59e0b;
         }
 
+        [data-theme="dark"] .session-time.pending {
+            color: #fbbf24;
+        }
+
         .session-time.completed {
             color: #10b981;
+        }
+
+        [data-theme="dark"] .session-time.completed {
+            color: #34d399;
         }
 
         .session-actions {
@@ -600,18 +644,18 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .empty-state i {
             font-size: 3rem;
-            color: #e5e5e5;
+            color: var(--border-color);
             margin-bottom: 1rem;
             display: block;
         }
 
         .empty-state h3 {
-            color: #1a1a1a;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
 
         .empty-state p {
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 1.5rem;
         }
 
@@ -635,7 +679,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -688,6 +732,12 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
             .container {
                 padding: 0 0.75rem;
+            }
+
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: 0;
+                left: 1rem;
             }
 
             input, select, textarea, button {
@@ -753,7 +803,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <!-- Notifications -->
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                    <button class="notification-bell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -769,7 +819,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
+                            <a href="../notifications/index.php">View All</a>
                         </div>
                     </div>
                 </div>
@@ -777,7 +827,11 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                 <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <i class="fas fa-user"></i>
+                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
@@ -799,7 +853,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -950,7 +1004,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                             <i class="fas fa-star"></i> Rate
                                         </a>
                                     <?php else: ?>
-                                        <span style="padding: 0.5rem 0.75rem; background: #dcfce7; color: #166534; border-radius: 6px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                        <span style="padding: 0.5rem 0.75rem; background: rgba(16, 185, 129, 0.2); color: #10b981; border-radius: 6px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem;">
                                             <i class="fas fa-check-circle"></i> Rated
                                         </span>
                                     <?php endif; ?>
@@ -985,7 +1039,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                         <i class="fas fa-book"></i> <?php echo htmlspecialchars($session['subject']); ?> • 
                                         <i class="fas fa-calendar"></i> <?php echo date('M j, Y', strtotime($session['session_date'])); ?>
                                     </div>
-                                    <div style="font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem;">
+                                    <div style="font-size: 0.85rem; color: #ef4444; margin-top: 0.5rem;">
                                         <i class="fas fa-ban"></i> <?php echo ucfirst($session['status']); ?>
                                     </div>
                                 </div>
@@ -1013,6 +1067,10 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
+
+        // Theme management
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
 
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
@@ -1163,6 +1221,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             }
         });
 
+        // Periodic notification check
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();

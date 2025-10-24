@@ -236,11 +236,10 @@ $user_growth_trend = $db->query("
     </style>
 </head>
 <body>
+    <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
     <div class="container-fluid">
         <div class="row">
-            <?php include '../includes/admin-sidebar.php'; ?>
-            <?php include '../includes/admin-header.php'; ?>
-            
             <main class="col-md-10 ms-sm-auto main-content">
                 <div class="p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">

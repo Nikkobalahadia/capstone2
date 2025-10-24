@@ -15,13 +15,37 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        // Get recent notifications
         $notifications = get_recent_notifications($user['id'], 20);
         $unread_count = get_unread_count($user['id']);
+        $unread_messages = get_recent_unread_messages($user['id'], 5);
+        $unread_messages_count = get_unread_messages_count($user['id']);
+        
+        // Combine notifications with message notifications
+        $combined_notifications = [];
+        
+        // Add message notifications
+        foreach ($unread_messages as $msg) {
+            $combined_notifications[] = [
+                'id' => 'msg_' . $msg['id'],
+                'type' => 'message',
+                'title' => 'New Message',
+                'message' => $msg['message'],
+                'sender_name' => $msg['first_name'] . ' ' . $msg['last_name'],
+                'sender_id' => $msg['sender_id'],
+                'profile_picture' => $msg['profile_picture'],
+                'created_at' => $msg['created_at'],
+                'link' => '/messages/chat.php?match_id=' . $msg['match_id']
+            ];
+        }
+        
+        // Add other notifications
+        foreach ($notifications as $notif) {
+            $combined_notifications[] = $notif;
+        }
         
         echo json_encode([
-            'notifications' => $notifications,
-            'unread_count' => $unread_count
+            'notifications' => $combined_notifications,
+            'unread_count' => $unread_count + $unread_messages_count
         ]);
         break;
         

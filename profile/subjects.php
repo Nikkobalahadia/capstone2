@@ -919,9 +919,9 @@ if ($user['role'] === 'peer') {
             <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="index.php"><i class="fas fa-user"></i> Profile</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
                 <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
+                <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
             <!-- Right Icons -->

@@ -12,8 +12,190 @@ if (!$user || $user['role'] !== 'admin') {
 }
 
 $db = getDB();
-$error = '';
-$success = '';
+
+// Handle AJAX requests
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
+    header('Content-Type: application/json');
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $response = ['success' => false, 'message' => ''];
+        
+        if (!verify_csrf_token($_POST['csrf_token'])) {
+            $response['message'] = 'Invalid security token.';
+            echo json_encode($response);
+            exit;
+        }
+        
+        $action = $_POST['action'];
+        $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
+        
+        try {
+            switch ($action) {
+                case 'create':
+                    $username = sanitize_input($_POST['username']);
+                    $email = sanitize_input($_POST['email']);
+                    $first_name = sanitize_input($_POST['first_name']);
+                    $last_name = sanitize_input($_POST['last_name']);
+                    $role = sanitize_input($_POST['role']);
+                    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                    
+                    $stmt = $db->prepare("INSERT INTO users (username, email, first_name, last_name, role, password_hash, is_verified, is_active) VALUES (?, ?, ?, ?, ?, ?, 1, 1)");
+                    $stmt->execute([$username, $email, $first_name, $last_name, $role, $password]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_create_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['created_user_email' => $email]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User created successfully.';
+                    break;
+                    
+                case 'update':
+                    $username = sanitize_input($_POST['username']);
+                    $email = sanitize_input($_POST['email']);
+                    $first_name = sanitize_input($_POST['first_name']);
+                    $last_name = sanitize_input($_POST['last_name']);
+                    $role = sanitize_input($_POST['role']);
+                    
+                    $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, role = ? WHERE id = ?");
+                    $stmt->execute([$username, $email, $first_name, $last_name, $role, $user_id]);
+                    
+                    if (!empty($_POST['password'])) {
+                        $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                        $pwd_stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                        $pwd_stmt->execute([$password, $user_id]);
+                    }
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_update_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['updated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User updated successfully.';
+                    break;
+                    
+                case 'verify':
+                    $stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_verify_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['verified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User verified successfully.';
+                    break;
+                    
+                case 'activate':
+                    $stmt = $db->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_activate_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['activated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User activated successfully.';
+                    break;
+                    
+                case 'deactivate':
+                    $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_deactivate_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['deactivated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User deactivated successfully.';
+                    break;
+                    
+                case 'delete':
+                    $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_delete_user', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['deleted_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'User deleted successfully.';
+                    break;
+            }
+        } catch (Exception $e) {
+            $response['message'] = 'Failed to perform action: ' . $e->getMessage();
+        }
+        
+        echo json_encode($response);
+        exit;
+    }
+    
+    // Handle GET request for fetching users
+    $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
+    $sort_dir = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'ASC' : 'DESC';
+    $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 25;
+    
+    $allowed_per_page = [10, 25, 50, 100];
+    if (!in_array($per_page, $allowed_per_page)) {
+        $per_page = 25;
+    }
+    
+    $allowed_sorts = ['first_name', 'last_name', 'email', 'role', 'created_at', 'is_verified', 'is_active'];
+    if (!in_array($sort_by, $allowed_sorts)) {
+        $sort_by = 'created_at';
+    }
+    
+    $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
+    $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+    $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+    
+    $where_conditions = ["u.role != 'admin'"];
+    $params = [];
+    
+    if ($role_filter) {
+        $where_conditions[] = "u.role = ?";
+        $params[] = $role_filter;
+    }
+    
+    if ($status_filter === 'verified') {
+        $where_conditions[] = "u.is_verified = 1";
+    } elseif ($status_filter === 'unverified') {
+        $where_conditions[] = "u.is_verified = 0";
+    } elseif ($status_filter === 'active') {
+        $where_conditions[] = "u.is_active = 1";
+    } elseif ($status_filter === 'inactive') {
+        $where_conditions[] = "u.is_active = 0";
+    }
+    
+    if ($search) {
+        $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)";
+        $search_param = "%$search%";
+        $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
+    }
+    
+    $where_clause = implode(' AND ', $where_conditions);
+    
+    $users_query = "
+        SELECT u.*,
+               u.profile_picture,
+               COUNT(DISTINCT m1.id) as matches_as_student,
+               COUNT(DISTINCT m2.id) as matches_as_mentor,
+               COUNT(DISTINCT s.id) as completed_sessions,
+               AVG(sr.rating) as avg_rating,
+               COUNT(DISTINCT sr.id) as rating_count
+        FROM users u
+        LEFT JOIN matches m1 ON u.id = m1.student_id AND m1.status = 'accepted'
+        LEFT JOIN matches m2 ON u.id = m2.mentor_id AND m2.status = 'accepted'
+        LEFT JOIN matches m ON (u.id = m.student_id OR u.id = m.mentor_id) AND m.status = 'accepted'
+        LEFT JOIN sessions s ON m.id = s.match_id AND s.status = 'completed'
+        LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+        WHERE $where_clause
+        GROUP BY u.id
+        ORDER BY u.$sort_by $sort_dir
+        LIMIT $per_page
+    ";
+    
+    $stmt = $db->prepare($users_query);
+    $stmt->execute($params);
+    $users = $stmt->fetchAll();
+    
+    echo json_encode(['success' => true, 'users' => $users]);
+    exit;
+}
 
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv');
@@ -42,196 +224,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     fclose($output);
     exit;
 }
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
-        $error = 'Invalid security token. Please try again.';
-    } else {
-        $action = $_POST['action'];
-        
-        try {
-            if ($action === 'create') {
-                $username = sanitize_input($_POST['username']);
-                $email = sanitize_input($_POST['email']);
-                $first_name = sanitize_input($_POST['first_name']);
-                $last_name = sanitize_input($_POST['last_name']);
-                $role = sanitize_input($_POST['role']);
-                $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-                
-                $stmt = $db->prepare("INSERT INTO users (username, email, first_name, last_name, role, password_hash, is_verified, is_active) VALUES (?, ?, ?, ?, ?, ?, 1, 1)");
-                $stmt->execute([$username, $email, $first_name, $last_name, $role, $password]);
-                
-                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_create_user', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['created_user_email' => $email]), $_SERVER['REMOTE_ADDR']]);
-                
-                $success = 'User created successfully.';
-            } elseif ($action === 'update') {
-                $user_id = (int)$_POST['user_id'];
-                $username = sanitize_input($_POST['username']);
-                $email = sanitize_input($_POST['email']);
-                $first_name = sanitize_input($_POST['first_name']);
-                $last_name = sanitize_input($_POST['last_name']);
-                $role = sanitize_input($_POST['role']);
-                
-                $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, role = ? WHERE id = ?");
-                $stmt->execute([$username, $email, $first_name, $last_name, $role, $user_id]);
-                
-                if (!empty($_POST['password'])) {
-                    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-                    $pwd_stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
-                    $pwd_stmt->execute([$password, $user_id]);
-                }
-                
-                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_update_user', ?, ?)");
-                $log_stmt->execute([$user['id'], json_encode(['updated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                
-                $success = 'User updated successfully.';
-            } else {
-                // Existing actions (verify, unverify, activate, deactivate, delete)
-                $user_id = (int)$_POST['user_id'];
-                
-                switch ($action) {
-                    case 'verify':
-                        $stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_verify_user', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['verified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $success = 'User verified successfully.';
-                        break;
-                        
-                    case 'unverify':
-                        $stmt = $db->prepare("UPDATE users SET is_verified = 0 WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_unverify_user', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['unverified_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $success = 'User verification removed.';
-                        break;
-                        
-                    case 'activate':
-                        $stmt = $db->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_activate_user', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['activated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $success = 'User activated successfully.';
-                        break;
-                        
-                    case 'deactivate':
-                        $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_deactivate_user', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['deactivated_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $success = 'User deactivated successfully.';
-                        break;
-                        
-                    case 'delete':
-                        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        
-                        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_delete_user', ?, ?)");
-                        $log_stmt->execute([$user['id'], json_encode(['deleted_user_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
-                        
-                        $success = 'User deleted successfully.';
-                        break;
-                }
-            }
-        } catch (Exception $e) {
-            $error = 'Failed to perform action: ' . $e->getMessage();
-        }
-    }
-}
-
-$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
-$sort_dir = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'ASC' : 'DESC';
-$per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 25;
-
-// Validate per_page
-$allowed_per_page = [10, 25, 50, 100];
-if (!in_array($per_page, $allowed_per_page)) {
-    $per_page = 25;
-}
-
-// Validate sort column
-$allowed_sorts = ['first_name', 'last_name', 'email', 'role', 'created_at', 'is_verified', 'is_active'];
-if (!in_array($sort_by, $allowed_sorts)) {
-    $sort_by = 'created_at';
-}
-
-// Get filters
-$role_filter = isset($_GET['role']) ? $_GET['role'] : '';
-$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
-$search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
-
-// Build query
-$where_conditions = ["u.role != 'admin'"];
-$params = [];
-
-if ($role_filter) {
-    $where_conditions[] = "u.role = ?";
-    $params[] = $role_filter;
-}
-
-if ($status_filter === 'verified') {
-    $where_conditions[] = "u.is_verified = 1";
-} elseif ($status_filter === 'unverified') {
-    $where_conditions[] = "u.is_verified = 0";
-} elseif ($status_filter === 'active') {
-    $where_conditions[] = "u.is_active = 1";
-} elseif ($status_filter === 'inactive') {
-    $where_conditions[] = "u.is_active = 0";
-}
-
-if ($search) {
-    $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)";
-    $search_param = "%$search%";
-    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
-}
-
-$where_clause = implode(' AND ', $where_conditions);
-
-// Get users with statistics
-$users_query = "
-    SELECT u.*,
-           u.profile_picture,
-           COUNT(DISTINCT m1.id) as matches_as_student,
-           COUNT(DISTINCT m2.id) as matches_as_mentor,
-           COUNT(DISTINCT s.id) as completed_sessions,
-           AVG(sr.rating) as avg_rating,
-           COUNT(DISTINCT sr.id) as rating_count
-    FROM users u
-    LEFT JOIN matches m1 ON u.id = m1.student_id AND m1.status = 'accepted'
-    LEFT JOIN matches m2 ON u.id = m2.mentor_id AND m2.status = 'accepted'
-    LEFT JOIN matches m ON (u.id = m.student_id OR u.id = m.mentor_id) AND m.status = 'accepted'
-    LEFT JOIN sessions s ON m.id = s.match_id AND s.status = 'completed'
-    LEFT JOIN session_ratings sr ON u.id = sr.rated_id
-    WHERE $where_clause
-    GROUP BY u.id
-    ORDER BY u.$sort_by $sort_dir
-    LIMIT $per_page
-";
-
-$stmt = $db->prepare($users_query);
-$stmt->execute($params);
-$users = $stmt->fetchAll();
-
-function getSortLink($column, $current_sort, $current_dir) {
-    $params = $_GET;
-    $params['sort'] = $column;
-    $params['dir'] = ($current_sort === $column && $current_dir === 'DESC') ? 'asc' : 'desc';
-    return '?' . http_build_query($params);
-}
-
-function getSortIcon($column, $current_sort, $current_dir) {
-    if ($current_sort !== $column) return '<i class="fas fa-sort text-muted"></i>';
-    return $current_dir === 'ASC' ? '<i class="fas fa-sort-up"></i>' : '<i class="fas fa-sort-down"></i>';
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -243,73 +235,333 @@ function getSortIcon($column, $current_sort, $current_dir) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
-        .sortable-header { cursor: pointer; user-select: none; }
-        .sortable-header:hover { background-color: #e9ecef; }
-        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .action-buttons .btn { padding: 0.375rem 0.65rem; font-size: 0.85rem; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                gap: 0.25rem !important;
+            }
+            
+            .action-buttons form,
+            .action-buttons button {
+                width: 100%;
+            }
+            
+            .table-responsive {
+                font-size: 0.85rem;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        .sortable-header { 
+            cursor: pointer; 
+            user-select: none; 
+        }
+        
+        .sortable-header:hover { 
+            background-color: #e9ecef; 
+        }
+        
+        .action-buttons { 
+            display: flex; 
+            gap: 0.5rem; 
+            flex-wrap: wrap; 
+        }
+        
+        .action-buttons .btn { 
+            padding: 0.375rem 0.65rem; 
+            font-size: 0.85rem; 
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .loading-overlay.show {
+            display: flex;
+        }
+        
+        .spinner-border-custom {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3rem;
+        }
+        
+        .real-time-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: #10b981;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .real-time-badge .pulse {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @media (max-width: 576px) {
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .btn {
+                font-size: 0.875rem;
+                padding: 0.5rem 0.75rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
+    
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border spinner-border-custom text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link active" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
 
     <div class="main-content">
         <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
-                    <h1 class="h3 mb-0 text-gray-800">User Management</h1>
-                    <p class="text-muted">Manage user accounts, verification, and activity.</p>
+                    <h1 class="h3 mb-1 text-gray-800">User Management</h1>
+                    <div class="d-flex align-items-center gap-2">
+                        <p class="text-muted mb-0">Manage user accounts, verification, and activity.</p>
+                        <span class="real-time-badge">
+                            <span class="pulse"></span>
+                            Real-time
+                        </span>
+                    </div>
                 </div>
-                <div>
-                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                        <i class="fas fa-plus me-2"></i> Add New User
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                        <i class="fas fa-plus me-2"></i> Add User
                     </button>
                     <a href="?export=csv" class="btn btn-success">
-                        <i class="fas fa-download me-2"></i> Export to CSV
+                        <i class="fas fa-download me-2"></i> Export CSV
                     </a>
                 </div>
             </div>
 
-            <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show">
-                    <?php echo $error; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
-            
-            <?php if ($success): ?>
-                <div class="alert alert-success alert-dismissible fade show">
-                    <?php echo $success; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
+            <div id="alertContainer"></div>
 
             <div class="card shadow mb-4">
                 <div class="card-body">
-                    <form method="GET" action="" class="row g-3 align-items-end">
-                        <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort_by); ?>">
-                        <input type="hidden" name="dir" value="<?php echo htmlspecialchars($sort_dir); ?>">
-                        
+                    <form id="filterForm" class="row g-3 align-items-end">
                         <div class="col-md-3">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" id="search" name="search" class="form-control" 
-                                   placeholder="Name, email, or username"
-                                   value="<?php echo htmlspecialchars($search); ?>">
+                                   placeholder="Name, email, username">
                         </div>
                         
                         <div class="col-md-2">
                             <label for="role" class="form-label">Role</label>
                             <select id="role" name="role" class="form-select">
                                 <option value="">All Roles</option>
-                                <option value="student" <?php echo $role_filter === 'student' ? 'selected' : ''; ?>>Students</option>
-                                <option value="mentor" <?php echo $role_filter === 'mentor' ? 'selected' : ''; ?>>Mentors</option>
-                                <option value="peer" <?php echo $role_filter === 'peer' ? 'selected' : ''; ?>>Peers</option>
+                                <option value="student">Students</option>
+                                <option value="mentor">Mentors</option>
+                                <option value="peer">Peers</option>
                             </select>
                         </div>
                         
@@ -317,181 +569,66 @@ function getSortIcon($column, $current_sort, $current_dir) {
                             <label for="status" class="form-label">Status</label>
                             <select id="status" name="status" class="form-select">
                                 <option value="">All Status</option>
-                                <option value="verified" <?php echo $status_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
-                                <option value="unverified" <?php echo $status_filter === 'unverified' ? 'selected' : ''; ?>>Unverified</option>
-                                <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
-                                <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                                <option value="verified">Verified</option>
+                                <option value="unverified">Unverified</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
                             </select>
                         </div>
 
                         <div class="col-md-2">
                             <label for="per_page" class="form-label">Per Page</label>
-                            <select id="per_page" name="per_page" class="form-select" onchange="this.form.submit()">
-                                <option value="10" <?php echo $per_page === 10 ? 'selected' : ''; ?>>10</option>
-                                <option value="25" <?php echo $per_page === 25 ? 'selected' : ''; ?>>25</option>
-                                <option value="50" <?php echo $per_page === 50 ? 'selected' : ''; ?>>50</option>
-                                <option value="100" <?php echo $per_page === 100 ? 'selected' : ''; ?>>100</option>
+                            <select id="per_page" name="per_page" class="form-select">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
                             </select>
                         </div>
                         
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary w-100">Filter</button>
-                        </div>
-                        
-                        <div class="col-md-2">
-                            <a href="users.php" class="btn btn-secondary w-100">Clear</a>
+                            <button type="button" onclick="clearFilters()" class="btn btn-secondary w-100">Clear</button>
                         </div>
                     </form>
                 </div>
             </div>
 
             <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Users (<?php echo count($users); ?>)</h6>
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Users (<span id="userCount">0</span>)</h6>
+                    <small class="text-muted">Last updated: <span id="lastUpdate">--:--:--</span></small>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('first_name', $sort_by, $sort_dir); ?>'">
-                                        User <?php echo getSortIcon('first_name', $sort_by, $sort_dir); ?>
+                                    <th class="sortable-header" data-sort="first_name">
+                                        User <i class="fas fa-sort text-muted"></i>
                                     </th>
-                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('role', $sort_by, $sort_dir); ?>'">
-                                        Role <?php echo getSortIcon('role', $sort_by, $sort_dir); ?>
+                                    <th class="sortable-header" data-sort="role">
+                                        Role <i class="fas fa-sort text-muted"></i>
                                     </th>
                                     <th>Status</th>
                                     <th>Activity</th>
                                     <th>Rating</th>
-                                    <th class="sortable-header" onclick="window.location='<?php echo getSortLink('created_at', $sort_by, $sort_dir); ?>'">
-                                        Joined <?php echo getSortIcon('created_at', $sort_by, $sort_dir); ?>
+                                    <th class="sortable-header" data-sort="created_at">
+                                        Joined <i class="fas fa-sort text-muted"></i>
                                     </th>
-                                    <th style="width: 280px;">Actions</th>
+                                    <th style="min-width: 200px;">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <?php foreach ($users as $u): ?>
-                                    <tr>
-                                        <td>
-                                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                                <?php if (!empty($u['profile_picture']) && file_exists('../' . $u['profile_picture'])): ?>
-                                                    <img src="../<?php echo htmlspecialchars($u['profile_picture']); ?>" 
-                                                         alt="<?php echo htmlspecialchars($u['first_name']); ?>" 
-                                                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
-                                                <?php else: ?>
-                                                    <div style="width: 40px; height: 40px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
-                                                        <?php echo strtoupper(substr($u['first_name'], 0, 1) . substr($u['last_name'], 0, 1)); ?>
-                                                    </div>
-                                                <?php endif; ?>
-                                                <div>
-                                                    <div class="fw-bold"><?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?></div>
-                                                    <div class="small text-muted"><?php echo htmlspecialchars($u['email']); ?></div>
-                                                    <div class="small text-muted">@<?php echo htmlspecialchars($u['username']); ?></div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge <?php 
-                                                echo $u['role'] === 'student' ? 'bg-primary' : 
-                                                    ($u['role'] === 'mentor' ? 'bg-success' : 'bg-info'); 
-                                            ?>">
-                                                <?php echo ucfirst($u['role']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="small">
-                                                <?php if ($u['is_verified']): ?>
-                                                    <span class="text-success"><i class="fas fa-check-circle"></i> Verified</span>
-                                                <?php else: ?>
-                                                    <span class="text-warning"><i class="fas fa-exclamation-circle"></i> Unverified</span>
-                                                <?php endif; ?>
-                                            </div>
-                                            <div class="small">
-                                                <?php if ($u['is_active']): ?>
-                                                    <span class="text-success"><i class="fas fa-circle"></i> Active</span>
-                                                <?php else: ?>
-                                                    <span class="text-danger"><i class="fas fa-circle"></i> Inactive</span>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="small"><?php echo ($u['matches_as_student'] + $u['matches_as_mentor']); ?> matches</div>
-                                            <div class="small text-muted"><?php echo $u['completed_sessions']; ?> sessions</div>
-                                        </td>
-                                        <td>
-                                            <?php if ($u['avg_rating']): ?>
-                                                <div class="small">
-                                                    <i class="fas fa-star text-warning"></i> 
-                                                    <?php echo number_format($u['avg_rating'], 1); ?>/5
-                                                </div>
-                                                <div class="small text-muted">(<?php echo $u['rating_count']; ?> reviews)</div>
-                                            <?php else: ?>
-                                                <span class="text-muted small">No ratings</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="small"><?php echo date('M j, Y', strtotime($u['created_at'])); ?></div>
-                                        </td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <button class="btn btn-sm btn-outline-primary" 
-                                                        onclick="editUser(<?php echo htmlspecialchars(json_encode($u)); ?>)"
-                                                        title="Edit">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                
-                                                <?php if (!$u['is_verified']): ?>
-                                                    <form method="POST" class="d-inline">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                        <input type="hidden" name="action" value="verify">
-                                                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Verify">
-                                                            <i class="fas fa-check"></i>
-                                                        </button>
-                                                    </form>
-                                                <?php endif; ?>
-                                                
-                                                <?php if ($u['is_active']): ?>
-                                                    <form method="POST" onsubmit="return confirmDeactivate(this);">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                        <input type="hidden" name="action" value="deactivate">
-                                                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate">
-                                                            <i class="fas fa-ban"></i>
-                                                        </button>
-                                                    </form>
-                                                <?php else: ?>
-                                                    <form method="POST" class="d-inline">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                        <input type="hidden" name="action" value="activate">
-                                                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Activate">
-                                                            <i class="fas fa-check-circle"></i>
-                                                        </button>
-                                                    </form>
-                                                <?php endif; ?>
-                                                
-                                                <form method="POST" onsubmit="return confirmDelete(this);">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                    <input type="hidden" name="action" value="delete">
-                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-3 text-muted">Loading users...</p>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
-                        
-                        <?php if (empty($users)): ?>
-                            <div class="text-center py-5 text-muted">
-                                <i class="fas fa-users fa-3x mb-3"></i>
-                                <p>No users found matching your criteria.</p>
-                            </div>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -502,15 +639,12 @@ function getSortIcon($column, $current_sort, $current_dir) {
     <div class="modal fade" id="createUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="POST">
+                <form id="createUserForm">
                     <div class="modal-header">
                         <h5 class="modal-title">Add New User</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                        <input type="hidden" name="action" value="create">
-                        
                         <div class="mb-3">
                             <label class="form-label">Username *</label>
                             <input type="text" name="username" class="form-control" required>
@@ -560,16 +694,13 @@ function getSortIcon($column, $current_sort, $current_dir) {
     <div class="modal fade" id="editUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="POST">
+                <form id="editUserForm">
+                    <input type="hidden" name="user_id" id="edit_user_id">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit User</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                        <input type="hidden" name="action" value="update">
-                        <input type="hidden" name="user_id" id="edit_user_id">
-                        
                         <div class="mb-3">
                             <label class="form-label">Username *</label>
                             <input type="text" name="username" id="edit_username" class="form-control" required>
@@ -615,50 +746,243 @@ function getSortIcon($column, $current_sort, $current_dir) {
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function confirmDeactivate(form) {
-            event.preventDefault();
-
+        const CSRF_TOKEN = '<?php echo generate_csrf_token(); ?>';
+        let currentSort = 'created_at';
+        let currentDir = 'desc';
+        let autoRefreshInterval;
+        
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+        
+        // Load users
+        function loadUsers(showLoading = true) {
+            if (showLoading) {
+                document.getElementById('loadingOverlay').classList.add('show');
+            }
+            
+            const formData = new FormData(document.getElementById('filterForm'));
+            const params = new URLSearchParams(formData);
+            params.append('ajax', 'true');
+            params.append('sort', currentSort);
+            params.append('dir', currentDir);
+            
+            fetch('users.php?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderUsers(data.users);
+                        updateLastUpdate();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    showAlert('Failed to load users', 'danger');
+                })
+                .finally(() => {
+                    document.getElementById('loadingOverlay').classList.remove('show');
+                });
+        }
+        
+        // Render users table
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            document.getElementById('userCount').textContent = users.length;
+            
+            if (users.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <p>No users found matching your criteria.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = users.map(user => {
+                const fullName = `${user.first_name} ${user.last_name}`;
+                const initials = user.first_name.charAt(0) + user.last_name.charAt(0);
+                const profilePic = user.profile_picture ? 
+                    `<img src="../${user.profile_picture}" alt="${fullName}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">` :
+                    `<div style="width: 40px; height: 40px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">${initials.toUpperCase()}</div>`;
+                
+                const roleBadge = user.role === 'student' ? 'bg-primary' : 
+                                 (user.role === 'mentor' ? 'bg-success' : 'bg-info');
+                
+                const verifiedStatus = user.is_verified ? 
+                    '<span class="text-success"><i class="fas fa-check-circle"></i> Verified</span>' :
+                    '<span class="text-warning"><i class="fas fa-exclamation-circle"></i> Unverified</span>';
+                
+                const activeStatus = user.is_active ?
+                    '<span class="text-success"><i class="fas fa-circle"></i> Active</span>' :
+                    '<span class="text-danger"><i class="fas fa-circle"></i> Inactive</span>';
+                
+                const totalMatches = parseInt(user.matches_as_student) + parseInt(user.matches_as_mentor);
+                
+                const rating = user.avg_rating ? 
+                    `<div class="small"><i class="fas fa-star text-warning"></i> ${parseFloat(user.avg_rating).toFixed(1)}/5</div>
+                     <div class="small text-muted">(${user.rating_count})</div>` :
+                    '<span class="text-muted small">No ratings</span>';
+                
+                const joinDate = new Date(user.created_at).toLocaleDateString('en-US', { 
+                    month: 'short', day: 'numeric', year: 'numeric' 
+                });
+                
+                return `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                ${profilePic}
+                                <div>
+                                    <div class="fw-bold">${fullName}</div>
+                                    <div class="small text-muted">${user.email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${roleBadge}">${user.role.charAt(0).toUpperCase() + user.role.slice(1)}</span>
+                        </td>
+                        <td>
+                            <div class="small">${verifiedStatus}</div>
+                            <div class="small">${activeStatus}</div>
+                        </td>
+                        <td>
+                            <div class="small">${totalMatches} matches</div>
+                            <div class="small text-muted">${user.completed_sessions} sessions</div>
+                        </td>
+                        <td>${rating}</td>
+                        <td><div class="small">${joinDate}</div></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-sm btn-outline-primary" onclick='editUser(${JSON.stringify(user)})' title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                ${!user.is_verified ? `
+                                    <button class="btn btn-sm btn-outline-success" onclick="performAction('verify', ${user.id})" title="Verify">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                ` : ''}
+                                ${user.is_active ? `
+                                    <button class="btn btn-sm btn-outline-warning" onclick="confirmAction('deactivate', ${user.id})" title="Deactivate">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-sm btn-outline-success" onclick="performAction('activate', ${user.id})" title="Activate">
+                                        <i class="fas fa-check-circle"></i>
+                                    </button>
+                                `}
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('delete', ${user.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Perform action
+        function performAction(action, userId) {
+            document.getElementById('loadingOverlay').classList.add('show');
+            
+            const formData = new FormData();
+            formData.append('csrf_token', CSRF_TOKEN);
+            formData.append('action', action);
+            formData.append('user_id', userId);
+            
+            fetch('users.php?ajax=true', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    loadUsers(false);
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to perform action', 'danger');
+            })
+            .finally(() => {
+                document.getElementById('loadingOverlay').classList.remove('show');
+            });
+        }
+        
+        // Confirm action
+        function confirmAction(action, userId) {
+            const messages = {
+                deactivate: {
+                    title: 'Deactivate this user?',
+                    text: 'This user will be unable to log in until reactivated.',
+                    icon: 'warning',
+                    confirmButtonColor: '#f59e0b',
+                    confirmButtonText: 'Yes, deactivate'
+                },
+                delete: {
+                    title: 'Are you sure?',
+                    text: 'This action cannot be undone.',
+                    icon: 'error',
+                    confirmButtonColor: '#dc2626',
+                    confirmButtonText: 'Yes, delete'
+                }
+            };
+            
+            const config = messages[action];
+            
             Swal.fire({
-                title: 'Deactivate this user?',
-                text: "This user will be unable to log in until reactivated.",
-                icon: 'warning',
+                title: config.title,
+                text: config.text,
+                icon: config.icon,
                 showCancelButton: true,
-                confirmButtonColor: '#f59e0b',
+                confirmButtonColor: config.confirmButtonColor,
                 cancelButtonColor: '#6b7280',
-                confirmButtonText: 'Yes, deactivate',
+                confirmButtonText: config.confirmButtonText,
                 cancelButtonText: 'Cancel'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    form.submit();
+                    performAction(action, userId);
                 }
             });
-
-            return false;
         }
-
-        function confirmDelete(form) {
-            event.preventDefault();
-
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "Are you sure you want to delete this user? This action cannot be undone.",
-                icon: 'error',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                cancelButtonColor: '#6b7280',
-                confirmButtonText: 'Yes, delete',
-                cancelButtonText: 'Cancel'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    form.submit();
-                }
-            });
-
-            return false;
-        }
-
+        
+        // Edit user
         function editUser(user) {
             document.getElementById('edit_user_id').value = user.id;
             document.getElementById('edit_username').value = user.username;
@@ -669,8 +993,173 @@ function getSortIcon($column, $current_sort, $current_dir) {
             
             new bootstrap.Modal(document.getElementById('editUserModal')).show();
         }
+        
+        // Show alert
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // Update last update time
+        function updateLastUpdate() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('lastUpdate').textContent = timeString;
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filterForm').reset();
+            loadUsers();
+        }
+        
+        // Handle create user form
+        document.getElementById('createUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            formData.append('csrf_token', CSRF_TOKEN);
+            formData.append('action', 'create');
+            
+            document.getElementById('loadingOverlay').classList.add('show');
+            
+            fetch('users.php?ajax=true', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
+                    this.reset();
+                    loadUsers(false);
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to create user', 'danger');
+            })
+            .finally(() => {
+                document.getElementById('loadingOverlay').classList.remove('show');
+            });
+        });
+        
+        // Handle edit user form
+        document.getElementById('editUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            formData.append('csrf_token', CSRF_TOKEN);
+            formData.append('action', 'update');
+            
+            document.getElementById('loadingOverlay').classList.add('show');
+            
+            fetch('users.php?ajax=true', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                    loadUsers(false);
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to update user', 'danger');
+            })
+            .finally(() => {
+                document.getElementById('loadingOverlay').classList.remove('show');
+            });
+        });
+        
+        // Handle filter changes
+        document.getElementById('filterForm').addEventListener('change', function() {
+            loadUsers();
+        });
+        
+        // Handle search with debounce
+        let searchTimeout;
+        document.getElementById('search').addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadUsers();
+            }, 500);
+        });
+        
+        // Handle sortable headers
+        document.querySelectorAll('.sortable-header').forEach(header => {
+            header.addEventListener('click', function() {
+                const sortBy = this.dataset.sort;
+                
+                if (currentSort === sortBy) {
+                    currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort = sortBy;
+                    currentDir = 'desc';
+                }
+                
+                // Update icons
+                document.querySelectorAll('.sortable-header i').forEach(icon => {
+                    icon.className = 'fas fa-sort text-muted';
+                });
+                
+                const icon = this.querySelector('i');
+                icon.className = currentDir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                
+                loadUsers();
+            });
+        });
+        
+        // Auto-refresh every 30 seconds
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(() => {
+                loadUsers(false);
+            }, 30000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsers();
+            startAutoRefresh();
+        });
+        
+        // Stop auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+                loadUsers(false);
+            }
+        });
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

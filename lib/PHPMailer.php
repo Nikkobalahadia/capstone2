@@ -42,7 +42,7 @@ class SimplePHPMailer {
     }
     
     public function send() {
-        // For development: Check if SMTP is configured`
+        // For development: Check if SMTP is configured
         if ($this->smtpUsername === 'your-email@gmail.com' || empty($this->smtpUsername)) {
             // SMTP not configured - log instead of sending
             error_log("[EMAIL] Would send to: {$this->to} | Subject: {$this->subject}");

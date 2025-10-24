@@ -7,7 +7,7 @@
  * @return array ['has_overdue' => bool, 'overdue_count' => int, 'total_overdue' => float, 'oldest_days' => int]
  */
 function check_overdue_commissions($mentor_id, $db) {
-    $grace_period_days = 7; // 7-day grace period
+    $grace_period_days = 2; // 2-day grace period
     
     $query = "
         SELECT 
@@ -79,4 +79,38 @@ function get_commission_summary($mentor_id, $db) {
     $stmt = $db->prepare($query);
     $stmt->execute([$mentor_id]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Update overdue status for all commission payments
+ * Automatically marks payments as overdue if they exceed 2 days and are not verified
+ * @param PDO $db Database connection
+ * @return int Number of records updated
+ */
+function update_overdue_status($db) {
+    try {
+        // Mark payments as overdue if they're older than 2 days and not verified
+        $query = "
+            UPDATE commission_payments 
+            SET is_overdue = 1
+            WHERE payment_status != 'verified' 
+            AND DATEDIFF(NOW(), created_at) > 2
+            AND is_overdue = 0
+        ";
+        $db->exec($query);
+        
+        // Mark verified payments as not overdue
+        $query2 = "
+            UPDATE commission_payments 
+            SET is_overdue = 0
+            WHERE payment_status = 'verified'
+            AND is_overdue = 1
+        ";
+        $db->exec($query2);
+        
+        return true;
+    } catch (PDOException $e) {
+        error_log("Error updating overdue status: " . $e->getMessage());
+        return false;
+    }
 }
