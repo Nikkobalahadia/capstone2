@@ -16,7 +16,7 @@ function check_overdue_commissions($mentor_id, $db) {
             DATEDIFF(NOW(), MIN(created_at)) as oldest_days
         FROM commission_payments
         WHERE mentor_id = ?
-        AND payment_status IN ('pending', 'rejected')
+        AND payment_status != 'verified'
         AND DATEDIFF(NOW(), created_at) > ?
     ";
     

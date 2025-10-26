@@ -1,6 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../includes/subjects_hierarchy.php';
+require_once '../config/notification_helper.php'; // Added from chat.php
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -12,6 +13,7 @@ if (!$user) {
     redirect('../auth/login.php');
 }
 
+$unread_notifications = get_unread_count($user['id']); // Added from chat.php
 $db = getDB();
 $message = '';
 $error = '';
@@ -93,9 +95,28 @@ if ($user['role'] === 'peer') {
     $teaching_stmt->execute([$user['id']]);
     $teaching_subjects = $teaching_stmt->fetchAll();
 } else {
+    // Fallback for any other roles
     $subjects_stmt = $db->prepare("SELECT * FROM user_subjects WHERE user_id = ? ORDER BY subject_name");
     $subjects_stmt->execute([$user['id']]);
     $user_subjects = $subjects_stmt->fetchAll();
+}
+
+$all_subjects = getSubjectsHierarchy();
+
+// Determine proficiency levels for the form
+$proficiency_options = [
+    'beginner' => 'Beginner (I want to learn)',
+    'intermediate' => 'Intermediate (I have some knowledge)',
+    'advanced' => 'Advanced (I can teach this)',
+    'expert' => 'Expert (I have mastery in this)'
+];
+
+if ($user['role'] === 'mentor') {
+    // Mentors can only add subjects they are advanced/expert in
+    $proficiency_options = [
+        'advanced' => 'Advanced (I can teach this)',
+        'expert' => 'Expert (I have mastery in this)'
+    ];
 }
 
 ?>
@@ -106,18 +127,30 @@ if ($user['role'] === 'peer') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Manage Subjects - StudyConnect</title>
+    <title>Manage Subjects - Study Buddy</title>
+    
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
+    <link rel="stylesheet" href="../assets/css/responsive.css"> <style>
         :root {
             --primary-color: #2563eb;
             --text-primary: #1a1a1a;
             --text-secondary: #666;
             --border-color: #e5e5e5;
-            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -134,13 +167,14 @@ if ($user['role'] === 'peer') {
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
+            background: var(--bg-color);
             color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ===== HEADER & NAVIGATION ===== */
+        /* ===== HEADER & NAVIGATION (from chat.php) ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -148,6 +182,7 @@ if ($user['role'] === 'peer') {
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -183,11 +218,9 @@ if ($user['role'] === 'peer') {
         .hamburger.active span:nth-child(1) {
             transform: rotate(45deg) translate(8px, 8px);
         }
-
         .hamburger.active span:nth-child(2) {
             opacity: 0;
         }
-
         .hamburger.active span:nth-child(3) {
             transform: rotate(-45deg) translate(7px, -7px);
         }
@@ -223,37 +256,17 @@ if ($user['role'] === 'peer') {
             gap: 0.5rem;
             transition: color 0.2s;
         }
-
         .nav-links a:hover,
-        .nav-links a.active {
+        .nav-links a.active { /* Added active class */
             color: var(--primary-color);
         }
 
-        .profile-menu {
-            position: relative;
+        .nav-actions {
+            display: flex; 
+            align-items: center; 
+            gap: 1rem;
         }
-
-        .profile-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
-            color: white;
-            cursor: pointer;
-            font-size: 1.1rem;
-            border: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .profile-icon:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        /* Notification Bell */
+        
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -268,11 +281,9 @@ if ($user['role'] === 'peer') {
             transition: background 0.2s;
             font-size: 1.1rem;
             color: var(--text-secondary);
-            padding: 0;
         }
-
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -288,7 +299,7 @@ if ($user['role'] === 'peer') {
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -299,76 +310,80 @@ if ($user['role'] === 'peer') {
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
-
         .notification-dropdown.show {
             display: flex;
         }
-
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: 600;
         }
-
         .notification-list {
             max-height: 350px;
             overflow-y: auto;
         }
-
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
             gap: 0.75rem;
-            align-items: flex-start;
         }
-
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
-
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: rgba(37, 99, 235, 0.1);
         }
-
-        .notification-item-dropdown i {
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
         }
-
         .notification-footer a {
-            text-decoration: none;
             color: var(--primary-color);
+            text-decoration: none;
             font-size: 0.9rem;
-            font-weight: 500;
-            display: inline-flex;
+        }
+
+        .profile-menu {
+            position: relative;
+        }
+        .profile-icon {
+            display: flex;
             align-items: center;
-            gap: 0.5rem;
-            transition: color 0.2s;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 1.1rem;
+            border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
-
-        .notification-footer a:hover {
-            color: #1d4ed8;
+        .profile-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
-
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
         .profile-dropdown {
             display: none;
             position: absolute;
@@ -376,34 +391,33 @@ if ($user['role'] === 'peer') {
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
-
         .profile-dropdown.show {
             display: block;
         }
-
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
-
         .user-name {
             font-weight: 600;
             color: var(--text-primary);
             font-size: 0.95rem;
             margin-bottom: 0.25rem;
         }
-
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
-
+        .profile-dropdown-menu {
+            padding: 0.5rem 0;
+        }
         .profile-dropdown-item {
             display: flex;
             align-items: center;
@@ -419,397 +433,44 @@ if ($user['role'] === 'peer') {
             font-size: 0.9rem;
             background: transparent;
         }
-
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
-
         .profile-dropdown-item.logout {
             color: #dc2626;
         }
-
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
-
-        /* ===== MAIN CONTENT ===== */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-
-        main {
-            padding: 2rem 0;
-            margin-top: 60px;
-            min-height: calc(100vh - 60px);
-        }
-
-        .page-header {
-            margin-bottom: 2rem;
-        }
-
-        .page-header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .page-header h1 i {
-            color: var(--primary-color);
-        }
-
-        .page-subtitle {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-        }
-
-        /* ===== ALERTS ===== */
-        .alert {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .alert-success {
-            background: #dcfce7;
-            border: 1px solid #86efac;
-            color: #166534;
-        }
-
-        .alert-success::before {
-            content: '\f058';
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
-        }
-
-        .alert-error {
-            background: #fee2e2;
-            border: 1px solid #fca5a5;
-            color: #991b1b;
-        }
-
-        .alert-error::before {
-            content: '\f06a';
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
-        }
-
-        /* ===== GRID LAYOUT ===== */
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        /* ===== CARDS ===== */
-        .card {
-            background: white;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-            transition: box-shadow 0.2s;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-        }
-
-        .card-header {
-            padding: 1.25rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin: 0;
-        }
-
-        .card-subtitle {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-top: 0.5rem;
-            line-height: 1.5;
-        }
-
-        .card-body {
-            padding: 1.25rem;
-        }
-
-        /* ===== FORM ELEMENTS ===== */
-        .form-group {
-            margin-bottom: 1.25rem;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-family: 'Inter', sans-serif;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            background: white;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .form-control:disabled {
-            background-color: #f5f5f5;
-            color: #999;
-            cursor: not-allowed;
-        }
-
-        .form-hint {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            margin-top: 0.4rem;
-            display: block;
-        }
-
-        /* ===== BUTTONS ===== */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            border: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
-            min-height: 44px;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1d4ed8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: var(--text-primary);
-        }
-
-        .btn-secondary:hover {
-            background: #e5e5e5;
-        }
-
-        .btn-outline {
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            background: white;
-        }
-
-        .btn-outline:hover {
-            background: #f9f9f9;
-            border-color: var(--text-primary);
-        }
-
-        .btn-danger {
-            background: #dc2626;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #b91c1c;
-        }
-
-        .btn-sm {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.85rem;
-            min-height: 36px;
-        }
-
-        .btn-full {
-            width: 100%;
-        }
-
-        /* ===== SUBJECT ITEMS ===== */
-        .subject-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: 0.75rem;
-            gap: 1rem;
-            transition: all 0.2s;
-        }
-
-        .subject-item:hover {
-            border-color: var(--primary-color);
-            background: #f9fbff;
-        }
-
-        .subject-item.learning {
-            background: #f0f7ff;
-            border-color: #bfdbfe;
-        }
-
-        .subject-item.teaching {
-            background: #f0fdf4;
-            border-color: #bbf7d0;
-        }
-
-        .subject-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .subject-name {
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-            word-break: break-word;
-        }
-
-        .subject-level {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        .proficiency-badge {
-            display: inline-block;
-            padding: 0.25rem 0.625rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        .proficiency-beginner {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .proficiency-intermediate {
-            background: #fed7aa;
-            color: #92400e;
-        }
-
-        .proficiency-advanced {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .proficiency-expert {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .subject-actions {
-            display: flex;
-            gap: 0.5rem;
-            flex-shrink: 0;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-secondary);
-        }
-
-        .empty-state i {
-            font-size: 2.5rem;
-            color: #e5e5e5;
-            margin-bottom: 0.75rem;
-            display: block;
-        }
-
-        .empty-state p {
-            font-size: 0.9rem;
-        }
-
-        /* ===== SECTION HEADER ===== */
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            font-weight: 600;
-        }
-
-        .section-header i {
-            color: var(--primary-color);
-            font-size: 1.1rem;
-        }
-
-        /* ===== FOOTER ===== */
-        .footer-actions {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        /* ===== MOBILE RESPONSIVE ===== */
+        
+        /* Mobile Responsive Styles from chat.php */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
+                flex: 1 0 0; /* NEW: take 1/3 width */
+                justify-content: flex-start; /* NEW: align left */
             }
-
             .navbar {
                 padding: 0.75rem 0.5rem;
             }
-
             .logo {
                 font-size: 1.1rem;
+                flex: 1 0 0; /* NEW: override desktop flex: 1 and take 1/3 width */
+                text-align: center; /* NEW: center logo text */
+                justify-content: center; /* NEW: center logo icon+text */
             }
-
+            .nav-actions {
+                flex: 1 0 0; /* NEW: take 1/3 width */
+                justify-content: flex-end; /* NEW: align icons to the right */
+            }
             .nav-links {
                 display: none;
                 position: fixed;
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -818,610 +479,703 @@ if ($user['role'] === 'peer') {
                 box-shadow: var(--shadow-lg);
                 z-index: 999;
             }
-
             .nav-links.active {
                 max-height: 500px;
                 display: flex;
             }
-
             .nav-links a {
                 padding: 1rem;
                 border-bottom: 1px solid var(--border-color);
                 display: block;
                 text-align: left;
             }
-
-            .grid {
-                grid-template-columns: 1fr;
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: -0.5rem;
             }
-
-            .page-header h1 {
-                font-size: 1.5rem;
-            }
-
-            .subject-item {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .subject-actions {
-                width: 100%;
-                flex-direction: row;
-            }
-
-            .subject-actions .btn {
-                flex: 1;
-                min-width: 0;
-            }
-
-            .form-control,
-            .btn,
-            input,
-            select,
-            textarea {
+            input, select, textarea, button {
                 font-size: 16px !important;
-            }
-
-            .footer-actions {
-                flex-direction: column;
-            }
-
-            .footer-actions .btn {
-                width: 100%;
             }
         }
 
         @media (max-width: 480px) {
-            .page-header h1 {
-                font-size: 1.25rem;
+            .logo {
+                font-size: 1rem;
+            }
+            .nav-actions {
                 gap: 0.5rem;
             }
+        }
+    </style>
+    
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        main {
+            padding: 2rem 0;
+            margin-top: 60px;
+            min-height: calc(100vh - 60px);
+        }
+        .page-header {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-primary); /* Adapted */
+        }
+        .page-header h1 i {
+            color: var(--primary-color);
+        }
+        .page-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary); /* Adapted */
+        }
 
-            .page-header h1 i {
-                font-size: 1.5rem;
-            }
+        /* Alerts */
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .alert-success {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .alert-error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
 
-            .card-body {
-                padding: 1rem;
-            }
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
 
-            .btn-sm {
-                padding: 0.375rem 0.5rem;
-                font-size: 0.75rem;
-            }
+        /* Card */
+        .card {
+            background: var(--card-bg); /* Adapted */
+            border-radius: 10px;
+            border: 1px solid var(--border-color); /* Adapted */
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: box-shadow 0.2s, background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        
+        /* ########## THIS IS THE CORRECTED STYLE ########## */
+        .card-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color); /* Adapted */
+            background: var(--bg-color); /* Makes header bg same as page bg */
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        /* ################################################## */
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary); /* Adapted */
+            margin: 0;
+        }
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary); /* Adapted */
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+        .card-body {
+            padding: 1.25rem;
+        }
 
-            .container {
-                padding: 0 0.75rem;
-            }
+        /* Form */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary); /* Adapted */
+            margin-bottom: 0.5rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color); /* Adapted */
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background: var(--card-bg); /* Adapted */
+            color: var(--text-primary); /* Adapted */
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s ease, color 0.3s ease;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .form-control:disabled {
+            background: var(--bg-color); /* Adapted */
+            color: var(--text-secondary); /* Adapted */
+            cursor: not-allowed;
+        }
 
-            main {
-                padding: 1rem 0;
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-secondary {
+            background: var(--border-color); /* Adapted */
+            color: var(--text-primary); /* Adapted */
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover {
+            background: rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] .btn-secondary:hover {
+            background: rgba(255,255,255,0.1); /* Dark mode hover for secondary */
+        }
+        .btn-danger {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .btn-danger:hover {
+            background: #fecaca;
+        }
+        .btn-sm {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        /* Subject List */
+        .subject-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .subject-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 0;
+            border-bottom: 1px solid var(--border-color); /* Adapted */
+        }
+        .subject-item:last-child {
+            border-bottom: none;
+        }
+        .subject-info {
+            flex: 1;
+            margin-right: 1rem;
+        }
+        .subject-name {
+            font-weight: 500;
+            color: var(--text-primary); /* Adapted */
+            font-size: 0.95rem;
+        }
+        .subject-level {
+            font-size: 0.85rem;
+            color: var(--text-secondary); /* Adapted */
+            text-transform: capitalize;
+        }
+        .subject-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary); /* Adapted */
+            font-size: 0.9rem;
+        }
+        .empty-state i {
+            font-size: 2.5rem;
+            opacity: 0.5;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        /* Responsive Grid */
+        @media (max-width: 992px) {
+            .grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
-    <header class="header">
-        <div class="navbar">
-            <!-- Mobile Hamburger -->
-            <button class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
+
+<script>
+    (function() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.body.classList.add('dark-mode');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    })();
+</script>
+
+<header class="header">
+    <nav class="navbar">
+        
+        <button class="hamburger" id="hamburger-menu" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        
+        <a href="../dashboard.php" class="logo">
+            <i class="fas fa-brain"></i> Study Buddy
+        </a>
+
+        <ul class="nav-links">
+            <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="../find_match.php"><i class="fas fa-search"></i> Find a Match</a></li>
+            <li><a href="../matches.php"><i class="fas fa-user-friends"></i> Matches</a></li>
+            <li><a href="index.php" class="active"><i class="fas fa-user"></i> Profile</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <button class="notification-bell" id="notification-bell" aria-label="Notifications">
+                <i class="fas fa-bell"></i>
+                <?php if ($unread_notifications > 0): ?>
+                    <span class="notification-badge"><?php echo $unread_notifications; ?></span>
+                <?php endif; ?>
             </button>
-
-            <!-- Logo -->
-            <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
-            </a>
-
-            <!-- Desktop Navigation -->
-            <ul class="nav-links" id="navLinks">
-                <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
-                <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
-                <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
-            </ul>
-
-            <!-- Right Icons -->
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
-                <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
-                    </button>
-                    <div class="notification-dropdown" id="notificationDropdown">
-                        <div class="notification-header">
-                            <h4><i class="fas fa-bell"></i> Notifications</h4>
-                        </div>
-                        <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
-                        </div>
-                        <div class="notification-footer">
-                            <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
-                        </div>
-                    </div>
+            
+            <div class="notification-dropdown" id="notification-dropdown">
+                <div class="notification-header">
+                    <h3 style="font-weight: 600; font-size: 1rem;">Notifications</h3>
+                    <button class="btn-sm btn-outline" id="mark-all-read" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">Mark all as read</button>
                 </div>
+                <div class="notification-list" id="notification-list">
+                    <p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading notifications...</p>
+                </div>
+                <div class="notification-footer">
+                    <a href="../notifications.php">View all notifications</a>
+                </div>
+            </div>
 
-                <!-- Profile Menu -->
             <div class="profile-menu">
-                <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                    <i class="fas fa-user"></i>
+                <button class="profile-icon" id="profile-icon" aria-label="Profile menu">
+                    <?php if ($user['profile_picture'] && file_exists('../' . $user['profile_picture'])): ?>
+                        <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                    <?php else: ?>
+                        <span><?php echo strtoupper(substr($user['first_name'], 0, 1)); ?></span>
+                    <?php endif; ?>
                 </button>
-                <div class="profile-dropdown" id="profileDropdown">
+                <div class="profile-dropdown" id="profile-dropdown">
                     <div class="profile-dropdown-header">
-                        <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
-                        <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
+                        <div class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></div>
+                        <div class="user-role"><?php echo htmlspecialchars(ucfirst($user['role'])); ?></div>
                     </div>
-                    <div style="padding: 0.5rem 0;">
+                    <div class="profile-dropdown-menu">
                         <a href="index.php" class="profile-dropdown-item">
-                            <i class="fas fa-user-circle"></i>
-                            <span>View Profile</span>
+                            <i class="fas fa-user-circle"></i> View Profile
                         </a>
                         <a href="settings.php" class="profile-dropdown-item">
-                            <i class="fas fa-sliders-h"></i>
-                            <span>Settings</span>
+                            <i class="fas fa-cog"></i> Settings
                         </a>
-                        <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                        <button class="profile-dropdown-item" id="dark-mode-toggle">
+                            <i class="fas fa-moon"></i> <span>Dark Mode</span>
+                        </button>
                         <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                            <i class="fas fa-sign-out-alt"></i>
-                            <span>Logout</span>
+                            <i class="fas fa-sign-out-alt"></i> Logout
                         </a>
                     </div>
                 </div>
             </div>
         </div>
-    </header>
+    </nav>
+</header>
 
-    <main>
-        <div class="container">
-            <div class="page-header">
+<main>
+    <div class="container">
+        <div class="page-header">
+            <div>
                 <h1><i class="fas fa-book"></i> Manage Your Subjects</h1>
-                <p class="page-subtitle">
-                    <?php if ($user['role'] === 'student'): ?>
-                        Add subjects you want to learn and track your progress.
-                    <?php elseif ($user['role'] === 'mentor'): ?>
-                        Add subjects you can teach at Advanced or Expert level.
-                    <?php else: ?>
-                        Add subjects you want to learn or teach to connect with others.
-                    <?php endif; ?>
-                </p>
+                <?php if ($user['role'] === 'peer'): ?>
+                    <p class="page-subtitle">Add subjects you want to learn and subjects you can teach.</p>
+                <?php elseif ($user['role'] === 'mentor'): ?>
+                    <p class="page-subtitle">Add the subjects you are an expert in and can mentor.</p>
+                <?php endif; ?>
             </div>
+            <a href="index.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to Profile</a>
+        </div>
 
-            <?php if ($message): ?>
-                <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
-            <?php endif; ?>
+        <?php if ($message): ?>
+            <div class="alert alert-success"><?php echo $message; ?></div>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert alert-error"><?php echo $error; ?></div>
+        <?php endif; ?>
 
-            <?php if ($error): ?>
-                <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
-            <?php endif; ?>
-
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2 class="card-title">Add New Subject</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="">
+                    <input type="hidden" name="action" value="add_subject">
+                    <div class="grid">
+                        <div class="form-group">
+                            <label for="main_subject" class="form-label">Subject Category</label>
+                            <select id="main_subject" name="main_subject" class="form-control" required>
+                                <option value="">Select a subject category...</option>
+                                <?php foreach ($all_subjects as $subject => $subtopics): ?>
+                                    <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="subtopic" class="form-label">Subtopic (Optional)</label>
+                            <select id="subtopic" name="subtopic" class="form-control" disabled>
+                                <option value="">Select subtopic (optional)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="proficiency_level" class="form-label">Your Proficiency</label>
+                        <select id="proficiency_level" name="proficiency_level" class="form-control" required>
+                            <option value="">Select your level...</option>
+                            <?php foreach ($proficiency_options as $value => $label): ?>
+                                <option value="<?php echo $value; ?>"><?php echo $label; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Subject</button>
+                </form>
+            </div>
+        </div>
+        
+        <?php if ($user['role'] === 'peer'): ?>
             <div class="grid">
-                <!-- Add Subject Card -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Add New Subject</h3>
-                        <p class="card-subtitle">
-                            <?php if ($user['role'] === 'student'): ?>
-                                Select a subject you'd like to learn or improve in.
-                            <?php elseif ($user['role'] === 'mentor'): ?>
-                                Add subjects you're qualified to teach.
-                            <?php else: ?>
-                                Choose a subject and your proficiency level.
-                            <?php endif; ?>
-                        </p>
+                        <h2 class="card-title">Subjects I'm Learning</h2>
+                        <p class="card-subtitle">Topics you are a beginner or intermediate in.</p>
                     </div>
                     <div class="card-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="add_subject">
-                            
-                            <div class="form-group">
-                                <label for="main_subject" class="form-label">Main Subject</label>
-                                <select id="main_subject" name="main_subject" class="form-control" required>
-                                    <option value="">Select a subject</option>
-                                    <?php foreach (getSubjectsHierarchy() as $main => $subtopics): ?>
-                                        <option value="<?php echo htmlspecialchars($main); ?>">
-                                            <?php echo htmlspecialchars($main); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                        <?php if (empty($learning_subjects)): ?>
+                            <div class="empty-state">
+                                <i class="fas fa-search"></i>
+                                You haven't added any subjects to learn yet.
                             </div>
-
-                            <div class="form-group">
-                                <label for="subtopic" class="form-label">Subtopic <span style="color: #999;">(Optional)</span></label>
-                                <select id="subtopic" name="subtopic" class="form-control" disabled>
-                                    <option value="">First select a main subject</option>
-                                </select>
-                                <span class="form-hint">Choose a specific area within your subject</span>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="proficiency_level" class="form-label">Proficiency Level</label>
-                                <select id="proficiency_level" name="proficiency_level" class="form-control" required>
-                                    <option value="">Select level</option>
-                                    <?php if ($user['role'] === 'student'): ?>
-                                        <option value="beginner">Beginner - Just starting out</option>
-                                        <option value="intermediate">Intermediate - Some experience</option>
-                                        <option value="advanced">Advanced - Strong knowledge</option>
-                                        <option value="expert">Expert - Mastered the subject</option>
-                                    <?php elseif ($user['role'] === 'mentor'): ?>
-                                        <option value="advanced">Advanced - Strong knowledge</option>
-                                        <option value="expert">Expert - Can mentor others</option>
-                                    <?php else: ?>
-                                        <optgroup label="Learning">
-                                            <option value="beginner">Beginner - Just starting out</option>
-                                            <option value="intermediate">Intermediate - Some experience</option>
-                                        </optgroup>
-                                        <optgroup label="Teaching">
-                                            <option value="advanced">Advanced - Strong knowledge</option>
-                                            <option value="expert">Expert - Can teach others</option>
-                                        </optgroup>
-                                    <?php endif; ?>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary btn-full">
-                                <i class="fas fa-plus"></i> Add Subject
-                            </button>
-                        </form>
+                        <?php else: ?>
+                            <ul class="subject-list">
+                                <?php foreach ($learning_subjects as $subject): ?>
+                                    <li class="subject-item">
+                                        <div class="subject-info">
+                                            <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                            <div class="subject-level"><?php echo htmlspecialchars($subject['proficiency_level']); ?></div>
+                                        </div>
+                                        <div class="subject-actions">
+                                            <form method="POST" action="" style="display: inline;">
+                                                <input type="hidden" name="action" value="remove_subject">
+                                                <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this subject?');"><i class="fas fa-trash"></i></button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     </div>
                 </div>
-
-                <!-- Your Subjects Card -->
+                
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">
-                            <?php if ($user['role'] === 'student'): ?>
-                                Your Subjects (<?php echo count($user_subjects); ?>)
-                            <?php elseif ($user['role'] === 'mentor'): ?>
-                                Teaching Subjects (<?php echo count($teaching_subjects); ?>)
-                            <?php else: ?>
-                                Your Subjects
-                            <?php endif; ?>
-                        </h3>
+                        <h2 class="card-title">Subjects I'm Teaching</h2>
+                        <p class="card-subtitle">Topics you are advanced or expert in.</p>
                     </div>
                     <div class="card-body">
-                        <!-- Peer: Learning & Teaching Sections -->
-                        <?php if ($user['role'] === 'peer'): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <div class="section-header">
-                                    <i class="fas fa-book-open"></i>
-                                    <span>Learning (<?php echo count($learning_subjects); ?>)</span>
-                                </div>
-                                <?php if (empty($learning_subjects)): ?>
-                                    <div class="empty-state" style="padding: 1.5rem;">
-                                        <i class="fas fa-inbox"></i>
-                                        <p>No learning subjects yet</p>
-                                    </div>
-                                <?php else: ?>
-                                    <div>
-                                        <?php foreach ($learning_subjects as $subject): ?>
-                                            <div class="subject-item learning">
-                                                <div class="subject-info">
-                                                    <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                                    <div class="subject-level">
-                                                        <span class="proficiency-badge proficiency-<?php echo $subject['proficiency_level']; ?>">
-                                                            <?php echo ucfirst($subject['proficiency_level']); ?>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div class="subject-actions">
-                                                    <form method="POST" class="inline">
-                                                        <input type="hidden" name="action" value="remove_subject">
-                                                        <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this subject?')">
-                                                            <i class="fas fa-trash"></i> Remove
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
+                        <?php if (empty($teaching_subjects)): ?>
+                            <div class="empty-state">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                                You haven't added any subjects to teach yet.
                             </div>
-
-                            <div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                                <div class="section-header">
-                                    <i class="fas fa-chalkboard-user"></i>
-                                    <span>Teaching (<?php echo count($teaching_subjects); ?>)</span>
-                                </div>
-                                <?php if (empty($teaching_subjects)): ?>
-                                    <div class="empty-state" style="padding: 1.5rem;">
-                                        <i class="fas fa-inbox"></i>
-                                        <p>No teaching subjects yet</p>
-                                    </div>
-                                <?php else: ?>
-                                    <div>
-                                        <?php foreach ($teaching_subjects as $subject): ?>
-                                            <div class="subject-item teaching">
-                                                <div class="subject-info">
-                                                    <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                                    <div class="subject-level">
-                                                        <span class="proficiency-badge proficiency-<?php echo $subject['proficiency_level']; ?>">
-                                                            <?php echo ucfirst($subject['proficiency_level']); ?>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div class="subject-actions">
-                                                    <form method="POST" class="inline">
-                                                        <input type="hidden" name="action" value="remove_subject">
-                                                        <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this subject?')">
-                                                            <i class="fas fa-trash"></i> Remove
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-
-                        <!-- Mentor: Teaching Only -->
-                        <?php elseif ($user['role'] === 'mentor'): ?>
-                            <?php if (empty($teaching_subjects)): ?>
-                                <div class="empty-state" style="padding: 2rem;">
-                                    <i class="fas fa-inbox"></i>
-                                    <p>No teaching subjects yet. Add subjects to start mentoring!</p>
-                                </div>
-                            <?php else: ?>
-                                <div>
-                                    <?php foreach ($teaching_subjects as $subject): ?>
-                                        <div class="subject-item teaching">
-                                            <div class="subject-info">
-                                                <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                                <div class="subject-level">
-                                                    <span class="proficiency-badge proficiency-<?php echo $subject['proficiency_level']; ?>">
-                                                        <?php echo ucfirst($subject['proficiency_level']); ?>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div class="subject-actions">
-                                                <form method="POST" class="inline">
-                                                    <input type="hidden" name="action" value="remove_subject">
-                                                    <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this subject?')">
-                                                        <i class="fas fa-trash"></i> Remove
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-
-                        <!-- Student: Learning Only -->
                         <?php else: ?>
-                            <?php if (empty($user_subjects)): ?>
-                                <div class="empty-state" style="padding: 2rem;">
-                                    <i class="fas fa-inbox"></i>
-                                    <p>No subjects added yet. Start by adding your first subject!</p>
-                                </div>
-                            <?php else: ?>
-                                <div>
-                                    <?php foreach ($user_subjects as $subject): ?>
-                                        <div class="subject-item learning">
-                                            <div class="subject-info">
-                                                <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                                <div class="subject-level">
-                                                    <span class="proficiency-badge proficiency-<?php echo $subject['proficiency_level']; ?>">
-                                                        <?php echo ucfirst($subject['proficiency_level']); ?>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div class="subject-actions">
-                                                <form method="POST" class="inline">
-                                                    <input type="hidden" name="action" value="remove_subject">
-                                                    <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this subject?')">
-                                                        <i class="fas fa-trash"></i> Remove
-                                                    </button>
-                                                </form>
-                                            </div>
+                            <ul class="subject-list">
+                                <?php foreach ($teaching_subjects as $subject): ?>
+                                    <li class="subject-item">
+                                        <div class="subject-info">
+                                            <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                            <div class="subject-level"><?php echo htmlspecialchars($subject['proficiency_level']); ?></div>
                                         </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
+                                        <div class="subject-actions">
+                                            <form method="POST" action="" style="display: inline;">
+                                                <input type="hidden" name="action" value="remove_subject">
+                                                <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this subject?');"><i class="fas fa-trash"></i></button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
-
-            <!-- Footer Actions -->
-            <div class="footer-actions">
-                <a href="index.php" class="btn btn-outline">
-                    <i class="fas fa-arrow-left"></i> Back to Profile
-                </a>
-                <a href="../dashboard.php" class="btn btn-secondary">
-                    <i class="fas fa-home"></i> Dashboard
-                </a>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        let notificationDropdownOpen = false;
-        let profileDropdownOpen = false;
-
-        // Mobile Menu Toggle
-        document.addEventListener("DOMContentLoaded", () => {
-            const hamburger = document.querySelector(".hamburger");
-            const navLinks = document.querySelector(".nav-links");
             
-            if (hamburger) {
-                hamburger.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    hamburger.classList.toggle("active");
-                    navLinks.classList.toggle("active");
-                });
-
-                const links = navLinks.querySelectorAll("a");
-                links.forEach((link) => {
-                    link.addEventListener("click", () => {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    });
-                });
-
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
-                });
-            }
-        });
-
-        // Notification Toggle
-        function toggleNotifications(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('notificationDropdown');
-            notificationDropdownOpen = !notificationDropdownOpen;
-            
-            if (notificationDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
-                loadNotifications();
-            } else {
-                dropdown.classList.remove('show');
-            }
-        }
-
-        // Profile Menu Toggle
-        function toggleProfileMenu(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            profileDropdownOpen = !profileDropdownOpen;
-            
-            if (profileDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
-            } else {
-                dropdown.classList.remove('show');
-            }
-        }
-
-        // Load Notifications
-        function loadNotifications() {
-            fetch('../api/notifications.php')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
-                        return;
-                    }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
-                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
-                            </div>
+        <?php elseif ($user['role'] === 'mentor'): ?>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Subjects I'm Mentoring</h2>
+                    <p class="card-subtitle">Topics you are advanced or expert in.</p>
+                </div>
+                <div class="card-body">
+                    <?php if (empty($teaching_subjects)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            You haven't added any subjects to mentor yet.
                         </div>
-                    `).join('');
-                });
-        }
+                    <?php else: ?>
+                        <ul class="subject-list">
+                            <?php foreach ($teaching_subjects as $subject): ?>
+                                <li class="subject-item">
+                                    <div class="subject-info">
+                                        <div class="subject-name"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                        <div class="subject-level"><?php echo htmlspecialchars($subject['proficiency_level']); ?></div>
+                                    </div>
+                                    <div class="subject-actions">
+                                        <form method="POST" action="" style="display: inline;">
+                                            <input type="hidden" name="action" value="remove_subject">
+                                            <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to remove this subject?');"><i class="fas fa-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
-        // Handle Notification Click
-        function handleNotificationClick(notificationId, link) {
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
-            }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
+    </div>
+</main>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const hamburger = document.querySelector('.hamburger');
+        const navLinks = document.querySelector('.nav-links');
+        const profileIcon = document.getElementById('profile-icon');
+        const profileDropdown = document.getElementById('profile-dropdown');
+        const notificationBell = document.getElementById('notification-bell');
+        const notificationDropdown = document.getElementById('notification-dropdown');
+        const notificationList = document.getElementById('notification-list');
+        const markAllReadBtn = document.getElementById('mark-all-read');
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const darkModeToggleText = darkModeToggle.querySelector('span');
+        const darkModeToggleIcon = darkModeToggle.querySelector('i');
+
+        let notificationDropdownOpen = false;
+
+        // Hamburger Menu
+        if (hamburger) {
+            hamburger.addEventListener('click', () => {
+                hamburger.classList.toggle('active');
+                navLinks.classList.toggle('active');
             });
         }
 
-        // Get Notification Icon
-        function getNotificationIcon(type) {
-            const icons = {
-                'session_scheduled': 'fa-calendar-check',
-                'session_accepted': 'fa-check-circle',
-                'session_rejected': 'fa-times-circle',
-                'match_request': 'fa-handshake',
-                'match_accepted': 'fa-user-check',
-                'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
-            };
-            return icons[type] || 'fa-bell';
-        }
-
-        // Get Notification Color
-        function getNotificationColor(type) {
-            const colors = {
-                'session_accepted': '#16a34a',
-                'session_rejected': '#dc2626',
-                'match_accepted': '#16a34a',
-                'announcement': '#2563eb',
-                'commission_due': '#d97706',
-                'session_scheduled': '#2563eb',
-                'match_request': '#2563eb'
-            };
-            return colors[type] || '#666';
-        }
-
-        // Escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Time Ago Format
-        function timeAgo(dateString) {
-            const date = new Date(dateString);
-            const seconds = Math.floor((new Date() - date) / 1000);
-            if (seconds < 60) return 'Just now';
-            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
-            return Math.floor(seconds / 604800) + 'w ago';
-        }
-
-        // Close Dropdowns on Outside Click
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
-                document.getElementById('notificationDropdown').classList.remove('show');
+        // Profile Dropdown
+        if (profileIcon) {
+            profileIcon.addEventListener('click', (event) => {
+                event.stopPropagation();
+                profileDropdown.classList.toggle('show');
+                notificationDropdown.classList.remove('show');
                 notificationDropdownOpen = false;
+            });
+        }
+
+        // Notification Dropdown
+        if (notificationBell) {
+            notificationBell.addEventListener('click', (event) => {
+                event.stopPropagation();
+                notificationDropdown.classList.toggle('show');
+                profileDropdown.classList.remove('show');
+                notificationDropdownOpen = notificationDropdown.classList.contains('show');
+                
+                if (notificationDropdownOpen) {
+                    loadNotifications();
+                }
+            });
+        }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', (event) => {
+            if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
+                profileDropdown.classList.remove('show');
             }
-            if (profileDropdownOpen) {
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
+            if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
+                notificationDropdown.classList.remove('show');
+                notificationDropdownOpen = false;
             }
         });
 
-        // Refresh Notifications Badge Every 30 Seconds
-        setInterval(() => {
-            if (notificationDropdownOpen) {
-                loadNotifications();
+        // Dark Mode Toggle
+        if (darkModeToggle) {
+            // Set initial state of the toggle
+            if (document.body.classList.contains('dark-mode')) {
+                darkModeToggleText.textContent = 'Light Mode';
+                darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
             } else {
+                darkModeToggleText.textContent = 'Dark Mode';
+                darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+            }
+
+            darkModeToggle.addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                
+                if (isDarkMode) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    darkModeToggleText.textContent = 'Light Mode';
+                    darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                    darkModeToggleText.textContent = 'Dark Mode';
+                    darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                }
+            });
+        }
+
+        // Notification Functions
+        function loadNotifications() {
+            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading...</p>';
+            fetch('../api/notifications.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        notificationList.innerHTML = '';
+                        if (data.notifications.length === 0) {
+                            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">No new notifications.</p>';
+                        } else {
+                            data.notifications.forEach(item => {
+                                const el = document.createElement('div');
+                                el.className = 'notification-item-dropdown';
+                                if (!item.is_read) {
+                                    el.classList.add('unread');
+                                }
+                                el.dataset.id = item.id;
+                                el.innerHTML = `
+                                    <div style="font-size: 1.25rem; color: var(--primary-color); padding-top: 0.25rem;"><i class="fas ${item.icon}"></i></div>
+                                    <div>
+                                        <p style="color: var(--text-primary); margin-bottom: 0.25rem;">${item.message}</p>
+                                        <small style="color: var(--text-secondary);">${item.time_ago}</small>
+                                    </div>
+                                `;
+                                el.addEventListener('click', () => {
+                                    window.location.href = item.link;
+                                });
+                                notificationList.appendChild(el);
+
+                            });
+                        }
+                        updateNotificationBadge(data.unread_count);
+                    }
+                })
+                .catch(err => {
+                    notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: #dc2626;">Failed to load notifications.</p>';
+                });
+        }
+
+        if (markAllReadBtn) {
+            markAllReadBtn.addEventListener('click', () => {
+                fetch('../api/notifications.php?action=mark_all_read', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            loadNotifications();
+                        }
+                    });
+            });
+        }
+        
+        function updateNotificationBadge(count) {
+            const badge = document.querySelector('.notification-badge');
+            if (count > 0) {
+                if (badge) {
+                    badge.textContent = count;
+                } else {
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'notification-badge';
+                    newBadge.textContent = count;
+                    notificationBell.appendChild(newBadge);
+                }
+            } else if (badge) {
+                badge.remove();
+            }
+        }
+
+        // Auto-update notification badge
+        setInterval(() => {
+            if (!notificationDropdownOpen) {
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.getElementById('notificationBadge');
-                        if (data.unread_count > 0) {
-                            badge.textContent = data.unread_count;
-                            badge.style.display = 'block';
-                        } else {
-                            badge.style.display = 'none';
+                        if (data.success) {
+                            updateNotificationBadge(data.unread_count);
                         }
                     });
+            } else {
+                // If dropdown is open, refresh the list
+                loadNotifications();
             }
-        }, 30000);
+        }, 30000); // Poll every 30 seconds
+    });
+</script>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
         // Subjects hierarchy data
         const subjectsHierarchy = <?php echo json_encode(getSubjectsHierarchy()); ?>;
 
@@ -1448,6 +1202,8 @@ if ($user['role'] === 'peer') {
                 }
             });
         }
-    </script>
+    });
+</script>
+
 </body>
 </html>

@@ -130,7 +130,7 @@ $page_title = "Session History";
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title><?php echo $page_title; ?> - StudyConnect</title>
+    <title><?php echo $page_title; ?> - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -773,7 +773,7 @@ $page_title = "Session History";
 
             <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
             <!-- Desktop Navigation -->

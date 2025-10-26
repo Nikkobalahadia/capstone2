@@ -165,7 +165,7 @@ $form_data = $_SESSION['registration_data'] ?? [];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - StudyConnect</title>
+    <title>Sign Up - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -173,7 +173,7 @@ $form_data = $_SESSION['registration_data'] ?? [];
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../index.php" class="logo">StudyConnect</a>
+                <a href="../index.php" class="logo">Study Buddy</a>
                 <ul class="nav-links">
                     <li><a href="../index.php">Home</a></li>
                     <li><a href="login.php">Login</a></li>
@@ -185,7 +185,7 @@ $form_data = $_SESSION['registration_data'] ?? [];
     <main style="padding: 2rem 0;">
         <div class="form-container" style="max-width: 500px;">
             <?php if ($step === 'form'): ?>
-                <h2 class="text-center mb-4">Join StudyConnect</h2>
+                <h2 class="text-center mb-4">Join Study Buddy</h2>
                 <p class="text-center text-secondary mb-4">Create your account as a <?php echo ucfirst($role); ?></p>
                 
                 <?php if ($error): ?>

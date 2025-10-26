@@ -96,6 +96,30 @@ class HybridNotificationSystem {
   }
 
   createNotificationElement(notification) {
+    if (notification.type === "announcement") {
+      const icon =
+        notification.announcement_type === "warning" ? "⚠️" : notification.announcement_type === "alert" ? "🚨" : "ℹ️"
+      return `
+        <div class="notification-toast" data-id="${notification.id}">
+          <div class="notification-header">
+            <span class="notification-icon">${icon}</span>
+            <strong>Announcement</strong>
+            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+          </div>
+          <div class="notification-body">
+            <p><strong>${notification.title}</strong></p>
+            <p><small>${notification.message.substring(0, 80)}${notification.message.length > 80 ? "..." : ""}</small></p>
+            <p><small class="text-muted">From: ${notification.created_by}</small></p>
+          </div>
+          <div class="notification-actions">
+            <button class="btn btn-sm btn-primary" onclick="window.location.href='${notification.link}'">
+              View All
+            </button>
+          </div>
+        </div>
+      `
+    }
+
     if (notification.type === "message") {
       return `
         <div class="notification-toast" data-id="${notification.id}">
@@ -180,14 +204,17 @@ class HybridNotificationSystem {
   }
 
   updateNotificationBadge(count) {
-    const badge = document.querySelector(".notification-badge")
+    const badge = document.getElementById("notificationBadge")
     if (badge) {
       if (count > 0) {
         badge.textContent = count
-        badge.style.display = "inline-block"
+        badge.style.display = "inline-flex"
       } else {
         badge.style.display = "none"
       }
+      console.log("[v0] Badge updated to:", count)
+    } else {
+      console.log("[v0] Badge element not found")
     }
   }
 

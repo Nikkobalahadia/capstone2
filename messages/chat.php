@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Chat with <?php echo htmlspecialchars($match['partner_name']); ?> - StudyConnect</title>
+    <title>Chat with <?php echo htmlspecialchars($match['partner_name']); ?> - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -939,22 +939,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -962,9 +958,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                 <li><a href="index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -977,9 +971,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                             <h4 style="margin: 0; font-size: 1rem;"><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
+                             <div style="text-align: center; padding: 1.5rem; color: #999;">
+                                 <i class="fas fa-spinner fa-spin"></i>
+                             </div>
                         </div>
                         <div class="notification-footer">
                             <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
@@ -987,7 +981,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -1003,23 +996,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="../profile/index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i>
-                                <span>View Profile</span>
+                                <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
                             <?php if (in_array($user['role'], ['mentor'])): ?>
-                                <a href="../profile/commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
+                            <a href="../profile/commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i> <span>Commissions</span>
+                            </a>
                             <?php endif; ?>
                             <a href="../profile/settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i>
-                                <span>Settings</span>
+                                <i class="fas fa-sliders-h"></i> <span>Settings</span>
                             </a>
+                            <button type="button" class="profile-dropdown-item" onclick="toggleTheme()">
+                                <i class="fas fa-sun" id="theme-icon"></i> <span id="theme-text">Toggle Theme</span>
+                            </button>
                             <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
+                                <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                             </a>
                         </div>
                     </div>
@@ -1045,7 +1037,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     <?php echo $error; ?>
                 </div>
             <?php endif; ?>
-
             <?php if ($success): ?>
                 <div style="padding: 1rem; background: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; margin-bottom: 1rem;">
                     <?php echo $success; ?>
@@ -1057,8 +1048,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     <div class="chat-partner-info">
                         <?php if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])): ?>
                             <div class="chat-partner-avatar">
-                                <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" 
-                                     alt="<?php echo htmlspecialchars($match['partner_name']); ?>">
+                                <img src="../<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" alt="<?php echo htmlspecialchars($match['partner_name']); ?>">
                             </div>
                         <?php else: ?>
                             <div class="chat-partner-avatar initials">
@@ -1079,23 +1069,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div id="chatMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 0.5rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); min-width: 180px; z-index: 1000;">
-                                <button type="button" onclick="openReportModal()" 
-                                        style="width: 100%; text-align: left; padding: 0.75rem 1rem; border: none; background: transparent; display: flex; align-items: center; gap: 0.5rem; color: #dc2626; cursor: pointer; font-size: 0.9rem;">
-                                    <i class="fas fa-flag"></i>
-                                    Report User
+                                <button type="button" onclick="openReportModal()" style="width: 100%; text-align: left; padding: 0.75rem 1rem; border: none; background: transparent; display: flex; align-items: center; gap: 0.5rem; color: #dc2626; cursor: pointer; font-size: 0.9rem;">
+                                    <i class="fas fa-flag"></i> Report User
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
-
+                
                 <div class="chat-messages" id="chatMessages">
                     <div class="loading-messages">
                         <i class="fas fa-spinner fa-spin"></i>
                         <p>Loading messages...</p>
                     </div>
                 </div>
-
+                
                 <div class="chat-input">
                     <div id="attachmentPreview" style="display: none;"></div>
                     <form id="messageForm">
@@ -1104,10 +1092,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                             <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('fileInput').click()">
                                 <i class="fas fa-paperclip"></i>
                             </button>
-                            <input type="text" name="message" id="messageInput" class="form-input" 
-                                   placeholder="Type your message..." 
-                                   maxlength="1000" 
-                                   autocomplete="off">
+                            <input type="text" name="message" id="messageInput" class="form-input" placeholder="Type your message..." maxlength="1000" autocomplete="off">
                             <button type="submit" class="btn btn-primary btn-sm" id="sendBtn">
                                 <i class="fas fa-paper-plane"></i> <span class="hide-on-small">Send</span>
                             </button>
@@ -1118,7 +1103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
         </div>
     </main>
 
-    <!-- Report Modal -->
     <div id="reportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: var(--card-bg); border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
             <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
@@ -1130,11 +1114,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                 <div style="padding: 1.5rem;">
                     <div style="margin-bottom: 1rem;">
                         <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                            You are reporting <strong><?php echo htmlspecialchars($match['partner_name']); ?></strong>. 
-                            Please provide details about why you're reporting this user.
+                            You are reporting <strong><?php echo htmlspecialchars($match['partner_name']); ?></strong>. Please provide details about why you're reporting this user.
                         </p>
                     </div>
-                    
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Reason for Report</label>
                         <select name="reason" class="form-input" required style="width: 100%;">
@@ -1148,12 +1130,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                             <option value="other">Other</option>
                         </select>
                     </div>
-                    
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Description</label>
-                        <textarea name="description" class="form-input" rows="4" required 
-                                  placeholder="Please provide specific details about the issue..."
-                                  style="width: 100%; resize: vertical;"></textarea>
+                        <textarea name="description" class="form-input" rows="4" required placeholder="Please provide specific details about the issue..." style="width: 100%; resize: vertical;"></textarea>
                         <small style="color: var(--text-secondary);">Be as specific as possible. This will help our team review your report.</small>
                     </div>
                 </div>
@@ -1164,519 +1143,311 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             </form>
         </div>
     </div>
-
+    
+    <div id="linkBlockModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: var(--card-bg); border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+            <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">Create an Official Session</h3>
+                <button type="button" onclick="closeLinkBlockModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+            </div>
+            <div style="padding: 1.5rem;">
+                <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.5rem;">
+                    It looks like you're trying to share a meeting link. To prevent commission evasion and ensure your session is tracked, please use the official "Schedule Session" button.
+                </p>
+                <a href="../sessions/schedule.php?match_id=<?php echo $match_id; ?>" class="btn btn-primary" style="width: 100%; text-align: center;">
+                    Go to Schedule Page
+                </a>
+                <button type="button" onclick="closeLinkBlockModal()" class="btn btn-outline" style="width: 100%; margin-top: 0.75rem;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
     <script>
         const matchId = <?php echo $match_id; ?>;
         const currentUserId = <?php echo $user['id']; ?>;
         let lastMessageTime = null;
         let isLoadingMessages = false;
-        let messageCache = new Set();
-        let selectedFile = null;
-        let profileDropdownOpen = false;
-        let notificationDropdownOpen = false;
-
-        // Dark Mode Initialization
-        const htmlElement = document.documentElement;
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        htmlElement.setAttribute('data-theme', currentTheme);
+        let messagePollingInterval;
         
-        // Mobile Menu Toggle
-        document.addEventListener("DOMContentLoaded", () => {
-            const hamburger = document.querySelector(".hamburger");
-            const navLinks = document.querySelector(".nav-links");
-            
-            if (hamburger) {
-                hamburger.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    hamburger.classList.toggle("active");
-                    navLinks.classList.toggle("active");
-                });
-
-                // Close menu when clicking on links
-                const links = navLinks.querySelectorAll("a");
-                links.forEach((link) => {
-                    link.addEventListener("click", () => {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    });
-                });
-
-                // Close menu when clicking outside
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
-                });
-            }
-        });
-
-        function toggleNotifications(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('notificationDropdown');
-            notificationDropdownOpen = !notificationDropdownOpen;
-            
-            if (notificationDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
-                loadNotifications();
-            } else {
-                dropdown.classList.remove('show');
-            }
-        }
-
-        function toggleProfileMenu(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            profileDropdownOpen = !profileDropdownOpen;
-            
-            if (profileDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
-            } else {
-                dropdown.classList.remove('show');
-            }
-        }
-
-        function loadNotifications() {
-            fetch('../api/notifications.php')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = `
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
-                                <i class="fas fa-bell-slash" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
-                                <p style="margin: 0.5rem 0 0 0;">No notifications</p>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => {
-                        const link = notif.link ? notif.link.replace(/'/g, "\\'") : '';
-                        return `
-                            <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                                 onclick="handleNotificationClick(${notif.id}, '${link}')">
-                                <i class="fas ${getNotificationIcon(notif.type)}" 
-                                   style="color: ${getNotificationColor(notif.type)}; font-size: 1.1rem; margin-top: 0.25rem;"></i>
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-primary);">
-                                        ${escapeHtml(notif.title)}
-                                    </div>
-                                    <div style="font-size: 0.8rem; color: #666; line-height: 1.4;">
-                                        ${escapeHtml(notif.message)}
-                                    </div>
-                                    <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">
-                                        ${timeAgo(notif.created_at)}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                })
-                .catch(error => {
-                    console.error('Error loading notifications:', error);
-                    const list = document.getElementById('notificationList');
-                    list.innerHTML = `
-                        <div style="text-align: center; padding: 1.5rem; color: #999;">
-                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
-                            <p style="margin: 0.5rem 0 0 0;">Failed to load notifications</p>
-                        </div>
-                    `;
-                });
-        }
-
-        function handleNotificationClick(notificationId, link) {
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
-            }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
-            });
-        }
-
-        function getNotificationIcon(type) {
-            const icons = {
-                'session_scheduled': 'fa-calendar-check',
-                'session_accepted': 'fa-check-circle',
-                'session_rejected': 'fa-times-circle',
-                'match_request': 'fa-handshake',
-                'match_accepted': 'fa-user-check',
-                'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar',
-                'message': 'fa-envelope'
-            };
-            return icons[type] || 'fa-bell';
-        }
-
-        function getNotificationColor(type) {
-            const colors = {
-                'session_accepted': '#16a34a',
-                'session_rejected': '#dc2626',
-                'match_accepted': '#16a34a',
-                'announcement': '#2563eb',
-                'commission_due': '#d97706',
-                'session_scheduled': '#2563eb',
-                'match_request': '#2563eb',
-                'message': '#2563eb'
-            };
-            return colors[type] || '#666';
-        }
+        const chatMessages = document.getElementById('chatMessages');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
         
-        // Load messages
-        async function loadMessages(isInitial = false) {
-            if (isLoadingMessages) return;
-            isLoadingMessages = true;
-            
-            try {
-                let url = `../api/messages.php?match_id=${matchId}`;
-                if (lastMessageTime && !isInitial) {
-                    url += `&since=${encodeURIComponent(lastMessageTime)}`;
-                }
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.messages && Array.isArray(data.messages)) {
-                    const chatMessages = document.getElementById('chatMessages');
-                    const isScrolledToBottom = chatMessages.scrollHeight - chatMessages.clientHeight <= chatMessages.scrollTop + 50;
-                    
-                    // Remove loading message on first load
-                    if (isInitial) {
-                        chatMessages.innerHTML = '';
-                    }
-                    
-                    if (data.messages.length > 0) {
-                        data.messages.forEach(message => {
-                            // Avoid duplicates
-                            if (!messageCache.has(message.id)) {
-                                appendMessage(message);
-                                messageCache.add(message.id);
-                                lastMessageTime = message.created_at;
-                            }
-                        });
-                        
-                        // Auto-scroll if user was at bottom or initial load
-                        if (isScrolledToBottom || isInitial) {
-                            scrollToBottom();
-                        }
-                    } else if (isInitial) {
-                        // Show empty state
-                        chatMessages.innerHTML = `
-                            <div class="empty-messages">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                                </svg>
-                                <p>No messages yet. Start the conversation!</p>
-                            </div>
-                        `;
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading messages:', error);
-            } finally {
-                isLoadingMessages = false;
-            }
-        }
-        
-        // Append message to chat
-        function appendMessage(message) {
-            const chatMessages = document.getElementById('chatMessages');
-            const isOwn = message.sender_id == currentUserId;
-            
-            // Remove empty state if exists
-            const emptyState = chatMessages.querySelector('.empty-messages');
-            if (emptyState) {
-                emptyState.remove();
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isOwn ? 'own' : ''}`;
-            messageDiv.dataset.messageId = message.id;
-            
-            // Avatar
-            const initials = message.first_name.charAt(0) + message.last_name.charAt(0);
-            const bgColor = isOwn ? 'var(--primary-color)' : '#10b981';
-            
-            // Time
-            const timeAgo = getTimeAgo(message.created_at);
-            
-            // Attachment HTML
-            let attachmentHtml = '';
-            if (message.attachment_path) {
-                const isImage = message.attachment_type && message.attachment_type.startsWith('image/');
-                if (isImage) {
-                    attachmentHtml = `
-                        <div class="message-attachment">
-                            <a href="../${escapeHtml(message.attachment_path)}" target="_blank">
-                                <img src="../${escapeHtml(message.attachment_path)}" 
-                                     alt="${escapeHtml(message.attachment_name || 'Image')}"
-                                     style="max-width: 250px; border-radius: 8px;"
-                                     onerror="this.style.display='none'">
-                            </a>
-                        </div>
-                    `;
-                } else {
-                    const fileSize = message.attachment_size ? (message.attachment_size / 1024).toFixed(1) : '0';
-                    attachmentHtml = `
-                        <div class="message-attachment" style="padding: 0.75rem; background: rgba(0,0,0,0.05); border-radius: 8px; margin-top: 0.5rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <i class="fas fa-file" style="font-size: 1.5rem;"></i>
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(message.attachment_name || 'File')}</div>
-                                    <div style="font-size: 0.8rem; opacity: 0.8;">${fileSize} KB</div>
-                                </div>
-                                <a href="../api/download-attachment.php?message_id=${message.id}" 
-                                   class="btn btn-sm btn-outline" 
-                                   style="padding: 0.25rem 0.75rem; white-space: nowrap;"
-                                   download>
-                                    <i class="fas fa-download"></i>
-                                </a>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-            
-            messageDiv.innerHTML = `
-                <div class="message-avatar" style="background: ${bgColor};">
-                    ${initials.toUpperCase()}
-                </div>
-                <div class="message-content">
-                    ${message.message ? `<div>${escapeHtml(message.message).replace(/\n/g, '<br>')}</div>` : ''}
-                    ${attachmentHtml}
-                    <div class="message-time">${timeAgo}</div>
-                </div>
-            `;
-            
-            chatMessages.appendChild(messageDiv);
-        }
-        
-        // Escape HTML to prevent XSS
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Get time ago string
-        function getTimeAgo(dateString) {
-            const now = new Date();
-            const messageDate = new Date(dateString);
-            const diffSeconds = Math.floor((now - messageDate) / 1000);
-            
-            if (diffSeconds < 60) return 'Just now';
-            if (diffSeconds < 3600) return Math.floor(diffSeconds / 60) + ' min ago';
-            if (diffSeconds < 86400) return Math.floor(diffSeconds / 3600) + ' hr ago';
-            
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const month = months[messageDate.getMonth()];
-            const day = messageDate.getDate();
-            let hours = messageDate.getHours();
-            const minutes = messageDate.getMinutes().toString().padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            
-            return `${month} ${day}, ${hours}:${minutes} ${ampm}`;
-        }
-
-        function timeAgo(dateString) {
-            return getTimeAgo(dateString);
-        }
-        
-        // Scroll to bottom
-        function scrollToBottom() {
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-        
-        // Send message
-        async function sendMessage(messageText) {
-            const sendBtn = document.getElementById('sendBtn');
-            const messageInput = document.getElementById('messageInput');
-            
-            // Check if there's a message or file
-            if (!messageText.trim() && !selectedFile) return;
-            
-            // Disable button
-            sendBtn.disabled = true;
-            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            
-            try {
-                let response, data;
-                
-                // If there's a file, use FormData and your upload endpoint
-                if (selectedFile) {
-                    const formData = new FormData();
-                    formData.append('match_id', matchId);
-                    formData.append('message', messageText);
-                    formData.append('attachment', selectedFile);
-                    
-                    response = await fetch('../api/upload-attachment.php', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    data = await response.json();
-                } else {
-                    // Otherwise use JSON endpoint for text-only messages
-                    response = await fetch('../api/messages.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            match_id: matchId,
-                            message: messageText
-                        })
-                    });
-                    data = await response.json();
-                }
-                
-                if (data.success && data.message) {
-                    // Clear input and file
-                    messageInput.value = '';
-                    clearAttachment();
-                    
-                    // Add message if not already cached
-                    if (!messageCache.has(data.message.id)) {
-                        appendMessage(data.message);
-                        messageCache.add(data.message.id);
-                        lastMessageTime = data.message.created_at;
-                        scrollToBottom();
-                    }
-                } else {
-                    alert(data.error || 'Failed to send message');
-                }
-            } catch (error) {
-                console.error('Error sending message:', error);
-                alert('Failed to send message. Please try again.');
-            } finally {
-                // Re-enable button
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> <span class="hide-on-small">Send</span>';
-                messageInput.focus();
-            }
-        }
-        
-        // Handle form submission
-        document.getElementById('messageForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const messageInput = document.getElementById('messageInput');
-            sendMessage(messageInput.value);
-        });
-        
-        // Handle Enter key
-        document.getElementById('messageInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                document.getElementById('messageForm').dispatchEvent(new Event('submit'));
-            }
-        });
-        
-        // File handling
         const fileInput = document.getElementById('fileInput');
         const attachmentPreview = document.getElementById('attachmentPreview');
+        let file = null;
+
+        // --- Theme Toggle JS ---
+        const body = document.body;
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
         
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        function setTheme(theme) {
+            body.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeToggleUI(theme);
+        }
+        
+        function updateThemeToggleUI(theme) {
+            if (theme === 'dark') {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+        
+        function toggleTheme() {
+            // Get current theme, defaulting to 'light' if not set or if the attribute is missing
+            const currentTheme = body.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+        
+        // Load theme on initial page load
+        (function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             
-            // Validate file size (10MB)
-            if (file.size > 10 * 1024 * 1024) {
-                alert('File size must be less than 10MB');
-                fileInput.value = '';
-                return;
+            let initialTheme = 'light'; // Default to light
+            
+            if (savedTheme) {
+                initialTheme = savedTheme;
+            } else if (prefersDark) {
+                // If no saved theme, use system preference
+                initialTheme = 'dark';
             }
             
-            selectedFile = file;
-            showAttachmentPreview(file);
-        });
-        
-        function showAttachmentPreview(file) {
-            attachmentPreview.style.display = 'block';
-            attachmentPreview.innerHTML = `
-                <div class="attachment-preview">
-                    <i class="fas fa-paperclip"></i>
-                    <span>${escapeHtml(file.name)} (${(file.size / 1024).toFixed(1)} KB)</span>
-                    <button type="button" onclick="clearAttachment()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
+            setTheme(initialTheme);
+        })();
+        // --- End Theme Toggle JS ---
+
+        // START: REQUIRED FIX - Modal helper functions
+        function openLinkBlockModal() {
+            document.getElementById('linkBlockModal').style.display = 'flex';
         }
-        
-        function clearAttachment() {
-            selectedFile = null;
-            fileInput.value = '';
-            attachmentPreview.style.display = 'none';
-            attachmentPreview.innerHTML = '';
+        function closeLinkBlockModal() {
+            document.getElementById('linkBlockModal').style.display = 'none';
         }
-        
-        // Menu functions
-        function toggleChatMenu() {
-            const menu = document.getElementById('chatMenu');
-            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        }
-        
+        // END: REQUIRED FIX
+
         function openReportModal() {
             document.getElementById('reportModal').style.display = 'flex';
-            document.getElementById('chatMenu').style.display = 'none';
+            toggleChatMenu(true); // Close chat menu
         }
-        
         function closeReportModal() {
             document.getElementById('reportModal').style.display = 'none';
         }
         
-        // Close menu when clicking outside
-        document.addEventListener('click', function(event) {
+        function toggleChatMenu(forceClose = false) {
+            const menu = document.getElementById('chatMenu');
+            if (forceClose || menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                menu.style.display = 'block';
+            }
+        }
+        
+        document.addEventListener('click', function(e) {
             const menu = document.getElementById('chatMenu');
             const btn = document.getElementById('chatMenuBtn');
-            if (menu && btn && !menu.contains(event.target) && !btn.contains(event.target)) {
+            if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
                 menu.style.display = 'none';
             }
+        });
 
-            // Close profile dropdown
-            if (profileDropdownOpen) {
-                const profileDropdown = document.getElementById('profileDropdown');
-                const profileIcon = document.querySelector('.profile-icon');
-                if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
-                    profileDropdown.classList.remove('show');
-                    profileDropdownOpen = false;
+        function formatMessageTime(dateTime) {
+            const dt = new Date(dateTime + ' UTC'); // Assuming DB time is UTC
+            return dt.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            });
+        }
+        
+        function renderMessage(msg) {
+            const isOwn = parseInt(msg.sender_id) === currentUserId;
+            const messageTime = formatMessageTime(msg.created_at);
+            
+            let attachmentHTML = '';
+            if (msg.file_url) {
+                // Ensure file_url is not null or empty
+                if (msg.file_url.match(/\.(jpeg|jpg|gif|png)$/i)) {
+                    attachmentHTML = `<div class="message-attachment"><img src="../${msg.file_url}" alt="Attachment" style="max-width: 200px; cursor: pointer;" onclick="window.open('../${msg.file_url}', '_blank')"></div>`;
+                } else {
+                    attachmentHTML = `<div class="message-attachment"><a href="../${msg.file_url}" target="_blank" class="btn btn-outline btn-sm"><i class="fas fa-file-alt"></i> Download File</a></div>`;
                 }
             }
 
-            // Close notification dropdown
-            if (notificationDropdownOpen) {
-                const notificationDropdown = document.getElementById('notificationDropdown');
-                const notificationBell = document.querySelector('.notification-bell');
-                if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
-                    notificationDropdown.classList.remove('show');
-                    notificationDropdownOpen = false;
+            // Sanitize message content before rendering
+            const messageText = msg.message ? msg.message.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+
+            const messageHTML = `
+                <div class="message ${isOwn ? 'own' : ''}" id="msg-${msg.id}">
+                    <div class="message-avatar" style="background-color: ${isOwn ? 'var(--primary-color)' : '#64748b'};">
+                        ${isOwn ? '<?php echo strtoupper(substr($user['first_name'], 0, 2)); ?>' : '<?php echo strtoupper(substr($match['partner_name'], 0, 2)); ?>'}
+                    </div>
+                    <div class="message-content">
+                        ${messageText}
+                        ${attachmentHTML}
+                        <div class="message-time">${messageTime}</div>
+                    </div>
+                </div>
+            `;
+            return messageHTML;
+        }
+
+        async function loadMessages(initial = true) {
+            if (isLoadingMessages) return;
+            isLoadingMessages = true;
+            
+            let url = `../api/messages.php?match_id=${matchId}`;
+            if (!initial && lastMessageTime) {
+                url += `&since=${lastMessageTime}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.messages && data.messages.length > 0) {
+                    if (initial) {
+                        chatMessages.innerHTML = '';
+                    }
+                    
+                    data.messages.forEach(msg => {
+                        if (!document.getElementById(`msg-${msg.id}`)) {
+                            chatMessages.innerHTML += renderMessage(msg);
+                            lastMessageTime = msg.created_at;
+                        }
+                    });
+                    
+                    if (initial) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                } else if (initial && data.messages.length === 0) {
+                    chatMessages.innerHTML = `
+                        <div class="empty-messages">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193l-3.72 3.72a.75.75 0 01-1.06 0l-3.72-3.72H6.31c-1.136 0-1.98-.967-1.98-2.193v-4.286c0-.97.616-1.813 1.5-2.097L6.75 8.25m.75 3h6M8.25 15h.008v.008H8.25V15z" />
+                            </svg>
+                            <p>This is the start of your conversation.<br>Messages you send will appear here.</p>
+                        </div>
+                    `;
                 }
+                
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                if (initial) {
+                    chatMessages.innerHTML = '<div class="loading-messages">Error loading messages. Please refresh.</div>';
+                }
+            } finally {
+                isLoadingMessages = false;
+            }
+        }
+
+        async function handleMessageSend(event) {
+            event.preventDefault();
+            const message = messageInput.value.trim();
+            const sendBtn = document.getElementById('sendBtn');
+
+            // START: UPDATED FIX - Detect Google Meet AND Zoom links
+            const meetLinkRegex = /(meet\.google\.com\/|zoom\.us\/(j|my)\/)/i;
+            if (meetLinkRegex.test(message)) {
+                openLinkBlockModal(); // Show the prompt
+                return; // Stop the message from being sent
+            }
+            // END: UPDATED FIX
+            
+            if (message === '' && !file) {
+                return;
+            }
+
+            const originalBtnContent = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            sendBtn.disabled = true;
+            messageInput.disabled = true;
+
+            const formData = new FormData();
+            formData.append('match_id', matchId);
+            formData.append('message', message);
+            if (file) {
+                formData.append('file', file);
+            }
+
+            try {
+                // Send to the correct endpoint
+                const response = await fetch('../api/messages.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.message) {
+                    if (chatMessages.querySelector('.empty-messages')) {
+                        chatMessages.innerHTML = '';
+                    }
+                    chatMessages.innerHTML += renderMessage(data.message);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    lastMessageTime = data.message.created_at;
+                    messageInput.value = '';
+                    clearAttachment();
+                } else {
+                    // Show specific error from backend if available
+                    alert('Error: ' + (data.error || 'Failed to send message.'));
+                }
+
+            } catch (error) {
+                console.error('Failed to send message:', error);
+                alert('A network error occurred. Please try again.');
+            } finally {
+                sendBtn.innerHTML = originalBtnContent;
+                sendBtn.disabled = false;
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+        }
+        
+        function clearAttachment() {
+            file = null;
+            fileInput.value = '';
+            attachmentPreview.innerHTML = '';
+            attachmentPreview.style.display = 'none';
+        }
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                file = fileInput.files[0];
+                
+                // 5MB limit
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('File is too large. Max size is 5MB.');
+                    clearAttachment();
+                    return;
+                }
+                
+                attachmentPreview.innerHTML = `
+                    <div class="attachment-preview">
+                        <i class="fas fa-file"></i>
+                        <span>${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>
+                        <button type="button" onclick="clearAttachment()">&times;</button>
+                    </div>
+                `;
+                attachmentPreview.style.display = 'block';
             }
         });
+
+        messageForm.addEventListener('submit', handleMessageSend);
+
+        // Initial load
+        loadMessages(true);
         
-        // Close modal when clicking outside
-        document.getElementById('reportModal').addEventListener('click', function(event) {
-            if (event.target === this) {
-                closeReportModal();
-            }
-        });
-        
-        // Initialize
-        window.addEventListener('load', function() {
-            loadMessages(true);
-            document.getElementById('messageInput').focus();
-        });
-        
-        // Poll for new messages every 3 seconds
-        setInterval(() => loadMessages(false), 3000);
+        // Start polling
+        messagePollingInterval = setInterval(() => loadMessages(false), 3000);
         
         // Reload when tab becomes visible
         document.addEventListener('visibilitychange', function() {
@@ -1685,9 +1456,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             }
         });
 
-        // Auto-update notification badge
+        // --- Global Nav/Profile/Notification JS ---
+        let profileDropdownOpen = false;
+        let notificationDropdownOpen = false;
+
+        function toggleProfileMenu(event) {
+            event.stopPropagation();
+            if (notificationDropdownOpen) {
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
+            }
+            const dropdown = document.getElementById('profileDropdown');
+            profileDropdownOpen = !profileDropdownOpen;
+            dropdown.classList.toggle('show');
+        }
+        
+        function toggleNotifications(event) {
+            event.stopPropagation();
+            if (profileDropdownOpen) {
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
+            }
+            const dropdown = document.getElementById('notificationDropdown');
+            notificationDropdownOpen = !notificationDropdownOpen;
+            dropdown.classList.toggle('show');
+            if (notificationDropdownOpen) {
+                loadNotifications();
+            }
+        }
+        
+        async function loadNotifications() {
+            const list = document.getElementById('notificationList');
+            list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-spinner fa-spin"></i></div>';
+            
+            try {
+                const response = await fetch('../api/notifications.php?mark_read=true');
+                const data = await response.json();
+                
+                if (data.notifications && data.notifications.length > 0) {
+                    list.innerHTML = '';
+                    data.notifications.forEach(n => {
+                        list.innerHTML += `
+                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="window.location.href='${n.link}'">
+                                <div style="flex-shrink: 0;"><i class="fas fa-info-circle" style="color: var(--primary-color);"></i></div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary);">${n.message}</p>
+                                    <small style="color: var(--text-secondary);">${formatMessageTime(n.created_at)}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.querySelector('.notification-badge')?.remove();
+                } else {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">No notifications</div>';
+                }
+            } catch (e) {
+                list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">Failed to load</div>';
+            }
+        }
+
+        document.getElementById('hamburger').addEventListener('click', function() {
+            this.classList.toggle('active');
+            document.getElementById('navLinks').classList.toggle('active');
+        });
+        
+        document.addEventListener('click', function() {
+            if (notificationDropdownOpen) {
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
+            }
+            if (profileDropdownOpen) {
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
+            }
+        });
+
+        // Periodic notification check
         setInterval(() => {
-            if (!notificationDropdownOpen) {
+            if (notificationDropdownOpen) {
+                loadNotifications();
+            } else {
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
@@ -1706,8 +1554,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                             badge.remove();
                         }
                     });
-            } else {
-                loadNotifications();
             }
         }, 30000);
     </script>

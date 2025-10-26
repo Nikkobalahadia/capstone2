@@ -19,9 +19,23 @@ switch ($method) {
         $unread_count = get_unread_count($user['id']);
         $unread_messages = get_recent_unread_messages($user['id'], 5);
         $unread_messages_count = get_unread_messages_count($user['id']);
+        $announcements = get_recent_announcements($user['id'], 5);
         
         // Combine notifications with message notifications
         $combined_notifications = [];
+        
+        foreach ($announcements as $announcement) {
+            $combined_notifications[] = [
+                'id' => 'announce_' . $announcement['id'],
+                'type' => 'announcement',
+                'title' => $announcement['title'],
+                'message' => $announcement['message'],
+                'announcement_type' => $announcement['type'],
+                'created_by' => $announcement['first_name'] . ' ' . $announcement['last_name'],
+                'created_at' => $announcement['created_at'],
+                'link' => '/admin/announcements.php'
+            ];
+        }
         
         // Add message notifications
         foreach ($unread_messages as $msg) {

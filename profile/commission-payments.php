@@ -65,6 +65,79 @@ while ($row = $settings_stmt->fetch()) {
 $admin_gcash = $settings['admin_gcash_number'] ?? '09123456789';
 $commission_percentage = $settings['commission_percentage'] ?? 10;
 
+// Fix any NULL payment statuses
+try {
+    $db->exec("UPDATE commission_payments SET payment_status = 'pending' WHERE payment_status IS NULL OR payment_status = ''");
+} catch (PDOException $e) {
+    // Ignore errors
+}
+
+// Handle payment submission
+$error = '';
+$success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if (!verify_csrf_token($_POST['csrf_token'])) {
+        $error = 'Invalid security token.';
+    } else {
+        $payment_id = (int)$_POST['payment_id'];
+        
+        // Verify payment belongs to user
+        $verify_stmt = $db->prepare("SELECT * FROM commission_payments WHERE id = ? AND mentor_id = ?");
+        $verify_stmt->execute([$payment_id, $user['id']]);
+        $payment_check = $verify_stmt->fetch();
+        
+        if (!$payment_check) {
+            $error = 'Invalid payment or unauthorized access.';
+        } elseif ($_POST['action'] === 'submit_payment') {
+            $gcash_number = sanitize_input($_POST['gcash_number']);
+            $reference_number = sanitize_input($_POST['reference_number']);
+            
+            if (empty($gcash_number) || empty($reference_number)) {
+                $error = 'Please provide your GCash number and reference number.';
+            } else {
+                try {
+                    $update_stmt = $db->prepare("
+                        UPDATE commission_payments 
+                        SET payment_status = 'submitted',
+                            mentor_gcash_number = ?,
+                            reference_number = ?,
+                            payment_date = NOW(),
+                            updated_at = NOW()
+                        WHERE id = ? AND mentor_id = ?
+                    ");
+                    $result = $update_stmt->execute([$gcash_number, $reference_number, $payment_id, $user['id']]);
+                    
+                    if ($result && $update_stmt->rowCount() > 0) {
+                        $success = 'Payment submitted successfully! Admin will verify your payment shortly.';
+                        
+                        // Create notification for admin
+                        try {
+                            $notif_stmt = $db->prepare("
+                                INSERT INTO notifications (user_id, title, message, type, link, created_at)
+                                SELECT id, 'New Payment Submission', 
+                                       CONCAT(?, ' has submitted a payment for verification'),
+                                       'commission_payment',
+                                       'admin/commission-management.php',
+                                       NOW()
+                                FROM users WHERE role = 'admin'
+                            ");
+                            $notif_stmt->execute([$user['first_name'] . ' ' . $user['last_name']]);
+                        } catch (PDOException $e) {
+                            // Notification creation failed, but payment update succeeded
+                        }
+                    } else {
+                        $error = 'Failed to update payment. Please try again or contact support.';
+                    }
+                } catch (PDOException $e) {
+                    $error = 'Database error: ' . $e->getMessage();
+                }
+            }
+        }
+    }
+}
+
+// Get all payments for this mentor
 $payments_stmt = $db->prepare("
     SELECT 
         cp.*,
@@ -94,12 +167,7 @@ $payments_stmt = $db->prepare("
 $payments_stmt->execute([$user['id']]);
 $payments = $payments_stmt->fetchAll();
 
-try {
-    $db->exec("UPDATE commission_payments SET payment_status = 'pending' WHERE payment_status IS NULL OR payment_status = '' AND mentor_id = " . $user['id']);
-} catch (PDOException $e) {
-    // Ignore errors
-}
-
+// Calculate totals
 $total_pending = 0;
 $total_submitted = 0;
 $total_verified = 0;
@@ -118,50 +186,6 @@ foreach ($payments as $payment) {
         $total_verified += $payment['commission_amount'];
     }
 }
-
-// Handle payment submission
-$error = '';
-$success = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
-        $error = 'Invalid security token.';
-    } else {
-        $payment_id = (int)$_POST['payment_id'];
-        
-        // Verify payment belongs to user
-        $verify_stmt = $db->prepare("SELECT * FROM commission_payments WHERE id = ? AND mentor_id = ?");
-        $verify_stmt->execute([$payment_id, $user['id']]);
-        $payment = $verify_stmt->fetch();
-        
-        if (!$payment) {
-            $error = 'Invalid payment.';
-        } elseif ($_POST['action'] === 'submit_payment') {
-            $gcash_number = sanitize_input($_POST['gcash_number']);
-            $reference_number = sanitize_input($_POST['reference_number']);
-            
-            if (empty($gcash_number) || empty($reference_number)) {
-                $error = 'Please provide your GCash number and reference number.';
-            } else {
-                $update_stmt = $db->prepare("
-                    UPDATE commission_payments 
-                    SET payment_status = 'submitted',
-                        mentor_gcash_number = ?,
-                        reference_number = ?,
-                        payment_date = NOW()
-                    WHERE id = ?
-                ");
-                $update_stmt->execute([$gcash_number, $reference_number, $payment_id]);
-                
-                $success = 'Payment submitted successfully! Admin will verify your payment shortly.';
-                
-                // Refresh payments
-                $payments_stmt->execute([$user['id']]);
-                $payments = $payments_stmt->fetchAll();
-            }
-        }
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -170,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Commission Payments - StudyConnect</title>
+    <title>Commission Payments - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -650,6 +674,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .detail-value {
             color: var(--text-primary);
             font-weight: 500;
+            word-wrap: break-word;
         }
 
         /* Status Badge */
@@ -681,7 +706,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             color: #991b1b;
         }
 
-        /* Added overdue status badge styling */
         .status-overdue {
             background: #fee2e2;
             color: #991b1b;
@@ -1072,22 +1096,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -1095,9 +1115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -1120,7 +1138,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -1178,7 +1195,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 </div>
             <?php endif; ?>
 
-            <!-- Added overdue stat card to stats grid -->
             <div class="stats-grid">
                 <div class="stat-card overdue">
                     <div class="stat-icon">
@@ -1220,7 +1236,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     </p>
                 <?php else: ?>
                     <?php foreach ($payments as $payment): ?>
-                        <!-- Added overdue class to payment item when is_overdue is true -->
                         <div class="payment-item <?php echo ($payment['is_overdue'] && $payment['payment_status'] !== 'verified') ? 'overdue' : ''; ?>">
                             <div class="payment-header">
                                 <div class="payment-info">
@@ -1266,6 +1281,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                         <div class="detail-value"><?php echo htmlspecialchars($payment['reference_number']); ?></div>
                                     </div>
                                 <?php endif; ?>
+
+                                <?php if ($payment['mentor_gcash_number'] && in_array($payment['payment_status'], ['submitted', 'verified', 'rejected'])): ?>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Your Submitted GCash</div>
+                                        <div class="detail-value"><?php echo htmlspecialchars($payment['mentor_gcash_number']); ?></div>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($payment['payment_status'] === 'verified' && $payment['verified_at']): ?>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Verified On</div>
+                                        <div class="detail-value"><?php echo date('M d, Y', strtotime($payment['verified_at'])); ?></div>
+                                    </div>
+                                <?php endif; ?>
                                 <?php if ($payment['payment_status'] === 'rejected' && $payment['rejection_reason']): ?>
                                     <div class="detail-item" style="grid-column: 1 / -1;">
                                         <div class="detail-label">Rejection Reason</div>
@@ -1292,7 +1321,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         </div>
     </main>
 
-    <!-- Payment Modal -->
     <div id="paymentModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">

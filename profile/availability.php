@@ -4,12 +4,12 @@ require_once '../config/notification_helper.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
-    redirect('auth/login.php');
+    redirect('../auth/login.php');
 }
 
 $user = get_logged_in_user();
 if (!$user) {
-    redirect('auth/login.php');
+    redirect('../auth/login.php');
 }
 
 $unread_notifications = get_unread_count($user['id']);
@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Invalid security token. Please try again.';
     } else {
         $availability_data = $_POST['availability'] ?? [];
+        $has_valid_data = false;
         
         try {
             $db = getDB();
@@ -32,11 +33,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $clear_stmt->execute([$user['id']]);
             
             // Add new availability
-            $insert_stmt = $db->prepare("INSERT INTO user_availability (user_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)");
+            $insert_stmt = $db->prepare("INSERT INTO user_availability (user_id, day_of_week, start_time, end_time, is_active) VALUES (?, ?, ?, ?, 1)");
             
             foreach ($availability_data as $day => $times) {
+                // Basic server-side validation
                 if (!empty($times['start']) && !empty($times['end'])) {
-                    $insert_stmt->execute([$user['id'], $day, $times['start'], $times['end']]);
+                    $start = strtotime($times['start']);
+                    $end = strtotime($times['end']);
+                    
+                    // Handle 00:00:00 as 24:00:00 for end time
+                    if ($times['end'] === '00:00:00') {
+                        $end = strtotime('24:00:00');
+                    }
+                    
+                    if ($end > $start) {
+                        $insert_stmt->execute([$user['id'], $day, $times['start'], $times['end']]);
+                        $has_valid_data = true;
+                    }
                 }
             }
             
@@ -45,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         } catch (Exception $e) {
             $db->rollBack();
-            $error = 'Failed to update availability. Please try again.';
+            $error = 'Failed to update availability. Please try again. ' . $e->getMessage();
         }
     }
 }
@@ -71,6 +84,33 @@ $days = [
     'saturday' => ['icon' => 'fa-sun', 'color' => '#f59e0b'],
     'sunday' => ['icon' => 'fa-moon', 'color' => '#6366f1']
 ];
+
+/**
+ * Helper function to generate time options in 30-min intervals.
+ */
+function generate_time_options($selected_val, $type = 'start') {
+    $options_html = '<option value="">Not available</option>';
+    $start = strtotime('00:00');
+    $end_of_day = strtotime('24:00');
+    
+    $current = ($type === 'end') ? strtotime('+30 minutes', $start) : $start;
+    $limit = ($type === 'start') ? strtotime('23:30') : $end_of_day;
+    
+    while ($current <= $limit) {
+        $time_val = date('H:i:s', $current);
+        $time_display = date('g:i A', $current);
+        
+        if ($time_val === '00:00:00' && $current > $start) {
+            $time_display = '12:00 AM (Next Day)';
+        }
+        
+        $selected = ($selected_val === $time_val) ? 'selected' : '';
+        $options_html .= "<option value=\"$time_val\" $selected>$time_display</option>";
+        
+        $current = strtotime('+30 minutes', $current);
+    }
+    return $options_html;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -79,24 +119,37 @@ $days = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Availability Schedule - StudyConnect</title>
+    <title>Availability Schedule - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/responsive.css">
+    
     <style>
         :root {
             --primary-color: #2563eb;
-            --primary-dark: #1d4ed8;
-            --success-color: #10b981;
             --text-primary: #1a1a1a;
             --text-secondary: #666;
             --border-color: #e5e5e5;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            --bg-color: #fafafa;
+            --card-bg: white;
+            --error-bg: #fee2e2;
+            --error-border: #fca5a5;
+            --error-text: #991b1b;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            --error-bg: #2f1d1d;
+            --error-border: #fca5a5;
+            --error-text: #fecaca;
         }
 
         * {
@@ -113,14 +166,15 @@ $days = [
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
             min-height: 100vh;
         }
 
-        /* ===== HEADER & NAVIGATION ===== */
+        /* ===== HEADER & NAVIGATION (from chat.php) ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -128,7 +182,7 @@ $days = [
             right: 0;
             z-index: 1000;
             height: 60px;
-            box-shadow: var(--shadow-sm);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -164,11 +218,9 @@ $days = [
         .hamburger.active span:nth-child(1) {
             transform: rotate(45deg) translate(8px, 8px);
         }
-
         .hamburger.active span:nth-child(2) {
             opacity: 0;
         }
-
         .hamburger.active span:nth-child(3) {
             transform: rotate(-45deg) translate(7px, -7px);
         }
@@ -204,11 +256,17 @@ $days = [
             gap: 0.5rem;
             transition: color 0.2s;
         }
-
-        .nav-links a:hover {
+        .nav-links a:hover,
+        .nav-links a.active { /* Added active class */
             color: var(--primary-color);
         }
 
+        .nav-actions {
+            display: flex; 
+            align-items: center; 
+            gap: 1rem;
+        }
+        
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -224,9 +282,8 @@ $days = [
             font-size: 1.1rem;
             color: var(--text-secondary);
         }
-
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -242,7 +299,7 @@ $days = [
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -253,58 +310,56 @@ $days = [
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
-
         .notification-dropdown.show {
             display: flex;
         }
-
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
         .notification-list {
             max-height: 350px;
             overflow-y: auto;
         }
-
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
             gap: 0.75rem;
         }
-
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
-
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: rgba(37, 99, 235, 0.1);
         }
-
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
+        }
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.9rem;
         }
 
         .profile-menu {
             position: relative;
         }
-
         .profile-icon {
             display: flex;
             align-items: center;
@@ -312,7 +367,7 @@ $days = [
             width: 40px;
             height: 40px;
             border-radius: 8px;
-            background: var(--gradient-primary);
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
             cursor: pointer;
             font-size: 1.1rem;
@@ -320,18 +375,15 @@ $days = [
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
         }
-
         .profile-icon:hover {
             transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
-
         .profile-icon img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-
         .profile-dropdown {
             display: none;
             position: absolute;
@@ -339,38 +391,33 @@ $days = [
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
-
         .profile-dropdown.show {
             display: block;
         }
-
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
-
         .user-name {
             font-weight: 600;
             color: var(--text-primary);
             font-size: 0.95rem;
             margin-bottom: 0.25rem;
         }
-
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
-
         .profile-dropdown-menu {
             padding: 0.5rem 0;
         }
-
         .profile-dropdown-item {
             display: flex;
             align-items: center;
@@ -386,283 +433,44 @@ $days = [
             font-size: 0.9rem;
             background: transparent;
         }
-
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
-
         .profile-dropdown-item.logout {
             color: #dc2626;
         }
-
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
-
-        /* Main Content */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-
-        main {
-            padding: 2rem 0;
-            margin-top: 60px;
-            min-height: calc(100vh - 60px);
-            display: flex;
-            align-items: center;
-        }
-
-        .form-container {
-            max-width: 800px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        /* Page Header */
-        .page-header {
-            text-align: center;
-            margin-bottom: 2.5rem;
-        }
-
-        .page-header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.75rem;
-            background: var(--gradient-primary);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .page-header h1 i {
-            -webkit-text-fill-color: #667eea;
-        }
-
-        .page-subtitle {
-            font-size: 1.1rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* Card */
-        .card {
-            background: white;
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-            padding: 2.5rem;
-            box-shadow: var(--shadow-lg);
-        }
-
-        /* Day Card */
-        .day-card {
-            background: white;
-            border: 2px solid var(--border-color);
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .day-card::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 4px;
-            background: var(--gradient-primary);
-            transition: width 0.3s;
-        }
-
-        .day-card:hover {
-            border-color: var(--primary-color);
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
-        }
-
-        .day-card:hover::before {
-            width: 8px;
-        }
-
-        .day-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .day-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
-            color: white;
-            flex-shrink: 0;
-        }
-
-        .day-name {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-
-        .time-inputs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        .time-group {
-            position: relative;
-        }
-
-        .time-label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .time-label i {
-            color: var(--primary-color);
-        }
-
-        .time-input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            font-size: 0.9375rem;
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-
-        .time-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.875rem 1.75rem;
-            border-radius: 10px;
-            border: none;
-            font-size: 0.9375rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
-            min-height: 48px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-primary {
-            background: var(--gradient-primary);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #f3f4f6;
-            color: var(--text-primary);
-        }
-
-        .btn-secondary:hover {
-            background: #e5e7eb;
-        }
-
-        /* Alerts */
-        .alert {
-            padding: 1.125rem 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9375rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-weight: 500;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .alert i {
-            font-size: 1.25rem;
-        }
-
-        .alert-error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-
-        .alert-success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .alert-info {
-            background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
-            color: #1e40af;
-            border: 2px solid #60a5fa;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-
-        .button-group .btn {
-            flex: 1;
-        }
-
-        /* ===== MOBILE RESPONSIVE ===== */
+        
+        /* Mobile Responsive Styles from chat.php */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
+                flex: 1 0 0; /* take 1/3 width */
+                justify-content: flex-start; /* align left */
             }
-
             .navbar {
                 padding: 0.75rem 0.5rem;
             }
-
             .logo {
                 font-size: 1.1rem;
+                flex: 1 0 0; /* override desktop flex: 1 and take 1/3 width */
+                text-align: center; /* center logo text */
+                justify-content: center; /* center logo icon+text */
             }
-
+            .nav-actions {
+                flex: 1 0 0; /* take 1/3 width */
+                justify-content: flex-end; /* align icons to the right */
+            }
             .nav-links {
                 display: none;
                 position: fixed;
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -671,67 +479,20 @@ $days = [
                 box-shadow: var(--shadow-lg);
                 z-index: 999;
             }
-
             .nav-links.active {
                 max-height: 500px;
                 display: flex;
             }
-
             .nav-links a {
                 padding: 1rem;
                 border-bottom: 1px solid var(--border-color);
                 display: block;
                 text-align: left;
             }
-
-            main {
-                padding: 1.5rem 0;
-            }
-
-            .container {
-                padding: 0 0.75rem;
-            }
-
-            .page-header h1 {
-                font-size: 1.75rem;
-            }
-
-            .page-subtitle {
-                font-size: 0.95rem;
-            }
-
-            .card {
-                padding: 1.5rem;
-            }
-
-            .day-card {
-                padding: 1.25rem;
-            }
-
-            .day-icon {
-                width: 40px;
-                height: 40px;
-                font-size: 1rem;
-            }
-
-            .day-name {
-                font-size: 1.125rem;
-            }
-
-            .time-inputs {
-                grid-template-columns: 1fr;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
-
             .notification-dropdown {
                 width: calc(100vw - 2rem);
-                right: 0;
-                left: 1rem;
+                right: -0.5rem;
             }
-
             input, select, textarea, button {
                 font-size: 16px !important;
             }
@@ -741,390 +502,623 @@ $days = [
             .logo {
                 font-size: 1rem;
             }
-
-            .page-header h1 {
-                font-size: 1.5rem;
+            .nav-actions {
+                gap: 0.5rem;
             }
+        }
+    </style>
+    
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        main {
+            padding: 2rem 0;
+            margin-top: 60px;
+        }
+        
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        .page-header p {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Card */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+            transition: all 0.3s ease;
+        }
+        .card-body {
+            padding: 1.5rem 2rem;
+        }
+        
+        /* Alerts */
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .alert-success {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .alert-error {
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error-text);
+        }
 
-            .card {
-                padding: 1.25rem;
-            }
+        /* Availability Day Card */
+        .day-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+            display: grid;
+            grid-template-columns: 80px 1fr auto;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* NEW: Error state for day card */
+        .day-card.error {
+            border-color: var(--error-border);
+            background: var(--error-bg);
+        }
+        [data-theme="dark"] .day-card.error {
+            background: var(--error-bg);
+        }
 
+        .day-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+            margin: 0 auto;
+        }
+        .day-header {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: capitalize;
+        }
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .time-inputs span {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        .time-input select {
+            width: 140px; /* Increased width for 30-min slots */
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .time-input select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-sm {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+        }
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-secondary {
+            background: var(--border-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover {
+            background: rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        /* NEW: Utility bar for copy button */
+        .availability-utils {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .btn-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 640px) {
             .day-card {
-                padding: 1rem;
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                text-align: center;
+            }
+            .time-inputs {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .time-input select {
+                width: 100%;
+            }
+            .btn-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+            .availability-utils {
+                justify-content: stretch;
+            }
+            .availability-utils .btn {
+                width: 100%;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
-    <header class="header">
-        <div class="navbar">
-            <button class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
+
+<script>
+    (function() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.body.classList.add('dark-mode');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    })();
+</script>
+
+<header class="header">
+    <nav class="navbar">
+        
+        <button class="hamburger" id="hamburger-menu" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        
+        <a href="../dashboard.php" class="logo">
+            <i class="fas fa-brain"></i> Study Buddy
+        </a>
+
+        <ul class="nav-links">
+            <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="../find_match.php"><i class="fas fa-search"></i> Find a Match</a></li>
+            <li><a href="../matches.php"><i class="fas fa-user-friends"></i> Matches</a></li>
+            <li><a href="index.php" class="active"><i class="fas fa-user"></i> Profile</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <button class="notification-bell" id="notification-bell" aria-label="Notifications">
+                <i class="fas fa-bell"></i>
+                <?php if ($unread_notifications > 0): ?>
+                    <span class="notification-badge"><?php echo $unread_notifications; ?></span>
+                <?php endif; ?>
             </button>
-
-            <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
-            </a>
-
-            <ul class="nav-links" id="navLinks">
-                <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
-                <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
-                <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
-            </ul>
-
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
-                        <i class="fas fa-bell"></i>
-                        <?php if ($unread_notifications > 0): ?>
-                            <span class="notification-badge"><?php echo $unread_notifications; ?></span>
-                        <?php endif; ?>
-                    </button>
-                    <div class="notification-dropdown" id="notificationDropdown">
-                        <div class="notification-header">
-                            <h4><i class="fas fa-bell"></i> Notifications</h4>
-                        </div>
-                        <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
-                        </div>
-                        <div class="notification-footer">
-                            <a href="../notifications/index.php" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
-                                <i class="fas fa-arrow-right"></i> View All
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="profile-menu">
-                    <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
-                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
-                        <?php else: ?>
-                            <i class="fas fa-user"></i>
-                        <?php endif; ?>
-                    </button>
-                    <div class="profile-dropdown" id="profileDropdown">
-                        <div class="profile-dropdown-header">
-                            <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
-                            <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
-                        </div>
-                        <div class="profile-dropdown-menu">
-                            <a href="index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i>
-                                <span>View Profile</span>
-                            </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
-                                <a href="commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
-                            <?php endif; ?>
-                            <a href="settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i>
-                                <span>Settings</span>
-                            </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
-                            <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
-
-    <main>
-        <div class="container">
-            <div class="form-container">
-                <div class="page-header">
-                    <h1><i class="fas fa-calendar-alt"></i> Set Your Availability</h1>
-                    <p class="page-subtitle">Let others know when you're available for study sessions. Set your schedule for each day of the week.</p>
-                </div>
-                
-                <?php if ($error): ?>
-                    <div class="alert alert-error">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <span><?php echo $error; ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($success): ?>
-                    <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i>
-                        <span><?php echo $success; ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <div class="card">
-                    <form method="POST" action="">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                        
-                        <?php foreach ($days as $day => $config): ?>
-                            <div class="day-card">
-                                <div class="day-header">
-                                    <div class="day-icon" style="background: <?php echo $config['color']; ?>;">
-                                        <i class="fas <?php echo $config['icon']; ?>"></i>
-                                    </div>
-                                    <div class="day-name"><?php echo ucfirst($day); ?></div>
-                                </div>
-                                <div class="time-inputs">
-                                    <div class="time-group">
-                                        <label for="<?php echo $day; ?>_start" class="time-label">
-                                            <i class="fas fa-clock"></i> Start Time
-                                        </label>
-                                        <input type="time" 
-                                               id="<?php echo $day; ?>_start" 
-                                               name="availability[<?php echo $day; ?>][start]" 
-                                               class="time-input" 
-                                               value="<?php echo isset($existing_availability[$day]) ? $existing_availability[$day]['start'] : ''; ?>">
-                                    </div>
-                                    <div class="time-group">
-                                        <label for="<?php echo $day; ?>_end" class="time-label">
-                                            <i class="fas fa-clock"></i> End Time
-                                        </label>
-                                        <input type="time" 
-                                               id="<?php echo $day; ?>_end" 
-                                               name="availability[<?php echo $day; ?>][end]" 
-                                               class="time-input"
-                                               value="<?php echo isset($existing_availability[$day]) ? $existing_availability[$day]['end'] : ''; ?>">
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                        
-                        <div class="alert alert-info">
-                            <i class="fas fa-lightbulb"></i>
-                            <span><strong>Tip:</strong> Leave time fields empty for days when you're not available. You can always update this schedule later from your profile.</span>
-                        </div>
-                        
-                        <div class="button-group">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Save Availability
-                            </button>
-                            <a href="index.php" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        let notificationDropdownOpen = false;
-        let profileDropdownOpen = false;
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const hamburger = document.querySelector(".hamburger");
-            const navLinks = document.querySelector(".nav-links");
             
-            if (hamburger) {
-                hamburger.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    hamburger.classList.toggle("active");
-                    navLinks.classList.toggle("active");
-                });
+            <div class="notification-dropdown" id="notification-dropdown">
+                <div class="notification-header">
+                    <h3 style="font-weight: 600; font-size: 1rem;">Notifications</h3>
+                    <button class="btn-sm btn-outline" id="mark-all-read" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">Mark all as read</button>
+                </div>
+                <div class="notification-list" id="notification-list">
+                    <p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading notifications...</p>
+                </div>
+                <div class="notification-footer">
+                    <a href="../notifications.php">View all notifications</a>
+                </div>
+            </div>
 
-                const links = navLinks.querySelectorAll("a");
-                links.forEach((link) => {
-                    link.addEventListener("click", () => {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    });
-                });
+            <div class="profile-menu">
+                <button class="profile-icon" id="profile-icon" aria-label="Profile menu">
+                    <?php if ($user['profile_picture'] && file_exists('../' . $user['profile_picture'])): ?>
+                        <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                    <?php else: ?>
+                        <span><?php echo strtoupper(substr($user['first_name'], 0, 1)); ?></span>
+                    <?php endif; ?>
+                </button>
+                <div class="profile-dropdown" id="profile-dropdown">
+                    <div class="profile-dropdown-header">
+                        <div class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></div>
+                        <div class="user-role"><?php echo htmlspecialchars(ucfirst($user['role'])); ?></div>
+                    </div>
+                    <div class="profile-dropdown-menu">
+                        <a href="index.php" class="profile-dropdown-item">
+                            <i class="fas fa-user-circle"></i> View Profile
+                        </a>
+                        <a href="settings.php" class="profile-dropdown-item">
+                            <i class="fas fa-cog"></i> Settings
+                        </a>
+                        <button class="profile-dropdown-item" id="dark-mode-toggle">
+                            <i class="fas fa-moon"></i> <span>Dark Mode</span>
+                        </button>
+                        <a href="../auth/logout.php" class="profile-dropdown-item logout">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
 
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
-                });
-            }
+<main>
+    <div class="container">
+        
+        <div class="page-header">
+            <h1>📅 Set Your Availability</h1>
+            <p>Let matches know when you're free. Select your available time slots in 30-minute intervals for each day.</p>
+        </div>
 
-            // Validate time inputs
-            const form = document.querySelector('form');
-            form.addEventListener('submit', (e) => {
-                let hasError = false;
-                const dayCards = document.querySelectorAll('.day-card');
+        <div id="form-error" class="alert alert-error" style="display: none;"></div>
+
+        <?php if ($error): ?>
+            <div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> <?php echo $error; ?></div>
+        <?php endif; ?>
+        <?php if ($success): ?>
+            <div class="alert alert-success"><i class="fas fa-check-circle"></i> <?php echo $success; ?></div>
+        <?php endif; ?>
+        
+        <div class="availability-utils">
+            <button type="button" id="copy-to-all" class="btn btn-secondary btn-sm">
+                <i class="fas fa-copy"></i> Apply Monday to All
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="" id="availability-form">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    
+                    <?php foreach ($days as $day => $props): 
+                        $start_time = $existing_availability[$day]['start'] ?? '';
+                        $end_time = $existing_availability[$day]['end'] ?? '';
+                    ?>
+                        <div class="day-card" data-day="<?php echo $day; ?>">
+                            <div class="day-icon" style="background-color: <?php echo $props['color']; ?>;">
+                                <i class="fas <?php echo $props['icon']; ?>"></i>
+                            </div>
+                            <div class="day-header">
+                                <?php echo htmlspecialchars(ucfirst($day)); ?>
+                            </div>
+                            <div class="time-inputs">
+                                <div class="time-input">
+                                    <select name="availability[<?php echo $day; ?>][start]" aria-label="<?php echo $day; ?> start time" class="time-select start-time">
+                                        <?php echo generate_time_options($start_time, 'start'); ?>
+                                    </select>
+                                </div>
+                                <span>to</span>
+                                <div class="time-input">
+                                    <select name="availability[<?php echo $day; ?>][end]" aria-label="<?php echo $day; ?> end time" class="time-select end-time">
+                                        <?php echo generate_time_options($end_time, 'end'); ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div class="btn-group">
+                        <a href="index.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Availability</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+    </div>
+</main>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const hamburger = document.querySelector('.hamburger');
+        const navLinks = document.querySelector('.nav-links');
+        const profileIcon = document.getElementById('profile-icon');
+        const profileDropdown = document.getElementById('profile-dropdown');
+        const notificationBell = document.getElementById('notification-bell');
+        const notificationDropdown = document.getElementById('notification-dropdown');
+        const notificationList = document.getElementById('notification-list');
+        const markAllReadBtn = document.getElementById('mark-all-read');
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const darkModeToggleText = darkModeToggle.querySelector('span');
+        const darkModeToggleIcon = darkModeToggle.querySelector('i');
+
+        let notificationDropdownOpen = false;
+
+        // Hamburger Menu
+        if (hamburger) {
+            hamburger.addEventListener('click', () => {
+                hamburger.classList.toggle('active');
+                navLinks.classList.toggle('active');
+            });
+        }
+
+        // Profile Dropdown
+        if (profileIcon) {
+            profileIcon.addEventListener('click', (event) => {
+                event.stopPropagation();
+                profileDropdown.classList.toggle('show');
+                notificationDropdown.classList.remove('show');
+                notificationDropdownOpen = false;
+            });
+        }
+
+        // Notification Dropdown
+        if (notificationBell) {
+            notificationBell.addEventListener('click', (event) => {
+                event.stopPropagation();
+                notificationDropdown.classList.toggle('show');
+                profileDropdown.classList.remove('show');
+                notificationDropdownOpen = notificationDropdown.classList.contains('show');
                 
-                dayCards.forEach(card => {
-                    const startInput = card.querySelector('input[name*="[start]"]');
-                    const endInput = card.querySelector('input[name*="[end]"]');
-                    
-                    // Reset borders
-                    startInput.style.borderColor = '';
-                    endInput.style.borderColor = '';
-                    
-                    // Check if one is filled but not the other
-                    if ((startInput.value && !endInput.value) || (!startInput.value && endInput.value)) {
-                        hasError = true;
-                        startInput.style.borderColor = '#ef4444';
-                        endInput.style.borderColor = '#ef4444';
-                    }
-                    
-                    // Check if end time is before start time
-                    if (startInput.value && endInput.value && endInput.value <= startInput.value) {
-                        hasError = true;
-                        endInput.style.borderColor = '#ef4444';
-                    }
-                });
-                
-                if (hasError) {
-                    e.preventDefault();
-                    alert('Please fix the time errors:\n- Fill both start and end times for each day\n- End time must be after start time');
+                if (notificationDropdownOpen) {
+                    loadNotifications();
                 }
             });
+        }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', (event) => {
+            if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
+                profileDropdown.classList.remove('show');
+            }
+            if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
+                notificationDropdown.classList.remove('show');
+                notificationDropdownOpen = false;
+            }
         });
 
-        function toggleNotifications(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('notificationDropdown');
-            notificationDropdownOpen = !notificationDropdownOpen;
-            
-            if (notificationDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
-                loadNotifications();
+        // Dark Mode Toggle
+        if (darkModeToggle) {
+            // Set initial state of the toggle
+            if (document.body.classList.contains('dark-mode')) {
+                darkModeToggleText.textContent = 'Light Mode';
+                darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
             } else {
-                dropdown.classList.remove('show');
+                darkModeToggleText.textContent = 'Dark Mode';
+                darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
             }
+
+            darkModeToggle.addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                
+                if (isDarkMode) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    darkModeToggleText.textContent = 'Light Mode';
+                    darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                    darkModeToggleText.textContent = 'Dark Mode';
+                    darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                }
+            });
         }
 
-        function toggleProfileMenu(event) {
-            event.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            profileDropdownOpen = !profileDropdownOpen;
-            
-            if (profileDropdownOpen) {
-                dropdown.classList.add('show');
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
-            } else {
-                dropdown.classList.remove('show');
-            }
-        }
-
+        // Notification Functions
         function loadNotifications() {
+            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading...</p>';
             fetch('../api/notifications.php')
                 .then(response => response.json())
                 .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p style="margin-top: 0.5rem;">No notifications</p></div>';
-                        return;
+                    if (data.success) {
+                        notificationList.innerHTML = '';
+                        if (data.notifications.length === 0) {
+                            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">No new notifications.</p>';
+                        } else {
+                            data.notifications.forEach(item => {
+                                const el = document.createElement('div');
+                                el.className = 'notification-item-dropdown';
+                                if (!item.is_read) {
+                                    el.classList.add('unread');
+                                }
+                                el.dataset.id = item.id;
+                                el.innerHTML = `
+                                    <div style="font-size: 1.25rem; color: var(--primary-color); padding-top: 0.25rem;"><i class="fas ${item.icon}"></i></div>
+                                    <div>
+                                        <p style="color: var(--text-primary); margin-bottom: 0.25rem;">${item.message}</p>
+                                        <small style="color: var(--text-secondary);">${item.time_ago}</small>
+                                    </div>
+                                `;
+                                el.addEventListener('click', () => {
+                                    window.location.href = item.link;
+                                });
+                                notificationList.appendChild(el);
+                            });
+                        }
+                        updateNotificationBadge(data.unread_count);
                     }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
-                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
-                            </div>
-                        </div>
-                    `).join('');
+                })
+                .catch(err => {
+                    notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: #dc2626;">Failed to load notifications.</p>';
                 });
         }
 
-        function handleNotificationClick(notificationId, link) {
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
-            }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
+        if (markAllReadBtn) {
+            markAllReadBtn.addEventListener('click', () => {
+                fetch('../api/notifications.php?action=mark_all_read', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            loadNotifications();
+                        }
+                    });
             });
         }
-
-        function getNotificationIcon(type) {
-            const icons = {
-                'session_scheduled': 'fa-calendar-check',
-                'session_accepted': 'fa-check-circle',
-                'session_rejected': 'fa-times-circle',
-                'match_request': 'fa-handshake',
-                'match_accepted': 'fa-user-check',
-                'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
-            };
-            return icons[type] || 'fa-bell';
-        }
-
-        function getNotificationColor(type) {
-            const colors = {
-                'session_accepted': '#16a34a',
-                'session_rejected': '#dc2626',
-                'match_accepted': '#16a34a',
-                'announcement': '#2563eb',
-                'commission_due': '#d97706',
-                'session_scheduled': '#2563eb',
-                'match_request': '#2563eb'
-            };
-            return colors[type] || '#666';
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function timeAgo(dateString) {
-            const date = new Date(dateString);
-            const seconds = Math.floor((new Date() - date) / 1000);
-            if (seconds < 60) return 'Just now';
-            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
-            return Math.floor(seconds / 604800) + 'w ago';
-        }
-
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
+        
+        function updateNotificationBadge(count) {
+            const badge = document.querySelector('.notification-badge');
+            if (count > 0) {
+                if (badge) {
+                    badge.textContent = count;
+                } else {
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'notification-badge';
+                    newBadge.textContent = count;
+                    notificationBell.appendChild(newBadge);
+                }
+            } else if (badge) {
+                badge.remove();
             }
-            if (profileDropdownOpen) {
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
-            }
-        });
+        }
 
+        // Auto-update notification badge
         setInterval(() => {
-            if (notificationDropdownOpen) {
-                loadNotifications();
-            } else {
+            if (!notificationDropdownOpen) {
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.querySelector('.notification-badge');
-                        if (data.unread_count > 0) {
-                            if (badge) {
-                                badge.textContent = data.unread_count;
-                            } else {
-                                const bell = document.querySelector('.notification-bell');
-                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
-                            }
-                        } else if (badge) {
-                            badge.remove();
+                        if (data.success) {
+                            updateNotificationBadge(data.unread_count);
                         }
                     });
+            } else {
+                // If dropdown is open, refresh the list
+                loadNotifications();
             }
-        }, 30000);
-    </script>
+        }, 30000); // Poll every 30 seconds
+
+        
+        // --- NEW AVAILABILITY SCRIPT ---
+
+        const copyBtn = document.getElementById('copy-to-all');
+        const availabilityForm = document.getElementById('availability-form');
+        const errorDiv = document.getElementById('form-error');
+
+        // "Apply Monday to All" functionality
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                const mondayStart = document.querySelector('select[name="availability[monday][start]"]').value;
+                const mondayEnd = document.querySelector('select[name="availability[monday][end]"]').value;
+                
+                const allDays = ['tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                
+                allDays.forEach(day => {
+                    document.querySelector(`select[name="availability[${day}][start]"]`).value = mondayStart;
+                    document.querySelector(`select[name="availability[${day}][end]"]`).value = mondayEnd;
+                });
+            });
+        }
+
+        // Form Validation
+        if (availabilityForm) {
+            availabilityForm.addEventListener('submit', function(e) {
+                e.preventDefault(); // Stop submission to validate first
+                
+                let isValid = true;
+                let errorMsg = '';
+                const dayCards = document.querySelectorAll('.day-card');
+                
+                // Clear all previous errors
+                errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
+                dayCards.forEach(card => card.classList.remove('error'));
+                
+                dayCards.forEach(card => {
+                    const startSelect = card.querySelector('.start-time');
+                    const endSelect = card.querySelector('.end-time');
+                    let startTime = startSelect.value;
+                    let endTime = endSelect.value;
+                    
+                    // Rule 1: Cannot have one time selected but not the other
+                    if ((startTime && !endTime) || (!startTime && endTime)) {
+                        isValid = false;
+                        errorMsg = 'Please select both a start and end time, or set both to "Not available".';
+                        card.classList.add('error');
+                    }
+                    
+                    // Rule 2: End time must be after start time
+                    if (startTime && endTime) {
+                        // Handle midnight case for "end" time
+                        let endValue = (endTime === '00:00:00') ? '24:00:00' : endTime;
+                        
+                        if (startTime >= endValue) {
+                            isValid = false;
+                            errorMsg = 'End time must be after start time.';
+                            card.classList.add('error');
+                        }
+                    }
+                });
+                
+                if (isValid) {
+                    availabilityForm.submit(); // All good, submit the form
+                } else {
+                    errorDiv.textContent = errorMsg;
+                    errorDiv.style.display = 'flex';
+                    // Scroll to the first error
+                    const firstError = document.querySelector('.day-card.error');
+                    if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            });
+        }
+    });
+</script>
+
 </body>
 </html>

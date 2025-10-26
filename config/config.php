@@ -39,16 +39,46 @@ function is_logged_in() {
     return isset($_SESSION['user_id']);
 }
 
+// ==================================================
+// START: UPDATED FUNCTION
+// ==================================================
 function get_logged_in_user() {
     if (!is_logged_in()) {
         return null;
     }
     
     $db = getDB();
-    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1");
+    // Fetch user by ID, regardless of active status (we will check it in PHP)
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
-    return $stmt->fetch();
+    $user = $stmt->fetch();
+
+    if ($user) {
+        // Check 1: Deactivated
+        if (!$user['is_active']) {
+            session_destroy();
+            redirect('auth/login.php?error=Your+account+has+been+deactivated.');
+            exit;
+        }
+
+        // Check 2: Suspended (The new logic)
+        if ($user['account_status'] === 'suspended') {
+            session_destroy();
+            redirect('auth/login.php?error=Your+account+has+been+suspended+due+to+unpaid+commissions.');
+            exit;
+        }
+    } else {
+        // User not found in DB, destroy session
+        session_destroy();
+        return null;
+    }
+    
+    return $user; // Return the user if they passed all checks
 }
+// ==================================================
+// END: UPDATED FUNCTION
+// ==================================================
+
 
 function redirect($url) {
     header("Location: " . BASE_URL . $url);

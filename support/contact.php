@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - StudyConnect</title>
+    <title><?php echo $page_title; ?> - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../index.php" class="logo">StudyConnect</a>
+                <a href="../index.php" class="logo">Study Buddy</a>
                 <ul class="nav-links">
                     <li><a href="../index.php">Home</a></li>
                     <?php if (is_logged_in()): ?>

@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token.';
     } else {
-        $payment_id = (int)$_POST['payment_id'];
+        $payment_id = (int)($_POST['payment_id'] ?? 0); // Use payment_id if available
         
         if ($_POST['action'] === 'verify') {
             $stmt = $db->prepare("
@@ -127,17 +127,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ");
             $stmt->execute([$rejection_reason, $user['id'], $payment_id]);
             $success = 'Commission payment rejected.';
+        
+        // ==================================================
+        // START: CODE FIX
+        // ==================================================
         } elseif ($_POST['action'] === 'suspend_mentor') {
             $mentor_id = (int)$_POST['mentor_id'];
-            $stmt = $db->prepare("UPDATE users SET account_status = 'suspended' WHERE id = ? AND role IN ('mentor', 'peer')");
+            $stmt = $db->prepare("UPDATE users SET account_status = 'suspended' WHERE id = ? AND role = 'mentor'");
             $stmt->execute([$mentor_id]);
-            $success = 'Mentor account suspended due to unpaid commissions.';
+            
+            if ($stmt->rowCount() > 0) {
+                $success = 'Mentor account suspended due to unpaid commissions.';
+            } else {
+                $error = 'Failed to suspend mentor. The user ID might be incorrect, or the user does not have the "mentor" role.';
+            }
+
         } elseif ($_POST['action'] === 'unsuspend_mentor') {
             $mentor_id = (int)$_POST['mentor_id'];
-            $stmt = $db->prepare("UPDATE users SET account_status = 'active' WHERE id = ? AND role IN ('mentor', 'peer')");
+            $stmt = $db->prepare("UPDATE users SET account_status = 'active' WHERE id = ? AND role = 'mentor'");
             $stmt->execute([$mentor_id]);
-            $success = 'Mentor account reactivated.';
+
+            if ($stmt->rowCount() > 0) {
+                $success = 'Mentor account reactivated.';
+            } else {
+                $error = 'Failed to reactivate mentor. The user ID might be incorrect, or the user does not have the "mentor" role.';
+            }
         }
+        // ==================================================
+        // END: CODE FIX
+        // ==================================================
     }
 }
 
@@ -169,6 +187,7 @@ $query = "
         cp.is_overdue,
         CONCAT(mentor.first_name, ' ', mentor.last_name) as mentor_name,
         mentor.email as mentor_email,
+        mentor.account_status as mentor_account_status,
         CONCAT(verifier.first_name, ' ', verifier.last_name) as verifier_name,
         s.session_date,
         s.start_time,
@@ -262,12 +281,14 @@ $amount_verified = $amounts['verified'] ?? 0;
         .badge-verified { background-color: #198754; }
         .badge-rejected { background-color: #dc3545; }
         .badge-overdue { background-color: #dc3545; animation: pulse 2s infinite; }
+        .badge-suspended { background-color: #6c757d; color: white; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
     </style>
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
 
     <div class="main-content">
         <div class="container-fluid">
@@ -292,9 +313,7 @@ $amount_verified = $amounts['verified'] ?? 0;
                 </div>
             <?php endif; ?>
 
-            <!-- Statistics Cards -->
             <div class="row mb-4">
-                <!-- Added overdue stat card -->
                 <div class="col-md-3 mb-3">
                     <div class="stat-card">
                         <div class="stat-label">
@@ -327,7 +346,6 @@ $amount_verified = $amounts['verified'] ?? 0;
                 </div>
             </div>
 
-            <!-- Filters -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" class="row g-3">
@@ -354,7 +372,6 @@ $amount_verified = $amounts['verified'] ?? 0;
                 </div>
             </div>
 
-            <!-- Payments Table -->
             <div class="card shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">Commission Payments</h6>
@@ -386,6 +403,9 @@ $amount_verified = $amounts['verified'] ?? 0;
                                                 <?php if (!empty($payment['mentor_gcash_number'])): ?>
                                                     <div class="small text-muted">GCash: <?php echo htmlspecialchars($payment['mentor_gcash_number']); ?></div>
                                                 <?php endif; ?>
+                                                <?php if ($payment['mentor_account_status'] === 'suspended'): ?>
+                                                    <span class="badge badge-suspended">Suspended</span>
+                                                <?php endif; ?>
                                             </td>
                                             <td><?php echo !empty($payment['student_name']) ? htmlspecialchars($payment['student_name']) : '<span class="text-muted">N/A</span>'; ?></td>
                                             <td>
@@ -409,7 +429,6 @@ $amount_verified = $amounts['verified'] ?? 0;
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <!-- Display overdue status prominently in status column -->
                                                 <?php if ($payment['is_overdue'] && $payment['payment_status'] !== 'verified'): ?>
                                                     <span class="badge badge-overdue">
                                                         <i class="fas fa-exclamation-circle"></i> OVERDUE
@@ -441,18 +460,26 @@ $amount_verified = $amounts['verified'] ?? 0;
                                                         </button>
                                                     </form>
                                                 <?php endif; ?>
-                                                <?php if ($payment['payment_status'] === 'pending'): ?>
+                                                
+                                                <?php if (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended'): ?>
                                                     <form method="POST" action="" class="d-inline">
                                                         <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        
+                                                        <input type="hidden" name="mentor_id" value="<?php echo $payment['mentor_id']; ?>">
+                                                        
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <button type="submit" name="action" value="suspend_mentor" class="btn btn-sm btn-warning">
                                                             <i class="fas fa-ban"></i> Suspend Mentor
                                                         </button>
                                                     </form>
                                                 <?php endif; ?>
-                                                <?php if ($payment['payment_status'] === 'verified'): ?>
+                                                
+                                                <?php if ($payment['mentor_account_status'] === 'suspended'): ?>
                                                     <form method="POST" action="" class="d-inline">
                                                         <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
+                                                        
+                                                        <input type="hidden" name="mentor_id" value="<?php echo $payment['mentor_id']; ?>">
+
                                                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                         <button type="submit" name="action" value="unsuspend_mentor" class="btn btn-sm btn-info">
                                                             <i class="fas fa-unlock"></i> Reactivate Mentor

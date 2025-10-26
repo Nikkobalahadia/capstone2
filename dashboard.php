@@ -77,7 +77,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Dashboard - StudyConnect</title>
+    <title>Dashboard - Study Buddy</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -216,8 +216,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         /* Notification & Profile Buttons */
-        .notification-bell,
-        .profile-icon {
+        .notification-bell {
             position: relative;
             display: inline-flex;
             align-items: center;
@@ -234,27 +233,10 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             min-height: 44px;
             min-width: 44px;
         }
-
+        
         .notification-bell:hover {
             background: var(--border-color);
             color: var(--primary-color);
-        }
-
-        .profile-icon {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
-            color: white;
-            overflow: hidden;
-        }
-
-        .profile-icon:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        .profile-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
         }
 
         .notification-badge {
@@ -272,9 +254,43 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             border: 2px solid var(--card-bg);
         }
 
+        .profile-icon {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: none;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            color: white;
+            overflow: hidden;
+            min-height: 44px;
+            min-width: 44px;
+        }
+
+        .profile-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* NEW rule from chat.php */
+        .profile-menu {
+            position: relative;
+        }
+
         /* Dropdowns */
-        .notification-dropdown,
-        .profile-dropdown {
+        .notification-dropdown {
             display: none;
             position: absolute;
             right: 0;
@@ -283,25 +299,39 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
-            z-index: 1000;
+            z-index: 1002; /* FIX: Set high z-index */
             overflow: hidden;
             border: 1px solid var(--border-color);
             transition: background-color 0.3s ease;
-        }
-
-        .notification-dropdown {
             width: 380px;
             max-height: 450px;
             flex-direction: column;
         }
 
+        /* SEPARATED rule from chat.php */
         .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.5rem; /* Copied from chat.php */
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1002; /* FIX: Set high z-index */
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease;
             width: 240px;
         }
 
-        .notification-dropdown.show,
-        .profile-dropdown.show {
+        .notification-dropdown.show {
             display: flex;
+        }
+        
+        /* UPDATED rule from chat.php */
+        .profile-dropdown.show {
+            display: block; 
         }
 
         .notification-header {
@@ -819,16 +849,20 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             }
 
             .notification-dropdown {
-                width: calc(100vw - 2rem);
+                /* FIX: Use vw width and remove conflicting left property */
+                width: 95vw;
                 max-width: 380px;
                 right: 0;
-                left: 1rem;
+                /* left: 1rem; */ /* Removed */
             }
 
+            /* FIX: The broken .profile-dropdown rule was REMOVED */
+            /*
             .profile-dropdown {
                 width: 100%;
                 max-width: 240px;
             }
+            */
 
             input, select, textarea, button {
                 font-size: 16px;
@@ -923,22 +957,18 @@ $recent_matches = $recent_matches_stmt->fetchAll();
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Nav -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -946,9 +976,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 <li><a href="messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Section -->
             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <!-- Notification Bell -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
@@ -971,8 +999,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
-                <div style="position: relative;">
+                <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])): ?>
                             <img src="<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
@@ -1008,6 +1035,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                         </div>
                     </div>
                 </div>
+                
             </div>
         </div>
     </header>
@@ -1025,7 +1053,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </p>
             </div>
 
-            <!-- Commission Warnings -->
             <?php if ($commission_warning): ?>
                 <div class="alert <?php echo isset($commission_warning['suspended']) ? 'alert-error' : 'alert-warning'; ?>">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -1047,7 +1074,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </div>
             <?php endif; ?>
 
-            <!-- Stats Grid -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-icon primary">
@@ -1072,9 +1098,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 </div>
             </div>
 
-            <!-- Content Grid -->
             <div class="content-grid">
-                <!-- Quick Actions -->
                 <div class="card">
                     <div class="card-header">
                         <i class="fas fa-bolt"></i>
@@ -1098,7 +1122,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     </div>
                 </div>
 
-                <!-- Recent Matches -->
                 <div class="card">
                     <div class="card-header">
                         <i class="fas fa-history"></i>
@@ -1162,21 +1185,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     hamburger.classList.toggle("active");
                     navLinks.classList.toggle("active");
                 });
-
-                const links = navLinks.querySelectorAll("a");
-                links.forEach((link) => {
-                    link.addEventListener("click", () => {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    });
-                });
-
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
-                });
             }
         });
 
@@ -1210,6 +1218,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         function loadNotifications() {
+            // Path fixed: removed ../
             fetch('api/notifications.php')
                 .then(response => response.json())
                 .then(data => {
@@ -1239,13 +1248,22 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         function handleNotificationClick(notificationId, link) {
+            // Path fixed: removed ../
             fetch('api/notifications.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
             }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
+                // Path fixed: check for ../ and remove it if present
+                if (link) {
+                    if (link.startsWith('../')) {
+                        window.location.href = link.substring(3);
+                    } else {
+                        window.location.href = link;
+                    }
+                } else {
+                    loadNotifications();
+                }
             });
         }
 
@@ -1276,6 +1294,9 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) {
+                return '';
+            }
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1291,14 +1312,34 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        document.addEventListener('click', function() {
+        // ROBUST click listener from chat.php
+        document.addEventListener('click', function(event) {
+            // Close notification dropdown
             if (notificationDropdownOpen) {
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
+                const notificationDropdown = document.getElementById('notificationDropdown');
+                const notificationBell = document.querySelector('.notification-bell');
+                if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
+                    notificationDropdown.classList.remove('show');
+                    notificationDropdownOpen = false;
+                }
             }
+            
+            // Close profile dropdown
             if (profileDropdownOpen) {
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
+                const profileDropdown = document.getElementById('profileDropdown');
+                const profileIcon = document.querySelector('.profile-icon');
+                if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
+                    profileDropdown.classList.remove('show');
+                    profileDropdownOpen = false;
+                }
+            }
+
+            // Close mobile nav
+            const hamburger = document.querySelector(".hamburger");
+            const navLinks = document.querySelector(".nav-links");
+            if (hamburger && navLinks && hamburger.classList.contains('active') && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                hamburger.classList.remove("active");
+                navLinks.classList.remove("active");
             }
         });
 
@@ -1307,6 +1348,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             if (notificationDropdownOpen) {
                 loadNotifications();
             } else {
+                // Path fixed: removed ../
                 fetch('api/notifications.php')
                     .then(response => response.json())
                     .then(data => {

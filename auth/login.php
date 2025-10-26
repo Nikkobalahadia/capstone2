@@ -4,6 +4,11 @@ require_once '../config/config.php';
 $error = '';
 $success = '';
 
+// Check for errors passed in URL (e.g., from config.php)
+if (isset($_GET['error'])) {
+    $error = sanitize_input($_GET['error']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
@@ -15,13 +20,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Please fill in all fields.';
         } else {
             $db = getDB();
-            $stmt = $db->prepare("SELECT id, username, password_hash, role, first_name, last_name, is_verified, is_active FROM users WHERE email = ?");
+            
+            // ==================================================
+            // START: UPDATED QUERY (Added account_status)
+            // ==================================================
+            $stmt = $db->prepare("SELECT id, username, password_hash, role, first_name, last_name, is_verified, is_active, account_status FROM users WHERE email = ?");
+            // ==================================================
+            // END: UPDATED QUERY
+            // ==================================================
+            
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             
             if ($user && password_verify($password, $user['password_hash'])) {
+                
+                // ==================================================
+                // START: UPDATED CHECKS
+                // ==================================================
                 if (!$user['is_active']) {
                     $error = 'Your account has been deactivated. Please contact support.';
+                } elseif ($user['account_status'] === 'suspended') {
+                    $error = 'Your account has been suspended due to unpaid commissions. Please contact support.';
+                // ==================================================
+                // END: UPDATED CHECKS
+                // ==================================================
                 } else {
                     $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'login', ?, ?)");
                     $log_stmt->execute([$user['id'], json_encode(['success' => true]), $_SERVER['REMOTE_ADDR']]);
@@ -54,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - StudyConnect</title>
+    <title>Login - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -92,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <header class="header">
         <div class="container navbar">
-            <a href="../index.php" class="logo">StudyConnect</a>
+            <a href="../index.php" class="logo">Study Buddy</a>
             <ul class="nav-links">
                 <li><a href="../index.php">Home</a></li>
                 <li><a href="register.php">Sign Up</a></li>
@@ -103,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="flex items-center justify-center min-h-[80vh]">
         <div class="form-container">
             <h2 class="text-center mb-4">Welcome Back</h2>
-            <p class="text-center text-secondary mb-4">Sign in to your StudyConnect account</p>
+            <p class="text-center text-secondary mb-4">Sign in to your Study Buddy account</p>
 
             <?php if ($error): ?>
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>

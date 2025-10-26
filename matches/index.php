@@ -124,7 +124,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>My Matches - StudyConnect</title>
+    <title>My Matches - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -191,6 +191,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             width: 100%;
         }
 
+        /* NEW STYLE: Group Hamburger and Logo */
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* Space between hamburger and logo */
+        }
+
         .hamburger {
             display: none;
             flex-direction: column;
@@ -199,7 +206,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             background: none;
             border: none;
             padding: 0.5rem;
-            z-index: 1001;
+            z-index: 1001; /* Ensure it's above the nav-links when open */
+            /* Add this to make it more mobile-friendly target area */
+            width: 44px;
+            height: 44px;
+            justify-content: center;
         }
 
         .hamburger span {
@@ -230,9 +241,16 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            flex: 1;
             white-space: nowrap;
         }
+        
+        /* Desktop style: Let the logo wrapper take space to push the nav-links to the center */
+        @media (min-width: 769px) {
+            .navbar-left {
+                flex: 1; 
+            }
+        }
+
 
         .nav-links {
             display: flex;
@@ -258,19 +276,23 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: var(--primary-color);
         }
 
+        /* Adjusted: Standardized icon sizes for mobile */
+        .notification-bell, .profile-icon {
+            width: 44px;
+            height: 44px;
+            font-size: 1.2rem; /* Slightly larger icon */
+            border-radius: 50%; /* Make them round for a modern look */
+        }
+
         .notification-bell {
             position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
             cursor: pointer;
-            border-radius: 8px;
             background: transparent;
             border: none;
             transition: background 0.2s;
-            font-size: 1.1rem;
             color: var(--text-secondary);
         }
 
@@ -281,8 +303,8 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .notification-badge {
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: 0px; /* Adjusted from -5px */
+            right: 0px; /* Adjusted from -5px */
             background: #ef4444;
             color: white;
             border-radius: 10px;
@@ -352,13 +374,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
             background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
             cursor: pointer;
-            font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
@@ -736,47 +754,88 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             padding: 0.5rem 0;
             border-bottom: 1px solid var(--border-color);
         }
-
+        
+        /* ------------------------------------------------------------------ */
+        /* --- MOBILE RESPONSIVE FIXES --- */
+        /* ------------------------------------------------------------------ */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
             }
 
+            /* ADJUSTED: Navbar padding for better edge-to-edge look on smaller devices */
             .navbar {
-                padding: 0.75rem 0.5rem;
+                padding: 0 0.5rem; /* Removed vertical padding, let the 60px height handle it */
             }
 
             .logo {
                 font-size: 1.1rem;
             }
+            
+            /* ADJUSTED: Ensure hamburger and logo are centered vertically */
+            .navbar-left {
+                height: 60px; /* Match header height */
+            }
 
             .nav-links {
-                display: none;
+                display: none; /* Hide by default */
                 position: fixed;
-                top: 60px;
+                top: 60px; /* Stick right below the fixed header */
                 left: 0;
                 right: 0;
                 background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
-                max-height: 0;
                 overflow: hidden;
-                transition: max-height 0.3s ease;
                 box-shadow: var(--shadow-lg);
                 z-index: 999;
+                width: 100%;
+                border-top: 1px solid var(--border-color);
+
+                /* ADJUSTED: Smooth slide-down animation */
+                max-height: 0;
+                opacity: 0;
+                transition: max-height 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease;
+                visibility: hidden;
             }
 
             .nav-links.active {
-                max-height: 500px;
+                max-height: 300px; /* Set a max-height large enough for all links */
+                opacity: 1;
+                visibility: visible;
                 display: flex;
             }
 
             .nav-links a {
-                padding: 1rem;
+                padding: 1rem 1rem; /* Added horizontal padding */
                 border-bottom: 1px solid var(--border-color);
                 display: block;
                 text-align: left;
             }
+            
+            /* ADJUSTED: Group of bell and profile icons for consistent spacing */
+            .navbar > div:last-child {
+                gap: 0; /* Remove gap from the div containing bell and profile */
+            }
+            
+            .notification-bell, .profile-icon {
+                /* Ensure 44px on mobile is respected */
+                width: 44px;
+                height: 44px;
+            }
+            
+            .notification-badge {
+                right: 5px; /* Adjust badge position for round icons */
+                top: 5px;
+            }
+            
+            /* ADJUSTED: Notification dropdown positioning on mobile */
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: 1rem; /* Fix to the right edge with 1rem margin */
+                left: auto;
+            }
+
 
             main {
                 padding: 1rem 0;
@@ -814,12 +873,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             input, select, textarea, button {
                 font-size: 16px !important;
             }
-
-            .notification-dropdown {
-                width: calc(100vw - 2rem);
-                right: 0;
-                left: 1rem;
-            }
         }
 
         @media (max-width: 480px) {
@@ -854,21 +907,25 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 width: 95%;
             }
         }
+        /* ------------------------------------------------------------------ */
+        /* --- END OF MOBILE RESPONSIVE FIXES --- */
+        /* ------------------------------------------------------------------ */
     </style>
 </head>
 <body>
     <header class="header">
         <div class="navbar">
-            <button class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
+            <div class="navbar-left">
+                <button class="hamburger" id="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
 
-            <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
-            </a>
-
+                <a href="../dashboard.php" class="logo">
+                    <i class="fas fa-book-open"></i> Study Buddy
+                </a>
+            </div>
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -876,7 +933,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="display: flex; align-items: center;"> 
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
@@ -978,7 +1035,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 </div>
             <?php endif; ?>
 
-            <!-- Pending Matches -->
             <?php if (!empty($pending_matches)): ?>
                 <div class="card">
                     <div class="card-header">
@@ -1019,13 +1075,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 
                                 <?php 
                                 $is_receiver = false;
-                                if ($user['role'] === 'mentor' && $match['mentor_id'] == $user['id']) {
-                                    $is_receiver = true;
-                                } elseif ($user['role'] === 'student' && $match['student_id'] == $user['id']) {
-                                    $is_receiver = false;
-                                } elseif ($user['role'] === 'peer') {
-                                    $is_receiver = ($match['mentor_id'] == $user['id']);
-                                }
+                                $is_receiver = ($match['mentor_id'] == $user['id']);
                                 ?>
                                 
                                 <div class="match-actions">
@@ -1063,7 +1113,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 </div>
             <?php endif; ?>
 
-            <!-- Active Matches -->
             <?php if (!empty($accepted_matches)): ?>
                 <div class="card">
                     <div class="card-header">
@@ -1116,7 +1165,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 </div>
             <?php endif; ?>
 
-            <!-- Match History -->
             <?php if (!empty($other_matches)): ?>
                 <div class="card">
                     <div class="card-header">
@@ -1167,7 +1215,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         </div>
     </main>
 
-    <!-- Match Details Modal -->
     <div id="matchModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1175,8 +1222,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <button class="modal-close" onclick="closeMatchModal()">&times;</button>
             </div>
             <div class="modal-body" id="modalBody">
-                <!-- Content injected via JavaScript -->
-            </div>
+                </div>
         </div>
     </div>
 

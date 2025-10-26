@@ -102,7 +102,7 @@ $referred_users = $referred_stmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Referral Codes - StudyConnect</title>
+    <title>Referral Codes - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -859,7 +859,7 @@ $referred_users = $referred_stmt->fetchAll();
 
             <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
             <!-- Desktop Navigation -->
@@ -1040,7 +1040,7 @@ $referred_users = $referred_stmt->fetchAll();
                         <h4><i class="fas fa-info-circle"></i> How It Works</h4>
                         <ol>
                             <li>Generate a unique referral code with custom usage limits and expiration</li>
-                            <li>Share the code with people you want to invite to StudyConnect</li>
+                            <li>Share the code with people you want to invite to Study Buddy</li>
                             <li>When they register using your code, they get auto-verified status</li>
                             <li>Track all your referrals and their verification status</li>
                             <li>Codes expire automatically when usage limit is reached or time expires</li>

@@ -301,7 +301,7 @@ $common_subjects = getMainSubjects();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile Setup - StudyConnect</title>
+    <title>Profile Setup - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -309,7 +309,7 @@ $common_subjects = getMainSubjects();
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../dashboard.php" class="logo">StudyConnect</a>
+                <a href="../dashboard.php" class="logo">Study Buddy</a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
                     <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>

@@ -26,7 +26,7 @@ if (($user['role'] === 'mentor' || $user['role'] === 'peer') && !$user['is_verif
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-        <title>Verification Required - StudyConnect</title>
+        <title>Verification Required - StudyBuddy</title>
         <link rel="stylesheet" href="../assets/css/style.css">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -137,7 +137,7 @@ if (($user['role'] === 'mentor' || $user['role'] === 'peer') && !$user['is_verif
         <header class="header" style="background: white; border-bottom: 1px solid #e5e5e5; position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 60px;">
             <div style="max-width: 1400px; margin: 0 auto; padding: 0 1rem; height: 100%; display: flex; align-items: center;">
                 <a href="../dashboard.php" style="font-size: 1.25rem; font-weight: 700; color: #2563eb; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
-                    <i class="fas fa-book-open"></i> StudyConnect
+                    <i class="fas fa-book-open"></i> Study Buddy
                 </a>
             </div>
         </header>
@@ -414,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="csrf-token" content="<?php echo generate_csrf_token(); ?>">
-    <title>Find Study Partners - StudyConnect</title>
+    <title>Find Study Partners - StudyBuddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1017,7 +1017,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
 
             <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> StudyBuddy
             </a>
 
             <!-- Desktop Navigation -->

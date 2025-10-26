@@ -151,7 +151,7 @@ class SimplePHPMailer {
 function send_otp_email($email, $otp_code) {
     $mailer = new SimplePHPMailer();
     $mailer->setTo($email);
-    $mailer->setSubject('Your StudyConnect Login Code');
+    $mailer->setSubject('Your Study Buddy Login Code');
     
     $body = "
     <!DOCTYPE html>
@@ -169,17 +169,17 @@ function send_otp_email($email, $otp_code) {
     <body>
         <div class='container'>
             <div class='header'>
-                <h1>StudyConnect</h1>
+                <h1>Study Buddy</h1>
                 <p>Your One-Time Password</p>
             </div>
             <div class='content'>
                 <p>Hello,</p>
-                <p>You requested to sign in to your StudyConnect account. Use the code below to complete your login:</p>
+                <p>You requested to sign in to your Study Buddy account. Use the code below to complete your login:</p>
                 <div class='otp-code'>{$otp_code}</div>
                 <p><strong>This code will expire in " . OTP_EXPIRY_MINUTES . " minutes.</strong></p>
                 <p>If you didn't request this code, please ignore this email.</p>
                 <div class='footer'>
-                    <p>&copy; " . date('Y') . " StudyConnect. All rights reserved.</p>
+                    <p>&copy; " . date('Y') . " Study Buddy. All rights reserved.</p>
                 </div>
             </div>
         </div>
@@ -203,7 +203,7 @@ function send_otp_email($email, $otp_code) {
 function send_session_notification($to_email, $to_name, $session_details) {
     $mailer = new SimplePHPMailer();
     $mailer->setTo($to_email);
-    $mailer->setSubject('Session Scheduled - StudyConnect');
+    $mailer->setSubject('Session Scheduled - Study Buddy');
     
     $session_date = date('l, F j, Y', strtotime($session_details['date']));
     $start_time = date('g:i A', strtotime($session_details['start_time']));
@@ -267,7 +267,7 @@ function send_session_notification($to_email, $to_name, $session_details) {
                 <p>We'll send you a reminder before the session starts. Make sure to prepare any materials you might need!</p>
                 
                 <div class='footer'>
-                    <p>&copy; " . date('Y') . " StudyConnect. All rights reserved.</p>
+                    <p>&copy; " . date('Y') . " Study Buddy. All rights reserved.</p>
                     <p>This is an automated notification. Please do not reply to this email.</p>
                 </div>
             </div>

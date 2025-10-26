@@ -83,25 +83,103 @@ if ($user['role'] === 'student') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light"> 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>My Profile - StudyConnect</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <title>My Profile - Study Buddy</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
+        /* ===== START: DARK MODE & THEME VARIABLES ===== */
         :root {
             --primary-color: #2563eb;
+            --primary-color-hover: #1d4ed8;
             --text-primary: #1a1a1a;
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+            
+            /* Component-specific colors */
+            --subtle-bg: #f8fafc;
+            --unread-bg: #f0f7ff;
+            --logout-hover-bg: #fee2e2;
+            --btn-secondary-bg: #f3f4f6;
+            --btn-secondary-hover-bg: #e5e5e5;
+            --badge-primary-bg: #dbeafe;
+            --badge-primary-text: #1e40af;
+            --badge-warning-bg: #fef3c7;
+            --badge-warning-text: #92400e;
+            --badge-success-bg: #dcfce7;
+            --badge-success-text: #166534;
+            --badge-secondary-bg: #f3f4f6;
+            --badge-secondary-text: #4b5563;
+
+            --learning-subject-bg: #eff6ff;
+            --learning-subject-border: #3b82f6;
+            --learning-subject-text: #1e40af;
+            --teaching-subject-bg: #f0fdf4;
+            --teaching-subject-border: #22c55e;
+            --teaching-subject-text: #15803d;
+            
+            --info-box-bg: #f0f9ff;
+            --info-box-border: #bae6fd;
+            --info-box-text: #0c4a6e;
+            --success-box-bg: #f0fdf4;
+            --success-box-border: #bbf7d0;
+            --success-box-text: #166534;
+            --warning-box-bg: #fffbeb;
+            --warning-box-border: #fed7aa;
+            --warning-box-text: #92400e;
         }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            
+            /* Component-specific colors */
+            --subtle-bg: #1f2937;
+            --unread-bg: rgba(59, 130, 246, 0.2);
+            --logout-hover-bg: rgba(239, 68, 68, 0.2);
+            --btn-secondary-bg: #374151;
+            --btn-secondary-hover-bg: #4b5563;
+            --badge-primary-bg: #1e3a8a;
+            --badge-primary-text: #dbeafe;
+            --badge-warning-bg: #78350f;
+            --badge-warning-text: #fef3c7;
+            --badge-success-bg: #166534;
+            --badge-success-text: #dcfce7;
+            --badge-secondary-bg: #374151;
+            --badge-secondary-text: #d1d5db;
+
+            --learning-subject-bg: #1e293b;
+            --learning-subject-border: #3b82f6;
+            --learning-subject-text: #93c5fd;
+            --teaching-subject-bg: #1e293b;
+            --teaching-subject-border: #22c55e;
+            --teaching-subject-text: #86efac;
+            
+            --info-box-bg: #1e3a8a;
+            --info-box-border: #1d4ed8;
+            --info-box-text: #dbeafe;
+            --success-box-bg: #166534;
+            --success-box-border: #15803d;
+            --success-box-text: #dcfce7;
+            --warning-box-bg: #78350f;
+            --warning-box-border: #92400e;
+            --warning-box-text: #fef3c7;
+        }
+        /* ===== END: DARK MODE & THEME VARIABLES ===== */
 
         * {
             margin: 0;
@@ -117,13 +195,14 @@ if ($user['role'] === 'student') {
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -131,6 +210,7 @@ if ($user['role'] === 'student') {
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -214,6 +294,41 @@ if ($user['role'] === 'student') {
             color: var(--primary-color);
         }
 
+        /* Theme Toggle Button */
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            transition: background 0.2s;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+        
+        .theme-toggle:hover {
+            background: var(--border-color);
+            color: var(--primary-color);
+        }
+        
+        .theme-toggle .fa-sun {
+            display: none;
+        }
+        .theme-toggle .fa-moon {
+            display: none;
+        }
+
+        [data-theme="light"] .theme-toggle .fa-moon {
+            display: block;
+        }
+        [data-theme="dark"] .theme-toggle .fa-sun {
+            display: block;
+        }
+
         /* Notification Bell */
         .notification-bell {
             position: relative;
@@ -232,7 +347,7 @@ if ($user['role'] === 'student') {
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -248,7 +363,7 @@ if ($user['role'] === 'student') {
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -259,12 +374,13 @@ if ($user['role'] === 'student') {
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -273,7 +389,7 @@ if ($user['role'] === 'student') {
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -286,7 +402,7 @@ if ($user['role'] === 'student') {
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -294,17 +410,21 @@ if ($user['role'] === 'student') {
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
 
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: var(--unread-bg);
+        }
+        
+        [data-theme="dark"] .notification-item-dropdown.unread {
+            background: var(--unread-bg);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
         }
 
         /* Profile Menu */
@@ -319,7 +439,7 @@ if ($user['role'] === 'student') {
             width: 40px;
             height: 40px;
             border-radius: 8px;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color-hover) 100%);
             color: white;
             cursor: pointer;
             font-size: 1.1rem;
@@ -346,10 +466,11 @@ if ($user['role'] === 'student') {
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -358,7 +479,7 @@ if ($user['role'] === 'student') {
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -371,7 +492,7 @@ if ($user['role'] === 'student') {
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -395,7 +516,7 @@ if ($user['role'] === 'student') {
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -404,7 +525,11 @@ if ($user['role'] === 'student') {
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: var(--logout-hover-bg);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item.logout:hover {
+            background: var(--logout-hover-bg);
         }
 
         /* Main Content */
@@ -415,21 +540,22 @@ if ($user['role'] === 'student') {
         }
 
         main {
-            padding: 2rem 0;
+            padding: 1.5rem 0; 
             margin-top: 60px;
         }
 
         /* Card Styles */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem; 
             overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .card-header {
-            padding: 1.25rem;
+            padding: 1.1rem 1.25rem;
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
@@ -441,10 +567,12 @@ if ($user['role'] === 'student') {
             font-weight: 600;
             color: var(--text-primary);
             margin: 0;
+            display: flex;
+            align-items: center;
         }
 
         .card-body {
-            padding: 1.25rem;
+            padding: 1.1rem 1.25rem;
         }
 
         /* Button Styles */
@@ -470,16 +598,16 @@ if ($user['role'] === 'student') {
         }
 
         .btn-primary:hover {
-            background: #1d4ed8;
+            background: var(--primary-color-hover);
         }
 
         .btn-secondary {
-            background: #f0f0f0;
-            color: #1a1a1a;
+            background: var(--btn-secondary-bg);
+            color: var(--text-primary);
         }
 
         .btn-secondary:hover {
-            background: #e5e5e5;
+            background: var(--btn-secondary-hover-bg);
         }
 
         /* Grid Styles */
@@ -505,24 +633,121 @@ if ($user['role'] === 'student') {
         }
 
         .badge-primary {
-            background: #dbeafe;
-            color: #1e40af;
+            background: var(--badge-primary-bg);
+            color: var(--badge-primary-text);
         }
 
         .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
+            background: var(--badge-warning-bg);
+            color: var(--badge-warning-text);
         }
 
         .badge-success {
-            background: #dcfce7;
-            color: #166534;
+            background: var(--badge-success-bg);
+            color: var(--badge-success-text);
         }
 
         .badge-secondary {
-            background: #f3f4f6;
-            color: #4b5563;
+            background: var(--badge-secondary-bg);
+            color: var(--badge-secondary-text);
         }
+        
+        /* Component-specific styles for dark mode */
+        .subtle-box {
+            padding: 1rem; 
+            background: var(--subtle-bg); 
+            border-radius: 6px; 
+            font-style: italic;
+        }
+        
+        .learning-subject-card {
+            padding: 1rem; 
+            background: var(--learning-subject-bg); 
+            border-radius: 6px; 
+            border-left: 4px solid var(--learning-subject-border);
+        }
+        .learning-subject-card .font-medium {
+            color: var(--learning-subject-text);
+        }
+        .learning-subject-card .text-sm {
+            color: var(--learning-subject-border);
+        }
+
+        .teaching-subject-card {
+            padding: 1rem; 
+            background: var(--teaching-subject-bg); 
+            border-radius: 6px; 
+            border-left: 4px solid var(--teaching-subject-border);
+        }
+        .teaching-subject-card .font-medium {
+            color: var(--teaching-subject-text);
+        }
+        .teaching-subject-card .text-sm {
+            color: var(--teaching-subject-border);
+        }
+        
+        .student-mentor-subject-card {
+            padding: 1rem; 
+            background: var(--subtle-bg); 
+            border-radius: 6px; 
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .feedback-card {
+            padding: 1rem; 
+            background: var(--subtle-bg); 
+            border-radius: 8px; 
+            border-left: 4px solid var(--primary-color);
+        }
+        .feedback-card-inner {
+            padding: 1rem; 
+            background: var(--card-bg); 
+            border-radius: 6px; 
+            margin-top: 0.75rem;
+        }
+        
+        .info-box {
+            display: flex; 
+            align-items: center; 
+            gap: 1rem; 
+            padding: 1rem; 
+            background: var(--info-box-bg); 
+            border-radius: 0.5rem; 
+            border: 1px solid var(--info-box-border);
+        }
+        .info-box .font-medium {
+            color: var(--primary-color);
+        }
+        [data-theme="dark"] .info-box .font-medium {
+             color: var(--info-box-text);
+        }
+        
+        .success-box {
+            display: flex; 
+            align-items: center; 
+            gap: 1rem; 
+            padding: 1rem; 
+            background: var(--success-box-bg); 
+            border-radius: 0.5rem; 
+            border: 1px solid var(--success-box-border);
+        }
+        .success-box .font-medium {
+            color: var(--success-box-text);
+        }
+        
+        .warning-box {
+            display: flex; 
+            align-items: center; 
+            gap: 1rem; 
+            padding: 1rem; 
+            background: var(--warning-box-bg); 
+            border-radius: 0.5rem; 
+            border: 1px solid var(--warning-box-border);
+        }
+        .warning-box .font-medium {
+            color: var(--warning-box-text);
+        }
+
 
         /* Star Rating */
         .star-rating {
@@ -541,6 +766,10 @@ if ($user['role'] === 'student') {
 
         .star-rating .star.empty {
             color: #e5e7eb;
+        }
+        
+        [data-theme="dark"] .star-rating .star.empty {
+            color: #4b5563;
         }
 
         /* Text Utilities */
@@ -579,6 +808,20 @@ if ($user['role'] === 'student') {
         .mb-4 {
             margin-bottom: 1rem;
         }
+        
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: none;
+        }
+        
+        hr {
+            margin: 0.5rem 0; 
+            border: none; 
+            border-top: 1px solid var(--border-color);
+        }
 
         /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
@@ -600,7 +843,7 @@ if ($user['role'] === 'student') {
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -608,6 +851,7 @@ if ($user['role'] === 'student') {
                 transition: max-height 0.3s ease;
                 box-shadow: var(--shadow-lg);
                 z-index: 999;
+                border-bottom: 1px solid var(--border-color);
             }
 
             .nav-links.active {
@@ -620,6 +864,9 @@ if ($user['role'] === 'student') {
                 border-bottom: 1px solid var(--border-color);
                 display: block;
                 text-align: left;
+            }
+            .nav-links a:last-child {
+                border-bottom: none;
             }
 
             main {
@@ -634,9 +881,22 @@ if ($user['role'] === 'student') {
             .grid-cols-3 {
                 grid-template-columns: 1fr;
             }
+            
+            /* Make main content full width first */
+            .grid-cols-3 > div:nth-child(1) {
+                grid-column: span 1;
+            }
+            
+            .grid-cols-3 > div:nth-child(2) {
+                grid-column: span 1;
+            }
 
             .card-body {
                 padding: 1rem;
+            }
+            
+            .card-header {
+                padding: 1rem 1.1rem;
             }
 
             input, select, textarea, button {
@@ -647,6 +907,24 @@ if ($user['role'] === 'student') {
                 width: calc(100vw - 2rem);
                 right: 0;
                 left: 1rem;
+            }
+            
+            /* Responsive profile header */
+            .profile-header-card-body {
+                flex-direction: column;
+                align-items: flex-start !important;
+            }
+            .profile-header-stats {
+                width: 100%;
+                justify-content: space-around;
+                margin-top: 1rem !important;
+                margin-bottom: 1rem !important;
+            }
+            .profile-header-btn {
+                width: 100%;
+            }
+            .profile-header-btn .btn {
+                width: 100%;
             }
         }
 
@@ -663,22 +941,18 @@ if ($user['role'] === 'student') {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
-                <i class="fas fa-book-open"></i> StudyConnect
+                <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -686,9 +960,7 @@ if ($user['role'] === 'student') {
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
+            <div style="display: flex; align-items: center; gap: 0.5rem;"> 
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -701,7 +973,7 @@ if ($user['role'] === 'student') {
                             <h4><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
+                            <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                         </div>
@@ -711,7 +983,6 @@ if ($user['role'] === 'student') {
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -740,7 +1011,7 @@ if ($user['role'] === 'student') {
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <hr>
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -754,139 +1025,288 @@ if ($user['role'] === 'student') {
 
     <main>
         <div class="container">
-            <div class="grid grid-cols-3" style="gap: 2rem;">
-                <!-- Profile Info -->
-                <div style="grid-column: span 2;">
-                    <div class="card mb-4">
+
+            <div class="card">
+                <div class="card-body profile-header-card-body" style="display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                    
+                    <div style="display: flex; align-items: center; gap: 1.5rem; flex-grow: 1;">
+                        <div style="position: relative; flex-shrink: 0;">
+                            <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                                <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                     alt="Profile Picture" 
+                                     style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary-color);">
+                            <?php else: ?>
+                                <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 700;">
+                                    <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div>
+                            <h2 style="margin: 0 0 0.25rem 0; font-size: 1.5rem; font-weight: 700;"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h2>
+                            <p style="margin: 0 0 0.25rem 0; color: var(--text-secondary); font-size: 1rem;">
+                                @<?php echo htmlspecialchars($user['username']); ?> • 
+                                <span class="font-medium" style="color: var(--primary-color);"><?php echo ucfirst($user['role']); ?></span>
+                            </p>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                <i class="fas fa-map-marker-alt" style="margin-right: 0.25rem;"></i>
+                                <?php echo htmlspecialchars($user['location'] ?? 'Not set'); ?>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="profile-header-stats" style="display: flex; align-items: center; gap: 2.5rem; flex-shrink: 0; margin: 0 1rem;">
+                        <div class="text-center">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">
+                                <i class="fas fa-star"></i> <?php echo $stats['avg_rating'] ? number_format($stats['avg_rating'], 1) : 'N/A'; ?>
+                            </div>
+                            <div class="text-secondary text-xs" style="font-weight: 500; letter-spacing: 0.5px; margin-top: 0.25rem;">RATING</div>
+                        </div>
+                        <div class="text-center">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">
+                                <?php echo $stats['active_matches'] ?? 0; ?>
+                            </div>
+                            <div class="text-secondary text-xs" style="font-weight: 500; letter-spacing: 0.5px; margin-top: 0.25rem;">MATCHES</div>
+                        </div>
+                        <div class="text-center">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;">
+                                <?php echo $stats['completed_sessions'] ?? 0; ?>
+                            </div>
+                            <div class="text-secondary text-xs" style="font-weight: 500; letter-spacing: 0.5px; margin-top: 0.25rem;">SESSIONS</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-header-btn" style="flex-shrink: 0;">
+                        <a href="edit.php" class="btn btn-primary">Edit Profile</a>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-3" style="gap: 1.5rem;">
+                
+                <div>
+                    <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Profile Information</h3>
-                            <a href="edit.php" class="btn btn-primary">Edit Profile</a>
+                            <h3 class="card-title">
+                                <i class="fas fa-user-alt" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                About Me
+                            </h3>
                         </div>
                         <div class="card-body">
-                            <!-- Add profile picture display section -->
-                            <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border-color);">
-                                <div style="position: relative;">
-                                    <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
-                                        <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" 
-                                             alt="Profile Picture" 
-                                             style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary-color);">
-                                    <?php else: ?>
-                                        <div style="width: 120px; height: 120px; border-radius: 50%; background: var(--primary-color); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.5rem; font-weight: 700;">
-                                            <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <div>
-                                    <h2 style="margin: 0 0 0.5rem 0; font-size: 1.75rem; font-weight: 700;"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></h2>
-                                    <p style="margin: 0 0 0.5rem 0; color: var(--text-secondary); font-size: 1.1rem;">@<?php echo htmlspecialchars($user['username']); ?></p>
-                                    <span class="badge <?php echo $user['role'] === 'peer' ? 'badge-warning' : 'badge-primary'; ?>">
-                                        <?php echo $user['role'] === 'peer' ? '🤝 Peer (Learn & Teach)' : ucfirst($user['role']); ?>
-                                    </span>
-                                    <?php if ($user['is_verified']): ?>
-                                        <span class="badge badge-success">Verified</span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
+                            <p class="text-secondary mb-4"><?php echo nl2br(htmlspecialchars($user['bio'] ?? 'No bio provided yet.')); ?></p>
                             
-                            <div class="grid grid-cols-2" style="gap: 2rem;">
-                                <div>
-                                    <h4 class="font-semibold mb-2">Basic Information</h4>
-                                    <div class="mb-3">
-                                        <strong>Name:</strong> <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                            <?php if ($user['role'] === 'student' && $role_info): ?>
+                                <?php if (!empty($role_info['learning_goals'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">Learning Goals</h5>
+                                        <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
                                     </div>
-                                    <div class="mb-3">
-                                        <strong>Username:</strong> <?php echo htmlspecialchars($user['username']); ?>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($role_info['preferred_learning_style'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">Preferred Learning Style</h5>
+                                        <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
                                     </div>
-                                    <div class="mb-3">
-                                        <strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?>
+                                <?php endif; ?>
+                            <?php elseif ($user['role'] === 'mentor' && $role_info): ?>
+                                <?php if (!empty($role_info['teaching_style'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">Teaching Style</h5>
+                                        <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
                                     </div>
-                                    <div class="mb-3">
-                                        <strong>Role:</strong> <span style="color: var(--primary-color);"><?php echo ucfirst($user['role']); ?></span>
+                                <?php endif; ?>
+                            <?php elseif ($user['role'] === 'peer' && $role_info): ?>
+                                <?php if (!empty($role_info['learning_goals'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">🎓 Learning Goals</h5>
+                                        <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
                                     </div>
-                                    <div class="mb-3">
-                                        <strong>Grade Level:</strong> <?php echo htmlspecialchars($user['grade_level'] ?? 'Not set'); ?>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($role_info['preferred_learning_style'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">Learning Style</h5>
+                                        <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
                                     </div>
-                                    <?php if ($user['strand']): ?>
-                                        <div class="mb-3">
-                                            <strong>Strand:</strong> <?php echo htmlspecialchars($user['strand']); ?>
-                                        </div>
-                                    <?php endif; ?>
-                                    <?php if ($user['course']): ?>
-                                        <div class="mb-3">
-                                            <strong>Course:</strong> <?php echo htmlspecialchars($user['course']); ?>
-                                        </div>
-                                    <?php endif; ?>
-                                    <div class="mb-3">
-                                        <strong>Location:</strong> <?php echo htmlspecialchars($user['location'] ?? 'Not set'); ?>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($role_info['teaching_style'])): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <h5 class="font-semibold mb-2">👩‍🏫 Teaching Approach</h5>
+                                        <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
                                     </div>
-                                    <?php if ($user['role'] === 'mentor'): ?>
-                                        <div class="mb-3">
-                                            <strong>Hourly Rate:</strong> 
-                                            <?php if ($user['hourly_rate'] && $user['hourly_rate'] > 0): ?>
-                                                <span style="color: #16a34a; font-weight: 600;">₱<?php echo number_format($user['hourly_rate'], 2); ?>/hour</span>
-                                            <?php else: ?>
-                                                <span style="color: #f59e0b;">Not set</span>
-                                                <a href="edit.php" style="color: var(--primary-color); font-size: 0.875rem;">(Set your rate)</a>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <div>
-                                    <h4 class="font-semibold mb-2">About Me</h4>
-                                    <p class="text-secondary"><?php echo nl2br(htmlspecialchars($user['bio'] ?? 'No bio provided yet.')); ?></p>
-                                    
-                                    <?php if ($user['role'] === 'student' && $role_info): ?>
-                                        <?php if (!empty($role_info['learning_goals'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">Learning Goals</h5>
-                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-dollar-sign" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                    Hourly Rate
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <?php if ($user['hourly_rate'] && $user['hourly_rate'] > 0): ?>
+                                    <span style="font-size: 1.25rem; font-weight: 600; color: #16a34a;">
+                                        ₱<?php echo number_format($user['hourly_rate'], 2); ?>
+                                    </span>
+                                    <span class="text-secondary">/ hour</span>
+                                <?php else: ?>
+                                    <p class="text-secondary">
+                                        No hourly rate set. 
+                                        <a href="edit.php">(Set your rate)</a>
+                                    </p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-clock" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                    My Availability
+                                </h3>
+                                <a href="availability.php" class="btn btn-secondary">Edit Availability</a>
+                            </div>
+                            <div class="card-body">
+                                <?php if (empty($availability)): ?>
+                                    <p class="text-secondary text-center">
+                                        No availability set yet. <a href="availability.php">Set your schedule</a> 
+                                        to help <?php echo $user['role'] === 'peer' ? 'others' : 'students'; ?> know when you're available for sessions.
+                                    </p>
+                                <?php else: ?>
+                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                        <?php foreach ($availability as $slot): ?>
+                                            <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: var(--subtle-bg); border-radius: 6px;">
+                                                <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
+                                                <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
                                             </div>
-                                        <?php endif; ?>
-                                        
-                                        <?php if (!empty($role_info['preferred_learning_style'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">Preferred Learning Style</h5>
-                                                <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
-                                            </div>
-                                        <?php endif; ?>
-                                    <?php elseif ($user['role'] === 'mentor' && $role_info): ?>
-                                        <?php if (!empty($role_info['teaching_style'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">Teaching Style</h5>
-                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
-                                            </div>
-                                        <?php endif; ?>
-                                    <?php elseif ($user['role'] === 'peer' && $role_info): ?>
-                                        <?php if (!empty($role_info['learning_goals'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">🎓 Learning Goals</h5>
-                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['learning_goals'])); ?></p>
-                                            </div>
-                                        <?php endif; ?>
-                                        
-                                        <?php if (!empty($role_info['preferred_learning_style'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">Learning Style</h5>
-                                                <span class="badge badge-secondary"><?php echo ucfirst(str_replace('_', ' ', $role_info['preferred_learning_style'])); ?></span>
-                                            </div>
-                                        <?php endif; ?>
-                                        
-                                        <?php if (!empty($role_info['teaching_style'])): ?>
-                                            <div style="margin-top: 1rem;">
-                                                <h5 class="font-semibold mb-2">👩‍🏫 Teaching Approach</h5>
-                                                <p class="text-secondary"><?php echo nl2br(htmlspecialchars($role_info['teaching_style'])); ?></p>
-                                            </div>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
-                                </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-id-badge" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                Account Status
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Verification:</strong>
+                                <span style="color: <?php echo $user['is_verified'] ? '#16a34a' : '#f59e0b'; ?>;">
+                                    <?php echo $user['is_verified'] ? 'Verified' : 'Pending'; ?>
+                                </span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Account Status:</strong>
+                                <span style="color: <?php echo $user['is_active'] ? '#16a34a' : '#dc2626'; ?>;">
+                                    <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
+                                </span>
+                            </div>
+                            <div>
+                                <strong>Member Since:</strong>
+                                <span class="text-secondary"><?php echo date('M Y', strtotime($user['created_at'])); ?></span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Subject Expertise -->
-                    <div class="card mb-4">
+                    <?php if ($user['role'] === 'mentor'): ?>
+                        <?php if (!$user['is_verified']): ?>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Mentor Verification</h3>
+                                    <a href="verification.php" class="btn btn-secondary">Manage Documents</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="warning-box">
+                                        <div style="color: var(--warning-box-text); font-size: 1.5rem;">⚠</div>
+                                        <div>
+                                            <div class="font-medium">Verification Pending</div>
+                                            <div class="text-sm text-secondary">
+                                                Upload verification documents to become a verified mentor.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Mentor Verification Status</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="success-box">
+                                        <div style="color: var(--success-box-text); font-size: 1.5rem;">✓</div>
+                                        <div>
+                                            <div class="font-medium">
+                                                Verified Mentor
+                                            </div>
+                                            <div class="text-sm text-secondary">
+                                                Your mentor status has been verified by our admin team.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($user['is_verified']): ?>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Referral Codes</h3>
+                                    <a href="referral-codes.php" class="btn btn-primary">Manage Codes</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="info-box">
+                                        <div style="color: var(--primary-color); font-size: 1.5rem;">🎯</div>
+                                        <div>
+                                            <div class="font-medium">Share Your Expertise</div>
+                                            <div class="text-sm text-secondary">
+                                                Generate referral codes to invite other peers and co-teachers and help them get verified instantly.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php if ($user['role'] === 'student'): ?>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">🤝 Become a Peer</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="info-box">
+                                    <div style="color: var(--primary-color); font-size: 1.5rem;">🎓</div>
+                                    <div style="flex: 1;">
+                                        <div class="font-medium">Ready to Help Others?</div>
+                                        <div class="text-sm text-secondary">
+                                            Upgrade to Peer status to both learn and teach. You'll need a referral code from a verified mentor.
+                                        </div>
+                                    </div>
+                                    <a href="become-peer.php" class="btn btn-primary">Upgrade Now</a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <div style="grid-column: span 2;">
+                    
+                    <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">
+                                <i class="fas fa-book-open" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
                                 <?php if ($user['role'] === 'peer'): ?>
                                     My Subjects
                                 <?php elseif ($user['role'] === 'student'): ?>
@@ -899,27 +1319,26 @@ if ($user['role'] === 'student') {
                         </div>
                         <div class="card-body">
                             <?php if ($user['role'] === 'peer'): ?>
-                                <!-- Learning Subjects Section -->
                                 <div style="margin-bottom: 2rem;">
                                     <h4 class="font-semibold mb-3" style="color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem;">
                                         <span style="font-size: 1.25rem;">📚</span>
                                         Subjects I Want to Learn
                                     </h4>
                                     <?php if (empty($learning_subjects)): ?>
-                                        <p class="text-secondary" style="padding: 1rem; background: #f8fafc; border-radius: 6px; font-style: italic;">
+                                        <p class="text-secondary subtle-box">
                                             No learning subjects added yet. Add beginner or intermediate level subjects to find mentors and peers who can help you learn.
                                         </p>
                                     <?php else: ?>
                                         <div class="grid grid-cols-2" style="gap: 1rem;">
                                             <?php foreach ($learning_subjects as $subject): ?>
-                                                <div style="padding: 1rem; background: #eff6ff; border-radius: 6px; border-left: 4px solid #3b82f6;">
-                                                    <div class="font-medium" style="color: #1e40af;"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                                <div class="learning-subject-card">
+                                                    <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
                                                     <?php if (!empty($subject['subtopic'])): ?>
                                                         <div class="text-xs text-secondary mb-1">
                                                             <?php echo htmlspecialchars($subject['main_subject']); ?> → <?php echo htmlspecialchars($subject['subtopic']); ?>
                                                         </div>
                                                     <?php endif; ?>
-                                                    <div class="text-sm" style="color: #60a5fa;">
+                                                    <div class="text-sm">
                                                         Learning: <?php echo ucfirst($subject['proficiency_level']); ?> level
                                                     </div>
                                                 </div>
@@ -928,27 +1347,26 @@ if ($user['role'] === 'student') {
                                     <?php endif; ?>
                                 </div>
 
-                                <!-- Teaching Subjects Section -->
                                 <div>
                                     <h4 class="font-semibold mb-3" style="color: #16a34a; display: flex; align-items: center; gap: 0.5rem;">
                                         <span style="font-size: 1.25rem;">👨‍🏫</span>
                                         Subjects I Can Teach
                                     </h4>
                                     <?php if (empty($teaching_subjects)): ?>
-                                        <p class="text-secondary" style="padding: 1rem; background: #f8fafc; border-radius: 6px; font-style: italic;">
+                                        <p class="text-secondary subtle-box">
                                             No teaching subjects added yet. Add advanced or expert level subjects to help other students and peers learn.
                                         </p>
                                     <?php else: ?>
                                         <div class="grid grid-cols-2" style="gap: 1rem;">
                                             <?php foreach ($teaching_subjects as $subject): ?>
-                                                <div style="padding: 1rem; background: #f0fdf4; border-radius: 6px; border-left: 4px solid #22c55e;">
-                                                    <div class="font-medium" style="color: #15803d;"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
+                                                <div class="teaching-subject-card">
+                                                    <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
                                                     <?php if (!empty($subject['subtopic'])): ?>
                                                         <div class="text-xs text-secondary mb-1">
                                                             <?php echo htmlspecialchars($subject['main_subject']); ?> → <?php echo htmlspecialchars($subject['subtopic']); ?>
                                                         </div>
                                                     <?php endif; ?>
-                                                    <div class="text-sm" style="color: #4ade80;">
+                                                    <div class="text-sm">
                                                         Teaching: <?php echo ucfirst($subject['proficiency_level']); ?> level
                                                     </div>
                                                 </div>
@@ -958,11 +1376,10 @@ if ($user['role'] === 'student') {
                                 </div>
                                 
                             <?php else: ?>
-                                <!-- Original display for students and mentors -->
                                 <?php if (empty($user_subjects)): ?>
                                     <p class="text-secondary text-center">
                                         No subjects added yet. 
-                                        <a href="subjects.php" style="color: var(--primary-color);">Add subjects</a> 
+                                        <a href="subjects.php">Add subjects</a> 
                                         to get matched with 
                                         <?php if ($user['role'] === 'student'): ?>
                                             mentors and peers who can help you learn.
@@ -973,7 +1390,7 @@ if ($user['role'] === 'student') {
                                 <?php else: ?>
                                     <div class="grid grid-cols-2" style="gap: 1rem;">
                                         <?php foreach ($user_subjects as $subject): ?>
-                                            <div style="padding: 1rem; background: #f8fafc; border-radius: 6px; border-left: 4px solid var(--primary-color);">
+                                            <div class="student-mentor-subject-card">
                                                 <div class="font-medium"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
                                                 <?php if (!empty($subject['subtopic'])): ?>
                                                     <div class="text-xs text-secondary mb-1">
@@ -997,10 +1414,12 @@ if ($user['role'] === 'student') {
                         </div>
                     </div>
 
-                    <!-- Feedback & Reviews Section -->
-                    <div class="card mb-4">
+                    <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Feedback & Reviews</h3>
+                            <h3 class="card-title">
+                                <i class="fas fa-comments" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                Recent Feedback
+                            </h3>
                         </div>
                         <div class="card-body">
                             <?php if (empty($feedbacks)): ?>
@@ -1008,13 +1427,12 @@ if ($user['role'] === 'student') {
                                     No feedback received yet. Complete sessions to receive reviews from your study partners.
                                 </p>
                             <?php else: ?>
-                                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
                                     <?php foreach ($feedbacks as $feedback): ?>
-                                        <div style="padding: 1.5rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid var(--primary-color);">
-                                            <!-- Reviewer Info and Rating -->
+                                        <div class="feedback-card">
                                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                                 <div style="display: flex; align-items: center; gap: 1rem;">
-                                                    <div style="width: 48px; height: 48px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.1rem;">
+                                                    <div style="width: 48px; height: 48px; background: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 1.1rem; flex-shrink: 0;">
                                                         <?php echo strtoupper(substr($feedback['first_name'], 0, 1) . substr($feedback['last_name'], 0, 1)); ?>
                                                     </div>
                                                     <div>
@@ -1022,13 +1440,12 @@ if ($user['role'] === 'student') {
                                                             <?php echo htmlspecialchars($feedback['first_name'] . ' ' . $feedback['last_name']); ?>
                                                         </div>
                                                         <div class="text-sm text-secondary">
-                                                            <?php echo ucfirst($feedback['role']); ?> • <?php echo htmlspecialchars($feedback['subject']); ?>
+                                                            <?php echo ucfirst($feedback['role']); ?> • For session on "<?php echo htmlspecialchars($feedback['subject']); ?>"
                                                         </div>
                                                     </div>
                                                 </div>
                                                 
-                                                <!-- Star Rating Display -->
-                                                <div style="text-align: right;">
+                                                <div style="text-align: right; flex-shrink: 0; padding-left: 1rem;">
                                                     <div class="star-rating">
                                                         <?php for ($i = 1; $i <= 5; $i++): ?>
                                                             <span class="star <?php echo $i <= $feedback['rating'] ? 'filled' : 'empty'; ?>">★</span>
@@ -1040,16 +1457,14 @@ if ($user['role'] === 'student') {
                                                 </div>
                                             </div>
                                             
-                                            <!-- Feedback Text -->
                                             <?php if (!empty($feedback['feedback'])): ?>
-                                                <div style="padding: 1rem; background: white; border-radius: 6px; margin-top: 0.75rem;">
-                                                    <p style="margin: 0; color: #374151; line-height: 1.6;">
+                                                <div class="feedback-card-inner">
+                                                    <p style="margin: 0; color: var(--text-primary); line-height: 1.6;">
                                                         "<?php echo nl2br(htmlspecialchars($feedback['feedback'])); ?>"
                                                     </p>
                                                 </div>
                                             <?php endif; ?>
                                             
-                                            <!-- Session Date -->
                                             <div class="text-sm text-secondary" style="margin-top: 0.75rem;">
                                                 Session Date: <?php echo date('F j, Y', strtotime($feedback['session_date'])); ?>
                                             </div>
@@ -1065,166 +1480,8 @@ if ($user['role'] === 'student') {
                             <?php endif; ?>
                         </div>
                     </div>
-
-                    <!-- Availability -->
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <?php echo $user['role'] === 'peer' ? 'Study/Teaching Availability' : 'Teaching Availability'; ?>
-                                </h3>
-                                <a href="availability.php" class="btn btn-secondary">Update Schedule</a>
-                            </div>
-                            <div class="card-body">
-                                <?php if (empty($availability)): ?>
-                                    <p class="text-secondary text-center">
-                                        No availability set yet. <a href="availability.php" style="color: var(--primary-color);">Set your schedule</a> 
-                                        to help <?php echo $user['role'] === 'peer' ? 'others' : 'students'; ?> know when you're available for sessions.
-                                    </p>
-                                <?php else: ?>
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <?php foreach ($availability as $slot): ?>
-                                            <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
-                                                <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
-                                                <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- Mentor Verification -->
-                    <?php if ($user['role'] === 'mentor'): ?>
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h3 class="card-title">Mentor Verification</h3>
-                                <a href="verification.php" class="btn btn-secondary">Manage Documents</a>
-                            </div>
-                            <div class="card-body">
-                                <?php if ($user['is_verified']): ?>
-                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 0.5rem; border: 1px solid #bbf7d0;">
-                                        <div style="color: #16a34a; font-size: 1.5rem;">✓</div>
-                                        <div>
-                                            <div class="font-medium" style="color: #16a34a;">
-                                                Verified Mentor
-                                            </div>
-                                            <div class="text-sm text-secondary">
-                                                Your mentor status has been verified by our admin team.
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php else: ?>
-                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #fffbeb; border-radius: 0.5rem; border: 1px solid #fed7aa;">
-                                        <div style="color: #f59e0b; font-size: 1.5rem;">⚠</div>
-                                        <div>
-                                            <div class="font-medium" style="color: #f59e0b;">Verification Pending</div>
-                                            <div class="text-sm text-secondary">
-                                                Upload verification documents to become a verified mentor.
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-
-                        <!-- Added referral codes section for verified mentors -->
-                        <?php if ($user['is_verified']): ?>
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h3 class="card-title">Referral Codes</h3>
-                                    <a href="referral-codes.php" class="btn btn-primary">Manage Codes</a>
-                                </div>
-                                <div class="card-body">
-                                    <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 0.5rem; border: 1px solid #bae6fd;">
-                                        <div style="color: var(--primary-color); font-size: 1.5rem;">🎯</div>
-                                        <div>
-                                            <div class="font-medium" style="color: var(--primary-color);">Share Your Expertise</div>
-                                            <div class="text-sm text-secondary">
-                                                Generate referral codes to invite other peers and co-teachers and help them get verified instantly.
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    
-                    <!-- Added "Become a Peer" section for students -->
-                    <?php if ($user['role'] === 'student'): ?>
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h3 class="card-title">🤝 Become a Peer</h3>
-                            </div>
-                            <div class="card-body">
-                                <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 0.5rem; border: 1px solid #bae6fd;">
-                                    <div style="color: var(--primary-color); font-size: 1.5rem;">🎓</div>
-                                    <div style="flex: 1;">
-                                        <div class="font-medium" style="color: var(--primary-color);">Ready to Help Others?</div>
-                                        <div class="text-sm text-secondary">
-                                            Upgrade to Peer status to both learn and teach. You'll need a referral code from a verified mentor.
-                                        </div>
-                                    </div>
-                                    <a href="become-peer.php" class="btn btn-primary">Upgrade Now</a>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
 
-                <!-- Stats Sidebar -->
-                <div>
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">Profile Stats</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="text-center mb-3">
-                                <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">
-                                    <?php echo $stats['active_matches'] ?? 0; ?>
-                                </div>
-                                <div class="text-secondary">Active Matches</div>
-                            </div>
-                            <div class="text-center mb-3">
-                                <div style="font-size: 2rem; font-weight: 700; color: #16a34a;">
-                                    <?php echo $stats['completed_sessions'] ?? 0; ?>
-                                </div>
-                                <div class="text-secondary">Completed Sessions</div>
-                            </div>
-                            <div class="text-center">
-                                <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">
-                                    <?php echo $stats['avg_rating'] ? number_format($stats['avg_rating'], 1) : 'N/A'; ?>
-                                </div>
-                                <div class="text-secondary">Average Rating</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Account Status</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <strong>Verification:</strong>
-                                <span style="color: <?php echo $user['is_verified'] ? '#16a34a' : '#f59e0b'; ?>;">
-                                    <?php echo $user['is_verified'] ? 'Verified' : 'Pending'; ?>
-                                </span>
-                            </div>
-                            <div class="mb-3">
-                                <strong>Account Status:</strong>
-                                <span style="color: <?php echo $user['is_active'] ? '#16a34a' : '#dc2626'; ?>;">
-                                    <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
-                                </span>
-                            </div>
-                            <div>
-                                <strong>Member Since:</strong>
-                                <span class="text-secondary"><?php echo date('M Y', strtotime($user['created_at'])); ?></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </main>
@@ -1253,16 +1510,54 @@ if ($user['role'] === 'student') {
                         navLinks.classList.remove("active");
                     });
                 });
+            }
+        });
+        
+        // ===== THEME TOGGLE SCRIPT =====
+        document.addEventListener("DOMContentLoaded", () => {
+            const themeToggle = document.getElementById("themeToggle");
+            
+            // Function to apply the saved theme
+            const applyTheme = (theme) => {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            };
 
-                // Close menu when clicking outside
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
+            // Check for saved theme in localStorage
+            let savedTheme = localStorage.getItem('theme');
+
+            // If no saved theme, check OS preference
+            if (!savedTheme) {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    savedTheme = 'dark';
+                } else {
+                    savedTheme = 'light';
+                }
+            }
+            
+            applyTheme(savedTheme);
+
+            // Add listener for OS preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                const newTheme = e.matches ? 'dark' : 'light';
+                localStorage.setItem('theme', newTheme);
+                applyTheme(newTheme);
+            });
+            
+            // Add click listener only if the toggle button exists
+            if (themeToggle) {
+                themeToggle.addEventListener("click", () => {
+                    let currentTheme = document.documentElement.getAttribute('data-theme');
+                    let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
                 });
             }
         });
+
 
         function toggleNotifications(event) {
             event.stopPropagation();
@@ -1300,18 +1595,18 @@ if ($user['role'] === 'student') {
                     const list = document.getElementById('notificationList');
                     
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        list.innerHTML = `<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>`;
                         return;
                     }
                     
                     list.innerHTML = data.notifications.slice(0, 6).map(notif => `
                         <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
                              onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
+                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)}; padding-top: 0.25rem;"></i>
                             <div>
                                 <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
                     `).join('');
@@ -1352,10 +1647,11 @@ if ($user['role'] === 'student') {
                 'session_scheduled': '#2563eb',
                 'match_request': '#2563eb'
             };
-            return colors[type] || '#666';
+            return colors[type] || 'var(--text-secondary)';
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1371,13 +1667,29 @@ if ($user['role'] === 'student') {
             return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
-                document.getElementById('notificationDropdown').classList.remove('show');
+        // Global click listener to close dropdowns
+        document.addEventListener('click', function(event) {
+            // Close hamburger menu
+            const hamburger = document.getElementById('hamburger');
+            const navLinks = document.getElementById('navLinks');
+            if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                hamburger.classList.remove("active");
+                navLinks.classList.remove("active");
+            }
+        
+            // Close notification dropdown
+            const notifDropdown = document.getElementById('notificationDropdown');
+            const notifBell = document.querySelector('.notification-bell');
+            if (notificationDropdownOpen && notifDropdown && notifBell && !notifDropdown.contains(event.target) && !notifBell.contains(event.target)) {
+                notifDropdown.classList.remove('show');
                 notificationDropdownOpen = false;
             }
-            if (profileDropdownOpen) {
-                document.getElementById('profileDropdown').classList.remove('show');
+            
+            // Close profile dropdown
+            const profileDropdown = document.getElementById('profileDropdown');
+            const profileIcon = document.querySelector('.profile-icon');
+            if (profileDropdownOpen && profileDropdown && profileIcon && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
+                profileDropdown.classList.remove('show');
                 profileDropdownOpen = false;
             }
         });

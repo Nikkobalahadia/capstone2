@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         error_log("[v0] Session refreshed - Role: {$_SESSION['role']}, Verified: {$_SESSION['is_verified']}");
                         
-                        $success = 'Congratulations! You are now a verified Peer. You can now both learn and teach on StudyConnect!';
+                        $success = 'Congratulations! You are now a verified Peer. You can now both learn and teach on Study Buddy!';
                         
                         // Redirect to profile to see updated status
                         header("refresh:2;url=index.php");
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Become a Peer - StudyConnect</title>
+    <title>Become a Peer - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../dashboard.php" class="logo">StudyConnect</a>
+                <a href="../dashboard.php" class="logo">Study Buddy</a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
                     <li><a href="../matches/index.php">Matches</a></li>

@@ -15,9 +15,44 @@ $db = getDB();
 $error = '';
 $success = '';
 
-// Get filters
-$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
-$role_filter = isset($_GET['role']) ? $_GET['role'] : '';
+// Handle AJAX requests for verify mentor action
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
+    header('Content-Type: application/json');
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $response = ['success' => false, 'message' => ''];
+        
+        if (!verify_csrf_token($_POST['csrf_token'])) {
+            $response['message'] = 'Invalid security token.';
+            echo json_encode($response);
+            exit;
+        }
+        
+        $action = $_POST['action'];
+        $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
+        
+        try {
+            switch ($action) {
+                case 'verify_mentor':
+                    $stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_verify_mentor', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['verified_mentor_id' => $user_id]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'Mentor verified successfully.';
+                    break;
+            }
+        } catch (Exception $e) {
+            $response['message'] = 'Failed to perform action: ' . $e->getMessage();
+        }
+        
+        echo json_encode($response);
+        exit;
+    }
+}
+
 $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 25;
 
@@ -27,22 +62,8 @@ if (!in_array($per_page, $allowed_per_page)) {
     $per_page = 25;
 }
 
-// Build query to get users with verification documents
-$where_conditions = ["(u.role = 'mentor' OR u.role = 'peer')"];
+$where_conditions = ["u.role = 'mentor'"];
 $params = [];
-
-if ($role_filter) {
-    $where_conditions[] = "u.role = ?";
-    $params[] = $role_filter;
-}
-
-if ($status_filter === 'verified') {
-    $where_conditions[] = "u.is_verified = 1";
-} elseif ($status_filter === 'unverified') {
-    $where_conditions[] = "u.is_verified = 0";
-} elseif ($status_filter === 'pending') {
-    $where_conditions[] = "EXISTS (SELECT 1 FROM user_verification_documents uvd WHERE uvd.user_id = u.id AND uvd.status = 'pending')";
-}
 
 if ($search) {
     $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)";
@@ -66,7 +87,6 @@ $total_users = $count_result['total'];
 
 // Get users with document counts
 $offset = 0;
-$params[] = $status_filter;
 
 $query = "
     SELECT u.*,
@@ -79,7 +99,7 @@ $query = "
     LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
     WHERE $where_clause
     GROUP BY u.id
-    HAVING total_documents > 0 OR ? = ''
+    HAVING total_documents > 0 OR '' = ''
     ORDER BY 
         CASE WHEN u.is_verified = 0 AND SUM(CASE WHEN uvd.status = 'pending' THEN 1 ELSE 0 END) > 0 THEN 0 ELSE 1 END,
         last_upload_date DESC
@@ -89,7 +109,6 @@ $stmt = $db->prepare($query);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
 
-// Get statistics
 $stats_query = "
     SELECT 
         COUNT(DISTINCT CASE WHEN u.is_verified = 0 AND uvd.status = 'pending' THEN u.id END) as pending_users,
@@ -100,7 +119,7 @@ $stats_query = "
         COUNT(CASE WHEN uvd.status = 'rejected' THEN 1 END) as rejected_docs
     FROM users u
     LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
-    WHERE u.role IN ('mentor', 'peer')
+    WHERE u.role = 'mentor'
 ";
 $stats = $db->query($stats_query)->fetch();
 ?>
@@ -109,43 +128,311 @@ $stats = $db->query($stats_query)->fetch();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mentor & Peer Verification - StudyConnect Admin</title>
+    <title>Mentor Verification - Study Buddy Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
-        .priority-badge { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        .stat-card { border-left: 4px solid; transition: transform 0.2s; }
-        .stat-card:hover { transform: translateY(-2px); }
-        .stat-card.warning { border-left-color: #ffc107; }
-        .stat-card.success { border-left-color: #28a745; }
-        .stat-card.danger { border-left-color: #dc3545; }
-        .stat-card.info { border-left-color: #17a2b8; }
-        .table-row-unverified { background-color: #fff3cd; }
-        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
         @media (max-width: 768px) { 
-            .main-content { margin-left: 0; } 
-            .sidebar { display: none; }
-            .stat-card { margin-bottom: 1rem; }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                gap: 0.25rem !important;
+            }
+            
+            .action-buttons form,
+            .action-buttons button {
+                width: 100%;
+            }
+            
+            .table-responsive {
+                font-size: 0.85rem;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        .real-time-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: #10b981;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .real-time-badge .pulse {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .priority-badge { animation: pulse 2s infinite; }
+        
+        .stat-card { 
+            border-left: 4px solid; 
+            transition: transform 0.2s; 
+        }
+        
+        .stat-card:hover { 
+            transform: translateY(-2px); 
+        }
+        
+        .stat-card.warning { 
+            border-left-color: #ffc107; 
+        }
+        
+        .stat-card.success { 
+            border-left-color: #28a745; 
+        }
+        
+        .stat-card.danger { 
+            border-left-color: #dc3545; 
+        }
+        
+        .stat-card.info { 
+            border-left-color: #17a2b8; 
+        }
+        
+        .table-row-unverified { 
+            background-color: #fff3cd; 
+        }
+        
+        .action-buttons { 
+            display: flex; 
+            gap: 0.5rem; 
+            flex-wrap: wrap; 
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .loading-overlay.show {
+            display: flex;
+        }
+        
+        .spinner-border-custom {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3rem;
         }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
+    
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border spinner-border-custom text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link active" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
 
     <div class="main-content">
         <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
-                    <h1 class="h3 mb-0 text-gray-800">Mentor & Peer Verification</h1>
-                    <p class="text-muted">Review and approve verification documents from mentors and peers.</p>
+                    <h1 class="h3 mb-1 text-gray-800">Mentor Verification</h1>
+                    <div class="d-flex align-items-center gap-2">
+                        <p class="text-muted mb-0">Review and approve verification documents from mentors.</p>
+                        <span class="real-time-badge">
+                            <span class="pulse"></span>
+                            Real-time
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -234,37 +521,18 @@ $stats = $db->query($stats_query)->fetch();
                 </div>
             </div>
 
-            <!-- Filter Card -->
+            <!-- Removed filter card - simplified search only -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
-                        <div class="col-md-3">
-                            <label for="search" class="form-label">Search</label>
+                        <div class="col-md-6">
+                            <label for="search" class="form-label">Search Mentors</label>
                             <input type="text" id="search" name="search" class="form-control" 
                                    placeholder="Name or email"
                                    value="<?php echo htmlspecialchars($search); ?>">
                         </div>
                         
-                        <div class="col-md-2">
-                            <label for="role" class="form-label">Role</label>
-                            <select id="role" name="role" class="form-select">
-                                <option value="">All Roles</option>
-                                <option value="mentor" <?php echo $role_filter === 'mentor' ? 'selected' : ''; ?>>Mentors</option>
-                                <option value="peer" <?php echo $role_filter === 'peer' ? 'selected' : ''; ?>>Peers</option>
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-2">
-                            <label for="status" class="form-label">Status</label>
-                            <select id="status" name="status" class="form-select">
-                                <option value="">All Status</option>
-                                <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending Review</option>
-                                <option value="verified" <?php echo $status_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
-                                <option value="unverified" <?php echo $status_filter === 'unverified' ? 'selected' : ''; ?>>Unverified</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label for="per_page" class="form-label">Per Page</label>
                             <select id="per_page" name="per_page" class="form-select" onchange="this.form.submit()">
                                 <option value="10" <?php echo $per_page === 10 ? 'selected' : ''; ?>>10</option>
@@ -274,12 +542,8 @@ $stats = $db->query($stats_query)->fetch();
                             </select>
                         </div>
                         
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary w-100">Filter</button>
-                        </div>
-                        
-                        <div class="col-md-2">
-                            <a href="verifications.php" class="btn btn-secondary w-100">Clear</a>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">Search</button>
                         </div>
                     </form>
                 </div>
@@ -289,23 +553,23 @@ $stats = $db->query($stats_query)->fetch();
             <div class="card shadow">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-file-alt me-2"></i>Verification Requests (<?php echo count($users); ?> of <?php echo $total_users; ?>)
+                        <i class="fas fa-file-alt me-2"></i>Mentor Verification Requests (<span id="requestCount"><?php echo count($users); ?></span> of <?php echo $total_users; ?>)
                     </h6>
+                    <small class="text-muted">Last updated: <span id="lastUpdate">--:--:--</span></small>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
+                                    <th>Mentor</th>
                                     <th>Documents</th>
                                     <th>Status</th>
                                     <th>Last Upload</th>
-                                    <th style="width: 150px;">Actions</th>
+                                    <th style="width: 200px;">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="verificationsTableBody">
                                 <?php foreach ($users as $u): ?>
                                     <tr class="<?php echo ($u['pending_documents'] > 0 && !$u['is_verified']) ? 'table-row-unverified' : ''; ?>">
                                         <td>
@@ -324,11 +588,6 @@ $stats = $db->query($stats_query)->fetch();
                                                     <div class="small text-muted"><?php echo htmlspecialchars($u['email']); ?></div>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge <?php echo $u['role'] === 'mentor' ? 'bg-success' : 'bg-info'; ?>">
-                                                <?php echo ucfirst($u['role']); ?>
-                                            </span>
                                         </td>
                                         <td>
                                             <div class="small">
@@ -376,10 +635,18 @@ $stats = $db->query($stats_query)->fetch();
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <button class="btn btn-sm btn-primary" 
-                                                    onclick="viewDocuments(<?php echo $u['id']; ?>, '<?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?>')">
-                                                <i class="fas fa-file-alt me-1"></i> Review
-                                            </button>
+                                            <div class="action-buttons">
+                                                <button class="btn btn-sm btn-primary" 
+                                                        onclick="viewDocuments(<?php echo $u['id']; ?>, '<?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?>')">
+                                                    <i class="fas fa-file-alt me-1"></i> Review
+                                                </button>
+                                                <?php if (!$u['is_verified']): ?>
+                                                    <button class="btn btn-sm btn-success" 
+                                                            onclick="verifyMentor(<?php echo $u['id']; ?>)">
+                                                        <i class="fas fa-check me-1"></i> Verify
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -389,7 +656,7 @@ $stats = $db->query($stats_query)->fetch();
                         <?php if (empty($users)): ?>
                             <div class="text-center py-5 text-muted">
                                 <i class="fas fa-file-alt fa-3x mb-3"></i>
-                                <p>No verification requests found.</p>
+                                <p>No mentor verification requests found.</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -425,6 +692,106 @@ $stats = $db->query($stats_query)->fetch();
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
+        const CSRF_TOKEN = '<?php echo generate_csrf_token(); ?>';
+        
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+        
+        function updateLastUpdate() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('lastUpdate').textContent = timeString;
+        }
+        
+        function verifyMentor(userId) {
+            Swal.fire({
+                title: 'Verify Mentor?',
+                text: 'Are you sure you want to verify this mentor?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, verify'
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                
+                document.getElementById('loadingOverlay').classList.add('show');
+                
+                const formData = new FormData();
+                formData.append('csrf_token', CSRF_TOKEN);
+                formData.append('action', 'verify_mentor');
+                formData.append('user_id', userId);
+                
+                fetch('verifications.php?ajax=true', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: data.message,
+                            icon: 'success',
+                            confirmButtonColor: '#667eea'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message || 'Failed to verify mentor',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error verifying mentor: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                })
+                .finally(() => {
+                    document.getElementById('loadingOverlay').classList.remove('show');
+                });
+            });
+        }
+        
         function viewDocuments(userId, userName) {
             document.getElementById('doc_user_name').textContent = userName;
             document.getElementById('documents_loading').style.display = 'block';
@@ -552,7 +919,7 @@ $stats = $db->query($stats_query)->fetch();
                 formData.append('action', 'update_document_status');
                 formData.append('document_id', docId);
                 formData.append('status', status);
-                formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+                formData.append('csrf_token', CSRF_TOKEN);
                 
                 fetch('update-document-status.php', {
                     method: 'POST',
@@ -617,7 +984,7 @@ $stats = $db->query($stats_query)->fetch();
                 formData.append('document_id', docId);
                 formData.append('status', 'rejected');
                 formData.append('rejection_reason', result.value);
-                formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+                formData.append('csrf_token', CSRF_TOKEN);
                 
                 fetch('update-document-status.php', {
                     method: 'POST',
@@ -654,6 +1021,13 @@ $stats = $db->query($stats_query)->fetch();
                 });
             });
         }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLastUpdate();
+            // Auto-update timestamp every second
+            setInterval(updateLastUpdate, 1000);
+        });
     </script>
     
 </body>

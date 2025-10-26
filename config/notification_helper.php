@@ -122,6 +122,41 @@ function get_recent_unread_messages($user_id, $limit = 5) {
 }
 
 /**
+ * Get recent announcements for a user
+ */
+function get_recent_announcements($user_id, $limit = 5) {
+    try {
+        $db = getDB();
+        
+        $limit = intval($limit);
+        $user = get_logged_in_user();
+        
+        $stmt = $db->prepare("
+            SELECT a.*, u.first_name, u.last_name
+            FROM announcements a
+            JOIN users u ON a.created_by = u.id
+            WHERE a.is_active = 1
+            AND (
+                a.target_audience = 'all'
+                OR (a.target_audience = 'students' AND ? = 'student')
+                OR (a.target_audience = 'mentors' AND ? = 'mentor')
+                OR (a.target_audience = 'peers' AND ? = 'peer')
+            )
+            ORDER BY a.created_at DESC
+            LIMIT " . $limit
+        );
+        
+        $user_role = $user['role'] ?? 'student';
+        $stmt->execute([$user_role, $user_role, $user_role]);
+        
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Error getting announcements: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Get recent notifications for a user
  */
 function get_recent_notifications($user_id, $limit = 10) {

@@ -23,9 +23,9 @@ try {
     ];
 }
 
-$platform_name = $footer_settings['platform_name'] ?? 'StudyConnect';
+$platform_name = $footer_settings['platform_name'] ?? 'Study Buddy';
 $platform_tagline = $footer_settings['platform_tagline'] ?? 'Empowering students worldwide through peer-to-peer learning and meaningful academic connections.';
-$copyright_text = $footer_settings['copyright_text'] ?? 'StudyConnect. All rights reserved.';
+$copyright_text = $footer_settings['copyright_text'] ?? 'Study Buddy. All rights reserved.';
 $show_social = ($footer_settings['show_social_links'] ?? '1') == '1';
 ?>
 

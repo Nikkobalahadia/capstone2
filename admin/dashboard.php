@@ -104,7 +104,7 @@ $daily_active = $db->query("
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - StudyConnect</title>
+    <title>Admin Dashboard - Study Buddy</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -434,7 +434,7 @@ $daily_active = $db->query("
             <div class="welcome-banner shadow-sm">
                 <div class="welcome-banner-text">
                     <h2 class="h3">Welcome back, <?php echo htmlspecialchars($user['first_name']); ?>! 👋</h2>
-                    <p>Here's what's happening with your StudyConnect Portal today.</p>
+                    <p>Here's what's happening with your Study Buddy Portal today.</p>
                 </div>
                 <div class="welcome-banner-time">
                     <div class="time-box">

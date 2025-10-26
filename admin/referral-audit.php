@@ -13,58 +13,11 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="referral_codes_export_' . date('Y-m-d') . '.csv"');
-    
-    $output = fopen('php://output', 'w');
-    fputcsv($output, ['Code', 'Creator Name', 'Creator Email', 'Verified', 'Current Uses', 'Max Uses', 'Expires At', 'Status', 'Created Date']);
-    
-    $export_query = "
-        SELECT rc.*, 
-               u.first_name, u.last_name, u.email, u.is_verified
-        FROM referral_codes rc
-        JOIN users u ON rc.created_by = u.id
-        ORDER BY rc.created_at DESC
-    ";
-    $export_stmt = $db->query($export_query);
-    
-    while ($row = $export_stmt->fetch()) {
-        $is_expired = $row['expires_at'] && strtotime($row['expires_at']) < time();
-        $is_maxed = $row['current_uses'] >= $row['max_uses'];
-        
-        if (!$row['is_active']) {
-            $status = 'Inactive';
-        } elseif ($is_expired) {
-            $status = 'Expired';
-        } elseif ($is_maxed) {
-            $status = 'Max Uses';
-        } else {
-            $status = 'Active';
-        }
-        
-        fputcsv($output, [
-            $row['code'],
-            $row['first_name'] . ' ' . $row['last_name'],
-            $row['email'],
-            $row['is_verified'] ? 'Yes' : 'No',
-            $row['current_uses'],
-            $row['max_uses'],
-            $row['expires_at'] ? $row['expires_at'] : 'Never',
-            $status,
-            $row['created_at']
-        ]);
-    }
-    
-    fclose($output);
-    exit;
-}
-
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $verified_filter = isset($_GET['verified']) ? $_GET['verified'] : '';
 $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 
-// Build query with filters
+// --- START: Filtering Logic ---
 $where_conditions = ['1=1'];
 $params = [];
 
@@ -91,8 +44,93 @@ if ($search) {
 }
 
 $where_clause = implode(' AND ', $where_conditions);
+// --- END: Filtering Logic ---
 
-// Get referral code statistics
+
+// --- START: Pagination Logic ---
+$limit = 20; // Codes per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
+// Get total count (for pagination)
+$count_query = "
+    SELECT COUNT(rc.id) 
+    FROM referral_codes rc
+    JOIN users u ON rc.created_by = u.id
+    WHERE $where_clause
+";
+$count_stmt = $db->prepare($count_query);
+$count_stmt->execute($params);
+$total_codes_filtered = $count_stmt->fetchColumn();
+$total_pages = ceil($total_codes_filtered / $limit);
+// --- END: Pagination Logic ---
+
+
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="referral_codes_export_' . date('Y-m-d') . '.csv"');
+    
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Code', 'Creator Name', 'Creator Email', 'Verified', 'Current Uses', 'Max Uses', 'Actual Referrals', 'Expires At', 'Status', 'Created Date']);
+    
+    // The export query should use the filtering clause but NO LIMIT/OFFSET
+    $export_query = "
+        SELECT rc.*, 
+               u.first_name, u.last_name, u.email, u.is_verified,
+               COALESCE(referred_count.actual_referrals, 0) as actual_referrals
+        FROM referral_codes rc
+        JOIN users u ON rc.created_by = u.id
+        LEFT JOIN (
+            SELECT 
+                JSON_EXTRACT(ual.details, '$.referral_code_id') as code_id,
+                COUNT(*) as actual_referrals
+            FROM user_activity_logs ual
+            WHERE ual.action = 'register' 
+            AND JSON_EXTRACT(ual.details, '$.referral_used') = true
+            AND JSON_EXTRACT(ual.details, '$.referral_code_id') IS NOT NULL
+            GROUP BY JSON_EXTRACT(ual.details, '$.referral_code_id')
+        ) referred_count ON referred_count.code_id = rc.id
+        WHERE $where_clause
+        ORDER BY rc.created_at DESC
+    ";
+    
+    $export_stmt = $db->prepare($export_query);
+    $export_stmt->execute($params);
+    
+    while ($row = $export_stmt->fetch()) {
+        $is_expired = $row['expires_at'] && strtotime($row['expires_at']) < time();
+        $is_maxed = $row['current_uses'] >= $row['max_uses'];
+        
+        if (!$row['is_active']) {
+            $status = 'Inactive';
+        } elseif ($is_expired) {
+            $status = 'Expired';
+        } elseif ($is_maxed) {
+            $status = 'Max Uses';
+        } else {
+            $status = 'Active';
+        }
+        
+        fputcsv($output, [
+            $row['code'],
+            $row['first_name'] . ' ' . $row['last_name'],
+            $row['email'],
+            $row['is_verified'] ? 'Yes' : 'No',
+            $row['current_uses'],
+            $row['max_uses'],
+            $row['actual_referrals'],
+            $row['expires_at'] ? $row['expires_at'] : 'Never',
+            $status,
+            $row['created_at']
+        ]);
+    }
+    
+    fclose($output);
+    exit;
+}
+
+
+// Get referral code statistics (total, non-filtered)
 $stats = $db->query("
     SELECT 
         COUNT(*) as total_codes,
@@ -103,7 +141,7 @@ $stats = $db->query("
     FROM referral_codes
 ")->fetch();
 
-// Get all referral codes with creator info
+// Get all referral codes with creator info (with LIMIT/OFFSET)
 $codes_query = "
     SELECT rc.*, 
            u.first_name, u.last_name, u.email, u.is_verified,
@@ -122,7 +160,7 @@ $codes_query = "
     ) referred_count ON referred_count.code_id = rc.id
     WHERE $where_clause
     ORDER BY rc.created_at DESC
-    LIMIT 100
+    LIMIT $limit OFFSET $offset
 ";
 
 $stmt = $db->prepare($codes_query);
@@ -165,6 +203,15 @@ $top_referrers = $db->query("
     ORDER BY actual_referrals DESC, total_uses DESC
     LIMIT 10
 ")->fetchAll();
+
+// Helper to preserve current GET parameters for pagination links
+function get_pagination_query_string($new_page) {
+    $params = $_GET;
+    $params['page'] = $new_page;
+    unset($params['export']);
+    return http_build_query($params);
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -196,7 +243,6 @@ $top_referrers = $db->query("
                     <h1 class="h3 mb-0 text-gray-800">Referral Code Audit</h1>
                     <p class="text-muted">Monitor referral code usage and mentor activity.</p>
                 </div>
-                <!-- Added export button -->
                 <div>
                     <a href="?export=csv<?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $verified_filter ? '&verified='.$verified_filter : ''; ?><?php echo $search ? '&search='.$search : ''; ?>" class="btn btn-success">
                         <i class="fas fa-download me-2"></i> Export to CSV
@@ -204,7 +250,6 @@ $top_referrers = $db->query("
                 </div>
             </div>
 
-            <!-- Statistics Cards -->
             <div class="row mb-4">
                 <div class="col-xl-3 col-md-6 mb-4">
                     <div class="card border-left-primary shadow h-100 py-2">
@@ -271,7 +316,6 @@ $top_referrers = $db->query("
                 </div>
             </div>
 
-            <!-- Added filters section -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
@@ -313,11 +357,12 @@ $top_referrers = $db->query("
             </div>
 
             <div class="row">
-                <!-- Referral Codes Table -->
                 <div class="col-lg-8">
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">All Referral Codes (<?php echo count($referral_codes); ?>)</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                All Referral Codes (Showing <?php echo count($referral_codes); ?> of <?php echo number_format($total_codes_filtered); ?>)
+                            </h6>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -326,7 +371,7 @@ $top_referrers = $db->query("
                                         <tr>
                                             <th>Code</th>
                                             <th>Creator</th>
-                                            <th>Usage</th>
+                                            <th>Usage (Actual/Total)</th>
                                             <th>Expires</th>
                                             <th>Status</th>
                                             <th>Created</th>
@@ -348,10 +393,14 @@ $top_referrers = $db->query("
                                                     <small class="text-muted"><?php echo htmlspecialchars($code['email']); ?></small>
                                                 </td>
                                                 <td>
-                                                    <div><?php echo $code['current_uses']; ?> / <?php echo $code['max_uses']; ?></div>
-                                                    <div class="progress" style="height: 4px;">
-                                                        <div class="progress-bar" style="width: <?php echo ($code['current_uses'] / $code['max_uses']) * 100; ?>%;"></div>
+                                                    <div>
+                                                        <strong><?php echo $code['actual_referrals']; ?></strong> / <?php echo $code['max_uses']; ?>
                                                     </div>
+                                                    <div class="progress" style="height: 4px;">
+                                                        <div class="progress-bar bg-success" style="width: <?php echo ($code['actual_referrals'] / $code['max_uses']) * 100; ?>%;" 
+                                                             role="progressbar" aria-valuenow="<?php echo ($code['actual_referrals'] / $code['max_uses']) * 100; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                                    </div>
+                                                    <small class="text-muted">Total uses: <?php echo $code['current_uses']; ?></small>
                                                 </td>
                                                 <td>
                                                     <?php if ($code['expires_at']): ?>
@@ -392,13 +441,39 @@ $top_referrers = $db->query("
                                     </div>
                                 <?php endif; ?>
                             </div>
+
+                            <?php if ($total_pages > 1): ?>
+                                <nav>
+                                    <ul class="pagination justify-content-center">
+                                        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                                            <a class="page-link" href="?<?php echo get_pagination_query_string($page - 1); ?>" aria-label="Previous">
+                                                <span aria-hidden="true">&laquo;</span>
+                                            </a>
+                                        </li>
+                                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                            <?php if ($i == $page): ?>
+                                                <li class="page-item active"><a class="page-link" href="?<?php echo get_pagination_query_string($i); ?>"><?php echo $i; ?></a></li>
+                                            <?php elseif ($i <= 3 || $i > $total_pages - 3 || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                                                <li class="page-item"><a class="page-link" href="?<?php echo get_pagination_query_string($i); ?>"><?php echo $i; ?></a></li>
+                                            <?php elseif ($i == 4 && $page > 4): ?>
+                                                <li class="page-item disabled"><a class="page-link">...</a></li>
+                                            <?php elseif ($i == $total_pages - 3 && $page < $total_pages - 3): ?>
+                                                <li class="page-item disabled"><a class="page-link">...</a></li>
+                                            <?php endif; ?>
+                                        <?php endfor; ?>
+                                        <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                                            <a class="page-link" href="?<?php echo get_pagination_query_string($page + 1); ?>" aria-label="Next">
+                                                <span aria-hidden="true">&raquo;</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </nav>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sidebar -->
                 <div class="col-lg-4">
-                    <!-- Top Referrers -->
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">Top Referrers</h6>
@@ -415,7 +490,7 @@ $top_referrers = $db->query("
                                         <div class="font-weight-bold"><?php echo htmlspecialchars($referrer['first_name'] . ' ' . $referrer['last_name']); ?></div>
                                         <div class="small text-muted">
                                             <?php echo $referrer['codes_generated']; ?> codes, 
-                                            <?php echo $referrer['actual_referrals']; ?> referrals
+                                            <strong><?php echo $referrer['actual_referrals']; ?> referrals</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -423,7 +498,6 @@ $top_referrers = $db->query("
                         </div>
                     </div>
 
-                    <!-- Usage Trends -->
                     <div class="card shadow">
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary">Referral Registrations (Last 30 Days)</h6>

@@ -7,7 +7,7 @@ $page_title = "Frequently Asked Questions";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - StudyConnect</title>
+    <title><?php echo $page_title; ?> - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -15,7 +15,7 @@ $page_title = "Frequently Asked Questions";
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../index.php" class="logo">StudyConnect</a>
+                <a href="../index.php" class="logo">Study Buddy</a>
                 <ul class="nav-links">
                     <li><a href="../index.php">Home</a></li>
                     <?php if (is_logged_in()): ?>
@@ -36,8 +36,8 @@ $page_title = "Frequently Asked Questions";
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h3 class="text-lg font-bold mb-2">What is StudyConnect?</h3>
-                    <p class="text-secondary">StudyConnect is a peer-to-peer learning platform that connects students with mentors and study partners. Our platform helps you find the right people to study with based on subjects, proficiency levels, availability, and location.</p>
+                    <h3 class="text-lg font-bold mb-2">What is Study Buddy?</h3>
+                    <p class="text-secondary">Study Buddy is a peer-to-peer learning platform that connects students with mentors and study partners. Our platform helps you find the right people to study with based on subjects, proficiency levels, availability, and location.</p>
                 </div>
             </div>
 
@@ -64,8 +64,8 @@ $page_title = "Frequently Asked Questions";
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h3 class="text-lg font-bold mb-2">Is StudyConnect free to use?</h3>
-                    <p class="text-secondary">Yes! StudyConnect is completely free for all users. Our mission is to make peer-to-peer learning accessible to everyone.</p>
+                    <h3 class="text-lg font-bold mb-2">Is Study Buddy free to use?</h3>
+                    <p class="text-secondary">Yes! Study Buddy is completely free for all users. Our mission is to make peer-to-peer learning accessible to everyone.</p>
                 </div>
             </div>
 

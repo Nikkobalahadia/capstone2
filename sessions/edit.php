@@ -47,6 +47,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update_stmt->execute([$session_id]);
                 
                 if ($update_stmt->rowCount() > 0) {
+                    
+                    // --- START COMMISSION LOGIC (Copied from complete.php) ---
+                    $commission_stmt = $db->prepare("
+                        SELECT m.mentor_id, u.hourly_rate, u.role, s.start_time, s.end_time, s.session_date
+                        FROM sessions s
+                        JOIN matches m ON s.match_id = m.id
+                        JOIN users u ON m.mentor_id = u.id
+                        WHERE s.id = ?
+                    ");
+                    $commission_stmt->execute([$session_id]);
+                    $commission_data = $commission_stmt->fetch();
+                    
+                    if ($commission_data) {
+                        if ($commission_data['role'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
+                            $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
+                            $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
+                            $interval = $start->diff($end);
+                            $duration_hours = $interval->h + ($interval->i / 60);
+                            
+                            $session_amount = $commission_data['hourly_rate'] * $duration_hours;
+                            $commission_amount = $session_amount * 0.10;
+                            
+                            try {
+                                $insert_commission = $db->prepare("
+                                    INSERT INTO commission_payments 
+                                    (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                                    VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                                ");
+                                $insert_commission->execute([
+                                    $commission_data['mentor_id'],
+                                    $session_id,
+                                    $session_amount,
+                                    $commission_amount
+                                ]);
+                            } catch (PDOException $e) {
+                                // Throw exception to be caught by the outer try/catch block
+                                throw new Exception('Session marked complete but commission creation failed: ' . $e->getMessage());
+                            }
+                        }
+                        // No 'else' needed for peer or mentor with 0 rate
+                    } else {
+                        // Log a warning but don't stop the transaction
+                        error_log("Commission creation warning: Could not retrieve commission data for session $session_id.");
+                    }
+                    // --- END COMMISSION LOGIC ---
+
                     // Create notification for partner
                     create_notification(
                         $session['partner_id'],
@@ -165,7 +211,7 @@ $can_mark_completed = in_array($session['status'], ['scheduled']);
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Edit Session - StudyConnect</title>
+    <title>Edit Session - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -458,7 +504,7 @@ $can_mark_completed = in_array($session['status'], ['scheduled']);
         <div class="container">
             <nav class="navbar">
                 <a href="../dashboard.php" class="logo">
-                    <i class="fas fa-book-open"></i> StudyConnect
+                    <i class="fas fa-book-open"></i> Study Buddy
                 </a>
                 <ul class="nav-links">
                     <li><a href="../dashboard.php">Dashboard</a></li>
@@ -605,7 +651,6 @@ $can_mark_completed = in_array($session['status'], ['scheduled']);
         </div>
     </main>
 
-    <!-- Cancel Modal -->
     <div id="cancelModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
