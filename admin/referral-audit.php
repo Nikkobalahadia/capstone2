@@ -224,18 +224,171 @@ function get_pagination_query_string($new_page) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+        /* NEW STYLES FROM MATCHES.PHP */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .border-left-primary { border-left: 4px solid #2563eb; }
+        .border-left-success { border-left: 4px solid #10b981; }
+        .border-left-warning { border-left: 4px solid #f59e0b; }
+        .border-left-info { border-left: 4px solid #06b6d4; }
+
+        /* Responsive Typography */
+        @media (max-width: 576px) {
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+            
+            .h5 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        /* END NEW STYLES */
     </style>
 </head>
 <body>
     <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
 
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
     <div class="main-content">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -467,7 +620,7 @@ function get_pagination_query_string($new_page) {
                                             </a>
                                         </li>
                                     </ul>
-                                </nav>
+                                 </nav>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -512,6 +665,40 @@ function get_pagination_query_string($new_page) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
     <script>
         // Referral trends chart
         const trendsCtx = document.getElementById('trendsChart').getContext('2d');

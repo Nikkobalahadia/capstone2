@@ -212,8 +212,136 @@ if ($inactive_users['count'] > 0) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
+        /* --- NEW RESPONSIVE STYLES --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        /* --- END OF NEW STYLES --- */
+
+        /* --- PAGE-SPECIFIC STYLES (Kept from original) --- */
         .alert-card { border-left: 4px solid; transition: transform 0.2s; }
         .alert-card:hover { transform: translateX(5px); }
         .alert-danger { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
@@ -222,13 +350,16 @@ if ($inactive_users['count'] > 0) {
         .metric-box { text-align: center; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .metric-value { font-size: 28px; font-weight: bold; color: #667eea; }
         .metric-label { color: #6b7280; font-size: 14px; margin-top: 5px; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } }
     </style>
 </head>
 <body>
     <?php include '../includes/admin-header.php'; ?>
     <?php include '../includes/admin-sidebar.php'; ?>
 
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
     <div class="main-content">
         <div class="container-fluid">
             <div class="mb-4">
@@ -236,7 +367,6 @@ if ($inactive_users['count'] > 0) {
                 <p class="text-muted">Real-time system status and actionable recommendations</p>
             </div>
 
-            <!-- Performance Metrics -->
             <div class="row mb-4">
                 <div class="col-md-3 mb-3">
                     <div class="metric-box">
@@ -264,7 +394,6 @@ if ($inactive_users['count'] > 0) {
                 </div>
             </div>
 
-            <!-- Critical Alerts -->
             <?php if (!empty($alerts)): ?>
                 <div class="mb-4">
                     <h5 class="mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Critical Alerts</h5>
@@ -290,7 +419,6 @@ if ($inactive_users['count'] > 0) {
                 </div>
             <?php endif; ?>
 
-            <!-- Recommendations -->
             <?php if (!empty($recommendations)): ?>
                 <div class="mb-4">
                     <h5 class="mb-3"><i class="fas fa-lightbulb me-2"></i>Recommendations</h5>
@@ -318,5 +446,39 @@ if ($inactive_users['count'] > 0) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
+    </body>
 </html>

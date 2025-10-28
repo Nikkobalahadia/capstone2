@@ -118,16 +118,17 @@ $accepted_matches = array_filter($matches, function($match) { return $match['sta
 $other_matches = array_filter($matches, function($match) { return !in_array($match['status'], ['pending', 'accepted']); });
 ?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="color-scheme" content="light dark">
     <title>My Matches - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -135,18 +136,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            --bg-color: #fafafa;
-            --card-bg: white;
-        }
-
-        [data-theme="dark"] {
-            --primary-color: #3b82f6;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --border-color: #374151;
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-            --bg-color: #111827;
-            --card-bg: #1f2937;
         }
 
         * {
@@ -163,13 +152,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg-color);
-            color: var(--text-primary);
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background: #fafafa;
+            color: #1a1a1a;
         }
 
+        /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: var(--card-bg);
+            background: white;
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -177,7 +166,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             right: 0;
             z-index: 1000;
             height: 60px;
-            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -191,13 +179,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             width: 100%;
         }
 
-        /* NEW STYLE: Group Hamburger and Logo */
-        .navbar-left {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem; /* Space between hamburger and logo */
-        }
-
         .hamburger {
             display: none;
             flex-direction: column;
@@ -206,11 +187,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             background: none;
             border: none;
             padding: 0.5rem;
-            z-index: 1001; /* Ensure it's above the nav-links when open */
-            /* Add this to make it more mobile-friendly target area */
-            width: 44px;
-            height: 44px;
-            justify-content: center;
+            z-index: 1001;
         }
 
         .hamburger span {
@@ -241,16 +218,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            flex: 1;
             white-space: nowrap;
         }
-        
-        /* Desktop style: Let the logo wrapper take space to push the nav-links to the center */
-        @media (min-width: 769px) {
-            .navbar-left {
-                flex: 1; 
-            }
-        }
-
 
         .nav-links {
             display: flex;
@@ -276,35 +246,31 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: var(--primary-color);
         }
 
-        /* Adjusted: Standardized icon sizes for mobile */
-        .notification-bell, .profile-icon {
-            width: 44px;
-            height: 44px;
-            font-size: 1.2rem; /* Slightly larger icon */
-            border-radius: 50%; /* Make them round for a modern look */
-        }
-
         .notification-bell {
             position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
+            border-radius: 8px;
             background: transparent;
             border: none;
             transition: background 0.2s;
+            font-size: 1.1rem;
             color: var(--text-secondary);
         }
 
         .notification-bell:hover {
-            background: var(--border-color);
+            background: #f0f0f0;
             color: var(--primary-color);
         }
 
         .notification-badge {
             position: absolute;
-            top: 0px; /* Adjusted from -5px */
-            right: 0px; /* Adjusted from -5px */
+            top: -5px;
+            right: -5px;
             background: #ef4444;
             color: white;
             border-radius: 10px;
@@ -313,7 +279,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid var(--card-bg);
+            border: 2px solid white;
         }
 
         .notification-dropdown {
@@ -324,13 +290,12 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
-            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -339,7 +304,10 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .notification-list {
@@ -349,7 +317,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -357,13 +325,17 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .notification-item-dropdown:hover {
-            background: var(--border-color);
+            background: #fafafa;
+        }
+
+        .notification-item-dropdown.unread {
+            background: #fefbeb; /* CHANGED: */
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid var(--border-color);
+            border-top: 1px solid #f0f0f0;
         }
 
         .profile-menu {
@@ -374,9 +346,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
             background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
             color: white;
             cursor: pointer;
+            font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
@@ -400,11 +376,10 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
-            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -413,7 +388,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
             text-align: center;
         }
 
@@ -426,7 +401,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         .user-role {
             font-size: 0.8rem;
-            color: var(--text-secondary);
+            color: #999;
         }
 
         .profile-dropdown-menu {
@@ -450,7 +425,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .profile-dropdown-item:hover {
-            background: var(--border-color);
+            background: #f5f5f5;
             color: var(--primary-color);
         }
 
@@ -459,7 +434,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .profile-dropdown-item.logout:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: #fee2e2;
         }
 
         .container {
@@ -529,9 +504,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             color: white;
         }
 
+        .btn-success:hover {
+            background: #15803d;
+        }
+
+
         .btn-danger {
             background: #dc2626;
             color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
         }
 
         .btn-outline {
@@ -540,24 +524,35 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             background: transparent;
         }
 
+        .btn-outline:hover {
+            background: #f5f5f5;
+        }
+
         .btn-sm {
             padding: 0.5rem 0.75rem;
             font-size: 0.85rem;
+            min-height: auto;
         }
 
         .alert {
             padding: 1rem;
-            border-radius: 10px;
+            border-radius: 8px;
             margin-bottom: 1.5rem;
             display: flex;
-            gap: 1rem;
-            align-items: flex-start;
+            align-items: center;
+            gap: 0.75rem;
         }
 
         .alert-error {
             background: #fee2e2;
-            border: 1px solid #fca5a5;
+            border: 1px solid #fecaca;
             color: #991b1b;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
         }
 
         .alert-warning {
@@ -567,12 +562,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .card {
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             margin-bottom: 1.5rem;
             overflow: hidden;
-            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -581,7 +575,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: var(--bg-color);
+            background: #fafafa;
         }
 
         .card-title {
@@ -603,27 +597,17 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             gap: 1.25rem;
             align-items: flex-start;
-            background: var(--card-bg);
+            background: white;
         }
 
         .match-card.pending {
-            background: #fffbeb;
-            border-color: #fcd34d;
-        }
-
-        [data-theme="dark"] .match-card.pending {
-            background: rgba(251, 191, 36, 0.1);
-            border-color: #f59e0b;
+            background: #fffbeb; /* CHANGED: */
+            border-color: #fde68a; /* CHANGED: */
         }
 
         .match-card.accepted {
             background: #f0fdf4;
             border-color: #bbf7d0;
-        }
-
-        [data-theme="dark"] .match-card.accepted {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: #10b981;
         }
 
         .match-avatar {
@@ -637,10 +621,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-weight: 600;
             font-size: 1.5rem;
             color: white;
+            overflow: hidden;
+        }
+
+        .match-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .match-avatar.pending {
-            background: #fbbf24;
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
         }
 
         .match-avatar.accepted {
@@ -656,6 +648,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-weight: 600;
             font-size: 1rem;
             margin-bottom: 0.25rem;
+            color: var(--text-primary);
         }
 
         .match-meta {
@@ -679,10 +672,20 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             background: #dbeafe;
             color: #1e40af;
         }
-
-        [data-theme="dark"] .match-badge {
-            background: rgba(37, 99, 235, 0.2);
-            color: #60a5fa;
+        
+        /* ADDED: Style for the pending badge */
+        .match-status-badge {
+            padding: 0.5rem;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        /* CHANGED: For light yellow */
+        .match-status-badge.pending-badge {
+            background: #fef3c7;
+            color: #92400e;
         }
 
         .match-actions {
@@ -714,7 +717,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         .modal-content {
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             width: 90%;
             max-width: 600px;
@@ -748,94 +751,107 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             padding: 1.5rem;
         }
 
+        /* ADDED: CSS classes for modal elements */
+        .modal-avatar {
+            width: 80px; 
+            height: 80px; 
+            border-radius: 10px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+            font-weight: 600; 
+            font-size: 2rem; 
+            border: 3px solid var(--border-color);
+            overflow: hidden;
+        }
+        .modal-avatar img {
+             width: 100%;
+             height: 100%;
+             object-fit: cover;
+        }
+        .modal-badge {
+            padding: 0.25rem 0.75rem; 
+            border-radius: 12px; 
+            font-size: 0.875rem; 
+            font-weight: 600;
+        }
+        .modal-avatar.accepted, .modal-badge.accepted {
+            background: #10b981; 
+            color: white;
+        }
+        .modal-avatar.pending, .modal-badge.pending {
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
+        }
+        /* END ADDED */
+
+
         .info-row {
             display: flex;
             justify-content: space-between;
             padding: 0.5rem 0;
             border-bottom: 1px solid var(--border-color);
         }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #e5e7eb;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .hide-on-small {
+            display: inline;
+        }
         
-        /* ------------------------------------------------------------------ */
-        /* --- MOBILE RESPONSIVE FIXES --- */
-        /* ------------------------------------------------------------------ */
+        /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
             }
 
-            /* ADJUSTED: Navbar padding for better edge-to-edge look on smaller devices */
             .navbar {
-                padding: 0 0.5rem; /* Removed vertical padding, let the 60px height handle it */
+                padding: 0.75rem 0.5rem;
             }
 
             .logo {
                 font-size: 1.1rem;
             }
-            
-            /* ADJUSTED: Ensure hamburger and logo are centered vertically */
-            .navbar-left {
-                height: 60px; /* Match header height */
-            }
 
             .nav-links {
-                display: none; /* Hide by default */
+                display: none;
                 position: fixed;
-                top: 60px; /* Stick right below the fixed header */
+                top: 60px;
                 left: 0;
                 right: 0;
-                background: var(--card-bg);
+                background: white;
                 flex-direction: column;
                 gap: 0;
+                max-height: 0;
                 overflow: hidden;
+                transition: max-height 0.3s ease;
                 box-shadow: var(--shadow-lg);
                 z-index: 999;
-                width: 100%;
-                border-top: 1px solid var(--border-color);
-
-                /* ADJUSTED: Smooth slide-down animation */
-                max-height: 0;
-                opacity: 0;
-                transition: max-height 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease;
-                visibility: hidden;
             }
 
             .nav-links.active {
-                max-height: 300px; /* Set a max-height large enough for all links */
-                opacity: 1;
-                visibility: visible;
+                max-height: 500px;
                 display: flex;
             }
 
             .nav-links a {
-                padding: 1rem 1rem; /* Added horizontal padding */
+                padding: 1rem;
                 border-bottom: 1px solid var(--border-color);
                 display: block;
                 text-align: left;
             }
-            
-            /* ADJUSTED: Group of bell and profile icons for consistent spacing */
-            .navbar > div:last-child {
-                gap: 0; /* Remove gap from the div containing bell and profile */
-            }
-            
-            .notification-bell, .profile-icon {
-                /* Ensure 44px on mobile is respected */
-                width: 44px;
-                height: 44px;
-            }
-            
-            .notification-badge {
-                right: 5px; /* Adjust badge position for round icons */
-                top: 5px;
-            }
-            
-            /* ADJUSTED: Notification dropdown positioning on mobile */
-            .notification-dropdown {
-                width: calc(100vw - 2rem);
-                right: 1rem; /* Fix to the right edge with 1rem margin */
-                left: auto;
-            }
-
 
             main {
                 padding: 1rem 0;
@@ -870,8 +886,17 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 padding: 0 0.75rem;
             }
 
+            .notification-dropdown {
+                width: 320px;
+                right: -60px;
+            }
+
             input, select, textarea, button {
                 font-size: 16px !important;
+            }
+
+            .hide-on-small {
+                display: none;
             }
         }
 
@@ -906,26 +931,217 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             .modal-content {
                 width: 95%;
             }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
+            }
         }
-        /* ------------------------------------------------------------------ */
-        /* --- END OF MOBILE RESPONSIVE FIXES --- */
-        /* ------------------------------------------------------------------ */
+        
+        /* ===== DARK MODE STYLES ===== */
+        /* Applied via [data-theme="dark"] on <html> tag */
+        
+        [data-theme="dark"] {
+            --primary-color: #3b82f6; /* User requested */
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --border-color: #374151; /* User requested */
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+
+            /* Semantic colors */
+            --bg-body: #111827;       /* User requested */
+            --bg-card: #1f2937;       /* User requested */
+            --bg-card-header: #3a3a3e; /* Card-header, hover backgrounds */
+            --bg-hover: #3f3f46;
+        }
+
+        [data-theme="dark"] body {
+            background: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        [data-theme="dark"] .header,
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .modal-content,
+        [data-theme="dark"] .profile-dropdown,
+        [data-theme="dark"] .notification-dropdown,
+        [data-theme="dark"] .nav-links {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .card-header {
+            background: var(--bg-card-header);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .profile-dropdown-menu hr,
+        [data-theme="dark"] .info-row,
+        [data-theme="dark"] .nav-links a,
+        [data-theme="dark"] .notification-footer,
+        [data-theme="dark"] .notification-header,
+        [data-theme="dark"] .notification-item-dropdown,
+        [data-theme="dark"] .profile-dropdown-header {
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .btn-outline {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .btn-outline:hover,
+        [data-theme="dark"] .notification-bell:hover,
+        [data-theme="dark"] .profile-dropdown-item:hover,
+        [data-theme="dark"] .notification-item-dropdown:hover {
+            background: var(--bg-hover);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item:hover {
+            color: var(--primary-color);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item.logout:hover {
+            background: #3f1212;
+        }
+        
+        [data-theme="dark"] .notification-item-dropdown.unread {
+            background: #3a3a3e; /* CHANGED: */
+        }
+        
+        [data-theme="dark"] .alert-error {
+            background: #3f1212;
+            border-color: #dc2626;
+            color: #fca5a5;
+        }
+        
+        [data-theme="dark"] .alert-success {
+            background: #062f1e;
+            border-color: #16a34a;
+            color: #a7f3d0;
+        }
+
+        [data-theme="dark"] .alert-warning {
+            background: #451a03;
+            border-color: #d97706;
+            color: #fcd34d;
+        }
+        
+        [data-theme="dark"] .match-card {
+             background: var(--bg-card);
+        }
+        
+        [data-theme="dark"] .match-card.pending {
+            background: var(--bg-card-header); /* CHANGED: */
+            border-color: #fde68a; /* CHANGED: */
+        }
+        
+        [data-theme="dark"] .match-card.accepted {
+            background: #062f1e;
+            border-color: #16a34a;
+        }
+        
+        [data-theme="dark"] .match-avatar.pending {
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
+        }
+
+        [data-theme="dark"] .match-status-badge.pending-badge {
+            background: #451a03; /* CHANGED: */
+            color: #fef9c3; /* CHANGED: */
+        }
+        
+        /* ADDED: Dark mode for modal pending */
+        [data-theme="dark"] .modal-avatar.pending, 
+        [data-theme="dark"] .modal-badge.pending {
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
+        }
+        
+        [data-theme="dark"] .match-badge {
+            background: #1e3a8a;
+            color: #dbeafe;
+        }
+
+        [data-theme="dark"] .empty-state i {
+            color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .hamburger span {
+            background-color: var(--text-primary);
+        }
+
+        [data-theme="dark"] .profile-icon:hover {
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        [data-theme="dark"] .modal-header {
+            background: var(--primary-color);
+        }
+        
+        [data-theme="dark"] .modal-avatar {
+            border-color: var(--border-color);
+        }
+
+        /* Fix for modal partner details */
+        [data-theme="dark"] #modalBody h3 {
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] #modalBody .info-row span:first-child {
+            color: var(--text-secondary);
+        }
+        [data-theme="dark"] #modalBody .info-row span:last-child {
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] #modalBody h4 {
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] #modalBody p {
+            color: var(--text-secondary);
+        }
+
+        /* Fix for JS-injected inline styles */
+        [data-theme="dark"] .notification-list div[style*="color: #999"] {
+            color: var(--text-secondary) !important;
+        }
+        [data-theme="dark"] .notification-list div[style*="color: #666"] {
+            color: var(--text-secondary) !important;
+        }
+        
+        [data-theme="dark"] .user-role {
+            color: var(--text-secondary);
+        }
+        
     </style>
+    
+    <script>
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                // No theme saved, use system preference
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
 </head>
 <body>
     <header class="header">
         <div class="navbar">
-            <div class="navbar-left">
-                <button class="hamburger" id="hamburger">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
+            <button class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
 
-                <a href="../dashboard.php" class="logo">
-                    <i class="fas fa-book-open"></i> Study Buddy
-                </a>
-            </div>
+            <a href="../dashboard.php" class="logo">
+                <i class="fas fa-book-open"></i> Study Buddy
+            </a>
+
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -933,9 +1149,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <div style="display: flex; align-items: center;"> 
+            <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -951,7 +1167,9 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php">View All</a>
+                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -984,7 +1202,11 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                            <button class="profile-dropdown-item" id="theme-toggle-btn" style="cursor: pointer;">
+                                <i class="fas fa-moon" id="theme-toggle-icon"></i>
+                                <span id="theme-toggle-text">Dark Mode</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -1004,21 +1226,21 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     <p class="page-subtitle">Manage your study partnerships and match requests</p>
                 </div>
                 <a href="find.php" class="btn btn-primary">
-                    <i class="fas fa-search"></i> Find New Partners
+                    <i class="fas fa-search"></i> <span class="hide-on-small">Find New Partners</span>
                 </a>
             </div>
 
             <?php if ($error): ?>
                 <div class="alert alert-error">
                     <i class="fas fa-exclamation-circle"></i>
-                    <div><?php echo $error; ?></div>
+                    <span><?php echo $error; ?></span>
                 </div>
             <?php endif; ?>
             
             <?php if ($success): ?>
-                <div class="alert" style="background: #dcfce7; border: 1px solid #bbf7d0; color: #166534;">
+                <div class="alert alert-success">
                     <i class="fas fa-check-circle"></i>
-                    <div><?php echo $success; ?></div>
+                    <span><?php echo $success; ?></span>
                 </div>
             <?php endif; ?>
 
@@ -1026,7 +1248,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
                     <div>
-                        <h4><i class="fas fa-lock"></i> Cannot Accept New Matches</h4>
+                        <h4 style="margin-bottom: 0.5rem;"><i class="fas fa-lock"></i> Cannot Accept New Matches</h4>
                         <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;"><?php echo $commission_block_message; ?></p>
                         <a href="../profile/commission-payments.php" class="btn btn-sm" style="margin-top: 0.75rem; background: #dc2626; color: white;">
                             <i class="fas fa-credit-card"></i> Pay Commissions
@@ -1047,7 +1269,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 <div class="match-avatar pending">
                                     <?php 
                                     if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '" style="width: 100%; height: 100%; border-radius: 10px; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($match['partner_name'], 0, 1));
                                     }
@@ -1066,7 +1288,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                         </span>
                                     </div>
                                     <?php if ($match['partner_avg_rating']): ?>
-                                        <div style="font-size: 0.85rem; color: #666; display: flex; align-items: center; gap: 0.25rem;">
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.25rem;">
                                             <i class="fas fa-star" style="color: #fbbf24;"></i>
                                             <?php echo number_format($match['partner_avg_rating'], 1); ?> (<?php echo $match['partner_rating_count']; ?> reviews)
                                         </div>
@@ -1074,7 +1296,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 </div>
                                 
                                 <?php 
-                                $is_receiver = false;
                                 $is_receiver = ($match['mentor_id'] == $user['id']);
                                 ?>
                                 
@@ -1102,7 +1323,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                             </button>
                                         </form>
                                     <?php else: ?>
-                                        <div style="padding: 0.5rem; background: #fef3c7; border-radius: 6px; text-align: center; font-size: 0.8rem; color: #92400e; font-weight: 600;">
+                                        <div class="match-status-badge pending-badge">
                                             <i class="fas fa-hourglass-half"></i> Pending
                                         </div>
                                     <?php endif; ?>
@@ -1125,7 +1346,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                 <div class="match-avatar accepted">
                                     <?php 
                                     if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '" style="width: 100%; height: 100%; border-radius: 10px; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($match['partner_name'], 0, 1));
                                     }
@@ -1153,10 +1374,10 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                         <i class="fas fa-eye"></i> View
                                     </button>
                                     <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-comment"></i> Message
+                                        <i class="fas fa-comment"></i> <span class="hide-on-small">Message</span>
                                     </a>
-                                    <a href="../sessions/schedule.php?match_id=<?php echo $match['id']; ?>" class="btn btn-secondary btn-sm" style="background: #f0f0f0; color: #1a1a1a;">
-                                        <i class="fas fa-calendar-plus"></i> Schedule
+                                    <a href="../sessions/schedule.php?match_id=<?php echo $match['id']; ?>" class="btn btn-outline btn-sm">
+                                        <i class="fas fa-calendar-plus"></i> <span class="hide-on-small">Schedule</span>
                                     </a>
                                 </div>
                             </div>
@@ -1168,14 +1389,20 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             <?php if (!empty($other_matches)): ?>
                 <div class="card">
                     <div class="card-header">
-                        <i class="fas fa-history" style="color: var(--primary-color);"></i>
+                        <i class="fas fa-history" style="color: var(--text-secondary);"></i>
                         <h3 class="card-title">Match History</h3>
                     </div>
                     <div class="card-body">
                         <?php foreach ($other_matches as $match): ?>
-                            <div class="match-card history">
-                                <div class="match-avatar" style="background: #cbd5e1;">
-                                    <?php echo strtoupper(substr($match['partner_name'], 0, 1)); ?>
+                            <div class="match-card">
+                                <div class="match-avatar" style="background: #94a3b8;">
+                                    <?php 
+                                    if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
+                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
+                                    } else {
+                                        echo strtoupper(substr($match['partner_name'], 0, 1));
+                                    }
+                                    ?>
                                 </div>
                                 <div class="match-info">
                                     <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
@@ -1185,7 +1412,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                                             <?php echo htmlspecialchars($match['subject']); ?>
                                         </span>
                                     </div>
-                                    <div style="font-size: 0.8rem; color: #666;">
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
                                         <i class="fas fa-times-circle"></i> <?php echo ucfirst($match['status']); ?> • <?php echo date('M j, Y', strtotime($match['updated_at'])); ?>
                                     </div>
                                 </div>
@@ -1202,13 +1429,15 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
             <?php if (empty($matches)): ?>
                 <div class="card">
-                    <div class="card-body" style="text-align: center; padding: 2rem;">
-                        <i class="fas fa-inbox" style="font-size: 3rem; color: #e5e5e5; margin-bottom: 1rem; display: block;"></i>
-                        <h3 style="color: #1a1a1a; margin-bottom: 0.5rem;">No matches yet</h3>
-                        <p style="color: #666; margin-bottom: 1.5rem;">Start connecting with study partners to see your matches here.</p>
-                        <a href="find.php" class="btn btn-primary">
-                            <i class="fas fa-search"></i> Find Study Partners
-                        </a>
+                    <div class="card-body">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h3>No matches yet</h3>
+                            <p>Start connecting with study partners to see your matches here.</p>
+                            <a href="find.php" class="btn btn-primary" style="margin-top: 1rem;">
+                                <i class="fas fa-search"></i> Find Study Partners
+                            </a>
+                        </div>
                     </div>
                 </div>
             <?php endif; ?>
@@ -1218,22 +1447,18 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     <div id="matchModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-user-circle"></i> Partner Details</h3>
+                <h3 style="margin: 0;"><i class="fas fa-user-circle"></i> Partner Details</h3>
                 <button class="modal-close" onclick="closeMatchModal()">&times;</button>
             </div>
             <div class="modal-body" id="modalBody">
-                </div>
+            </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
-
-        // Dark Mode Theme Toggle
-        const htmlElement = document.documentElement;
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        htmlElement.setAttribute('data-theme', currentTheme);
 
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
@@ -1262,103 +1487,48 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     }
                 });
             }
-        });
-
-        function openMatchModal(match) {
-            const modal = document.getElementById('matchModal');
-            const modalBody = document.getElementById('modalBody');
             
-            let statusBadge = '';
-            if (match.status === 'accepted') {
-                statusBadge = '<span style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600;"><i class="fas fa-check-circle"></i> Active</span>';
-            } else if (match.status === 'pending') {
-                statusBadge = '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.875rem; font-weight: 600;"><i class="fas fa-hourglass-half"></i> Pending</span>';
+            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const themeToggleIcon = document.getElementById('theme-toggle-icon');
+            const themeToggleText = document.getElementById('theme-toggle-text');
+            
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                    if(themeToggleText) themeToggleText.textContent = 'Light Mode';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    if(themeToggleText) themeToggleText.textContent = 'Dark Mode';
+                }
+            }
+
+            // Set initial state for the button based on the theme set by the <head> script
+            let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+            setTheme(currentTheme); // This will set the correct initial icon/text
+
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent profile dropdown from closing
+                    let newTheme = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
+                    setTheme(newTheme);
+                });
             }
             
-            let profilePicHtml = '';
-            if (match.partner_profile_picture && match.partner_profile_picture !== '') {
-                profilePicHtml = `<img src="../${escapeHtml(match.partner_profile_picture)}" alt="${escapeHtml(match.partner_name)}" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; border: 3px solid #e5e5e5;">`;
-            } else {
-                const bgColor = match.status === 'accepted' ? '#10b981' : '#f59e0b';
-                profilePicHtml = `<div style="width: 80px; height: 80px; background: ${bgColor}; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 2rem; border: 3px solid #e5e5e5;">${escapeHtml(match.partner_name.substring(0, 1).toUpperCase())}</div>`;
-            }
-            
-            modalBody.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
-                    ${profilePicHtml}
-                    <div>
-                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">${escapeHtml(match.partner_name)}</h3>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
-                            ${statusBadge}
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> Information
-                    </h4>
-                    <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Role</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
-                    </div>
-                    <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Location</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_location || 'Not specified')}</span>
-                    </div>
-                    <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Subject</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.subject)}</span>
-                    </div>
-                    <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Match Score</span>
-                        <span style="background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%); color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;">${match.match_score}%</span>
-                    </div>
-                </div>
-
-                ${match.partner_bio ? `
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-quote-left" style="color: var(--primary-color);"></i> About ${escapeHtml(match.partner_name.split(' ')[0])}
-                    </h4>
-                    <p style="color: var(--text-secondary); line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
-                </div>
-                ` : ''}
-
-                ${match.status === 'accepted' ? `
-                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
-                    <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center;">
-                        <i class="fas fa-comment"></i> Message
-                    </a>
-                    <a href="../sessions/schedule.php?match_id=${match.id}" class="btn btn-outline" style="flex: 1; text-align: center;">
-                        <i class="fas fa-calendar-plus"></i> Schedule
-                    </a>
-                </div>
-                ` : ''}
-            `;
-            
-            modal.classList.add("show");
-            document.body.style.overflow = "hidden";
-        }
-
-        function closeMatchModal() {
-            const modal = document.getElementById('matchModal');
-            modal.classList.remove("show");
-            document.body.style.overflow = "auto";
-        }
-
-        window.onclick = function(event) {
-            const modal = document.getElementById('matchModal');
-            if (event.target === modal) {
-                closeMatchModal();
-            }
-        }
-
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeMatchModal();
-            }
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                // Only update if no theme is manually set in localStorage
+                // A user who clicks the toggle sets localStorage, so this listener will
+                // be ignored, which is the correct behavior.
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
         });
 
         function toggleNotifications(event) {
@@ -1407,7 +1577,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
                             <div>
                                 <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
                                 <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
@@ -1453,6 +1623,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) return ''; // ADDED: Null check
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1500,6 +1671,107 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     });
             }
         }, 30000);
+
+        function openMatchModal(match) {
+            const modal = document.getElementById('matchModal');
+            const modalBody = document.getElementById('modalBody');
+            
+            let statusBadge = '';
+            let statusClass = ''; // ADDED:
+            if (match.status === 'accepted') {
+                statusClass = 'accepted';
+                statusBadge = `<span class="modal-badge accepted"><i class="fas fa-check-circle"></i> Active</span>`;
+            } else if (match.status === 'pending') {
+                statusClass = 'pending'; // ADDED:
+                statusBadge = `<span class="modal-badge pending"><i class="fas fa-hourglass-half"></i> Pending</span>`; // CHANGED:
+            }
+            
+            let profilePicHtml = '';
+            if (match.partner_profile_picture && match.partner_profile_picture !== '') {
+                // ADDED: class to div
+                profilePicHtml = `<div class="modal-avatar ${statusClass}"><img src="../${escapeHtml(match.partner_profile_picture)}" alt="${escapeHtml(match.partner_name)}"></div>`;
+            } else {
+                // CHANGED: Replaced inline style with class
+                profilePicHtml = `<div class="modal-avatar ${statusClass}">${escapeHtml(match.partner_name.substring(0, 1).toUpperCase())}</div>`;
+            }
+            
+            modalBody.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                    ${profilePicHtml}
+                    <div>
+                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">${escapeHtml(match.partner_name)}</h3>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                            ${statusBadge}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> Information
+                    </h4>
+                    <div class="info-row">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Role</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                    </div>
+                    <div class="info-row">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Location</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_location || 'Not specified')}</span>
+                    </div>
+                    <div class="info-row">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Subject</span>
+                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.subject)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span style="color: var(--text-secondary); font-weight: 500;">Match Score</span>
+                        <span style="background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%); color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;">${match.match_score}%</span>
+                    </div>
+                </div>
+
+                ${match.partner_bio ? `
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-quote-left" style="color: var(--primary-color);"></i> About ${escapeHtml(match.partner_name.split(' ')[0])}
+                    </h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
+                </div>
+                ` : ''}
+
+                ${match.status === 'accepted' ? `
+                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+                    <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center; min-width: 140px;">
+                        <i class="fas fa-comment"></i> Message
+                    </a>
+                    <a href="../sessions/schedule.php?match_id=${match.id}" class="btn btn-outline" style="flex: 1; text-align: center; min-width: 140px;">
+                        <i class="fas fa-calendar-plus"></i> Schedule
+                    </a>
+                </div>
+                ` : ''}
+            `;
+            
+            modal.classList.add("show");
+            document.body.style.overflow = "hidden";
+        }
+
+        function closeMatchModal() {
+            const modal = document.getElementById('matchModal');
+            modal.classList.remove("show");
+            document.body.style.overflow = "auto";
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('matchModal');
+            if (event.target === modal) {
+                closeMatchModal();
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeMatchModal();
+            }
+        });
     </script>
 </body>
 </html>

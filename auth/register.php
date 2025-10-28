@@ -21,9 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $first_name = sanitize_input($_POST['first_name']);
         $last_name = sanitize_input($_POST['last_name']);
         $role = sanitize_input($_POST['role']);
+        $dob = sanitize_input($_POST['dob']); // ADDED: Sanitize Date of Birth
         
         // Validation
-        if (empty($username) || empty($email) || empty($password) || empty($first_name) || empty($last_name)) {
+        if (empty($username) || empty($email) || empty($password) || empty($first_name) || empty($last_name) || empty($dob)) { // MODIFIED: Added empty($dob)
             $error = 'Please fill in all required fields.';
         } elseif ($password !== $confirm_password) {
             $error = 'Passwords do not match.';
@@ -33,6 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
             $error = 'Please enter a valid email address.';
         } elseif (!in_array($role, ['student', 'mentor'])) {
             $error = 'Invalid role selected.';
+        
+        // ADDED: Age Validation Logic
+        } elseif (new DateTime($dob) > new DateTime('-13 years')) {
+            $error = 'You must be at least 13 years old to register.';
+        } elseif (new DateTime($dob) > new DateTime()) {
+            $error = 'Date of birth cannot be in the future.';
+        // END ADDED
+            
         } else {
             $db = getDB();
             
@@ -64,7 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
                         'password' => $password,
                         'first_name' => $first_name,
                         'last_name' => $last_name,
-                        'role' => $role
+                        'role' => $role,
+                        'dob' => $dob // ADDED: Store DOB in session
                     ];
                     
                     $success = 'A verification code has been sent to your email.';
@@ -116,7 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
                     
                     $is_verified = 1; // Email is verified via OTP
                     
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    // MODIFIED: Added date_of_birth column
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role, first_name, last_name, is_verified, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                    
+                    // MODIFIED: Added dob to execute array
                     $stmt->execute([
                         $registration_data['username'],
                         $registration_data['email'],
@@ -124,7 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
                         $registration_data['role'],
                         $registration_data['first_name'],
                         $registration_data['last_name'],
-                        $is_verified
+                        $is_verified,
+                        $registration_data['dob'] // ADDED
                     ]);
                     $user_id = $db->lastInsertId();
                     
@@ -232,6 +246,12 @@ $form_data = $_SESSION['registration_data'] ?? [];
                     </div>
                     
                     <div class="form-group">
+                        <label for="dob" class="form-label">Date of Birth</label>
+                        <input type="date" id="dob" name="dob" class="form-input" required 
+                               value="<?php echo htmlspecialchars($form_data['dob'] ?? $_POST['dob'] ?? ''); ?>">
+                        <small class="text-secondary">You must be at least 13 years old to register.</small>
+                    </div>
+                    <div class="form-group">
                         <label for="password" class="form-label">Password</label>
                         <input type="password" id="password" name="password" class="form-input" required minlength="8">
                         <small class="text-secondary">Must be at least 8 characters long</small>
@@ -250,7 +270,6 @@ $form_data = $_SESSION['registration_data'] ?? [];
                 </div>
                 
             <?php else: ?>
-                <!-- OTP verification step -->
                 <h2 class="text-center mb-4">Verify Your Email</h2>
                 <p class="text-center text-secondary mb-4">
                     We sent a 6-digit code to<br>

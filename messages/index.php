@@ -30,16 +30,17 @@ $stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'],
 $conversations = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="color-scheme" content="light dark">
     <title>Messages - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -47,18 +48,6 @@ $conversations = $stmt->fetchAll();
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            --bg-color: #fafafa;
-            --card-bg: white;
-        }
-
-        [data-theme="dark"] {
-            --primary-color: #3b82f6;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --border-color: #374151;
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-            --bg-color: #111827;
-            --card-bg: #1f2937;
         }
 
         * {
@@ -75,14 +64,13 @@ $conversations = $stmt->fetchAll();
 
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg-color);
-            color: var(--text-primary);
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background: #fafafa;
+            color: #1a1a1a;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: var(--card-bg);
+            background: white;
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -90,7 +78,6 @@ $conversations = $stmt->fetchAll();
             right: 0;
             z-index: 1000;
             height: 60px;
-            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -188,7 +175,7 @@ $conversations = $stmt->fetchAll();
         }
 
         .notification-bell:hover {
-            background: var(--border-color);
+            background: #f0f0f0;
             color: var(--primary-color);
         }
 
@@ -204,7 +191,7 @@ $conversations = $stmt->fetchAll();
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid var(--card-bg);
+            border: 2px solid white;
         }
 
         .notification-dropdown {
@@ -215,13 +202,12 @@ $conversations = $stmt->fetchAll();
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
-            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -230,11 +216,10 @@ $conversations = $stmt->fetchAll();
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .notification-header h4 {
-            color: var(--text-primary);
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .notification-list {
@@ -244,7 +229,7 @@ $conversations = $stmt->fetchAll();
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -252,18 +237,17 @@ $conversations = $stmt->fetchAll();
         }
 
         .notification-item-dropdown:hover {
-            background: var(--border-color);
+            background: #fafafa;
+        }
+
+        .notification-item-dropdown.unread {
+            background: #fefbeb; /* CHANGED: Light yellow */
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .notification-footer a {
-            color: var(--primary-color);
-            text-decoration: none;
+            border-top: 1px solid #f0f0f0;
         }
 
         .profile-menu {
@@ -304,11 +288,10 @@ $conversations = $stmt->fetchAll();
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
-            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -317,7 +300,7 @@ $conversations = $stmt->fetchAll();
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
             text-align: center;
         }
 
@@ -330,7 +313,7 @@ $conversations = $stmt->fetchAll();
 
         .user-role {
             font-size: 0.8rem;
-            color: var(--text-secondary);
+            color: #999;
         }
 
         .profile-dropdown-menu {
@@ -354,7 +337,7 @@ $conversations = $stmt->fetchAll();
         }
 
         .profile-dropdown-item:hover {
-            background: var(--border-color);
+            background: #f5f5f5;
             color: var(--primary-color);
         }
 
@@ -363,7 +346,7 @@ $conversations = $stmt->fetchAll();
         }
 
         .profile-dropdown-item.logout:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: #fee2e2;
         }
 
         .container {
@@ -423,11 +406,10 @@ $conversations = $stmt->fetchAll();
         }
 
         .card {
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             overflow: hidden;
-            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -436,7 +418,7 @@ $conversations = $stmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: var(--card-bg);
+            background: #fafafa;
         }
 
         .card-title {
@@ -448,8 +430,57 @@ $conversations = $stmt->fetchAll();
 
         .card-body {
             padding: 0;
-            background: var(--card-bg);
+            background: white;
         }
+        
+        /* ===== ADDED: Search Bar Styles ===== */
+        .search-bar-wrapper {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-card, white);
+        }
+        
+        .search-bar-container {
+            position: relative;
+        }
+
+        .search-bar-container i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        #conversationSearch {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-body, #fafafa);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.2s ease-in-out;
+            outline: none;
+        }
+
+        #conversationSearch:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+            background: var(--bg-card, white);
+        }
+        
+        [data-theme="dark"] #conversationSearch:focus {
+            background: var(--bg-card);
+        }
+        
+        #noResultsMessage {
+            display: none;
+            padding: 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+        /* ===== END: Search Bar Styles ===== */
 
         .conversation-item {
             display: block;
@@ -461,7 +492,15 @@ $conversations = $stmt->fetchAll();
         }
 
         .conversation-item:hover {
-            background: var(--border-color);
+            background: #fafafa;
+        }
+        
+        /* ADDED: */
+        .conversation-item.unread {
+            background: #fefbeb; /* CHANGED: Light yellow */
+        }
+        .conversation-item.unread:hover {
+            background: #fef3c7; /* CHANGED: Light yellow hover */
         }
 
         .conversation-item:last-child {
@@ -518,7 +557,7 @@ $conversations = $stmt->fetchAll();
             justify-content: center;
             font-size: 0.7rem;
             font-weight: 700;
-            border: 2px solid var(--card-bg);
+            border: 2px solid white;
         }
 
         .conversation-info {
@@ -587,7 +626,7 @@ $conversations = $stmt->fetchAll();
 
         .empty-state i {
             font-size: 3rem;
-            color: var(--border-color);
+            color: #e5e7eb;
             margin-bottom: 1rem;
             display: block;
         }
@@ -622,7 +661,7 @@ $conversations = $stmt->fetchAll();
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: var(--card-bg);
+                background: white;
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -676,15 +715,18 @@ $conversations = $stmt->fetchAll();
             .conversation-preview {
                 font-size: 0.8rem;
             }
+            
+            .search-bar-wrapper {
+                padding: 0.75rem;
+            }
 
             .container {
                 padding: 0 0.75rem;
             }
 
             .notification-dropdown {
-                width: calc(100vw - 2rem);
-                right: 0;
-                left: 1rem;
+                width: 320px;
+                right: -60px;
             }
 
             input, select, textarea, button {
@@ -718,8 +760,104 @@ $conversations = $stmt->fetchAll();
             .conversation-left {
                 gap: 0.625rem;
             }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
+            }
         }
+        
+        /* ===== DARK MODE STYLES ===== */
+        [data-theme="dark"] {
+            --primary-color: #3b82f6; /* User requested */
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --border-color: #374151; /* User requested */
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            
+            /* Semantic colors */
+            --bg-body: #111827;       /* User requested */
+            --bg-card: #1f2937;       /* User requested */
+            --bg-card-header: #374151; /* Set to match border-color for consistency */
+            --bg-hover: #374151;       /* Set to match border-color for consistency */
+        }
+        
+        [data-theme="dark"] body { background: var(--bg-body); color: var(--text-primary); }
+        
+        [data-theme="dark"] .header,
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .profile-dropdown,
+        [data-theme="dark"] .notification-dropdown,
+        [data-theme="dark"] .nav-links {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .card-header { background: var(--bg-card-header); border-color: var(--border-color); }
+        [data-theme="dark"] .card-body { background: var(--bg-card); }
+        
+        [data-theme="dark"] .profile-dropdown-menu hr,
+        [data-theme="dark"] .nav-links a,
+        [data-theme="dark"] .notification-footer,
+        [data-theme="dark"] .notification-header,
+        [data-theme="dark"] .notification-item-dropdown,
+        [data-theme="dark"] .profile-dropdown-header,
+        [data-theme="dark"] .conversation-item {
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .notification-bell:hover,
+        [data-theme="dark"] .profile-dropdown-item:hover,
+        [data-theme="dark"] .notification-item-dropdown:hover {
+            background: var(--bg-hover);
+        }
+        
+        [data-theme="dark"] .conversation-item:hover {
+            background: var(--bg-card-header);
+        }
+        
+        [data-theme="dark"] .conversation-item.unread {
+            background: var(--bg-card-header); /* UPDATED: Use variable */
+        }
+        [data-theme="dark"] .conversation-item.unread:hover {
+            background: #451a03; /* KEPT: This seems to be an intentional accent color */
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item:hover { color: var(--primary-color); }
+        [data-theme="dark"] .profile-dropdown-item.logout:hover { background: #3f1212; }
+        
+        [data-theme="dark"] .notification-item-dropdown.unread {
+            background: var(--bg-card-header); /* UPDATED: Use variable */
+        }
+        
+        [data-theme="dark"] .unread-badge,
+        [data-theme="dark"] .unread-count {
+            border-color: var(--bg-card);
+        }
+
+        [data-theme="dark"] .empty-state i { color: var(--border-color); }
+        [data-theme="dark"] .hamburger span { background-color: var(--text-primary); }
+        [data-theme="dark"] .profile-icon:hover { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        [data-theme="dark"] .user-role { color: var(--text-secondary); }
+        
+        [data-theme="dark"] .notification-list div[style*="color: #999"] { color: var(--text-secondary) !important; }
+        [data-theme="dark"] .notification-list div[style*="color: #666"] { color: var(--text-secondary) !important; }
     </style>
+    
+    <script>
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                // No theme saved, use system preference
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
 </head>
 <body>
     <header class="header">
@@ -743,7 +881,7 @@ $conversations = $stmt->fetchAll();
 
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -759,7 +897,9 @@ $conversations = $stmt->fetchAll();
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php">View All</a>
+                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -792,7 +932,11 @@ $conversations = $stmt->fetchAll();
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                            <button class="profile-dropdown-item" id="theme-toggle-btn" style="cursor: pointer;">
+                                <i class="fas fa-moon" id="theme-toggle-icon"></i>
+                                <span id="theme-toggle-text">Dark Mode</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -829,8 +973,14 @@ $conversations = $stmt->fetchAll();
                         <h3 class="card-title">Conversations (<?php echo count($conversations); ?>)</h3>
                     </div>
                     <div class="card-body">
+                        <div class="search-bar-wrapper">
+                            <div class="search-bar-container">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="conversationSearch" placeholder="Search by name or subject...">
+                            </div>
+                        </div>
                         <?php foreach ($conversations as $conv): ?>
-                            <a href="chat.php?match_id=<?php echo $conv['match_id']; ?>" class="conversation-item">
+                            <a href="chat.php?match_id=<?php echo $conv['match_id']; ?>" class="conversation-item <?php if ($conv['unread_count'] > 0) echo 'unread'; ?>">
                                 <div class="conversation-header">
                                     <div class="conversation-left">
                                         <div class="conversation-avatar">
@@ -878,7 +1028,13 @@ $conversations = $stmt->fetchAll();
                                 </div>
                             </a>
                         <?php endforeach; ?>
-                    </div>
+                        
+                        <div id="noResultsMessage" class="empty-state">
+                            <i class="fas fa-search-minus"></i>
+                            <h3>No matches found</h3>
+                            <p>Try adjusting your search terms.</p>
+                        </div>
+                        </div>
                 </div>
             <?php endif; ?>
         </div>
@@ -887,10 +1043,6 @@ $conversations = $stmt->fetchAll();
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
-
-        // Theme management
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', currentTheme);
 
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
@@ -919,6 +1071,80 @@ $conversations = $stmt->fetchAll();
                     }
                 });
             }
+            
+            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const themeToggleIcon = document.getElementById('theme-toggle-icon');
+            const themeToggleText = document.getElementById('theme-toggle-text');
+            
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                    if(themeToggleText) themeToggleText.textContent = 'Light Mode';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    if(themeToggleText) themeToggleText.textContent = 'Dark Mode';
+                }
+            }
+
+            // Set initial state for the button
+            let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+            setTheme(currentTheme);
+
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let newTheme = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
+                    setTheme(newTheme);
+                });
+            }
+            
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
+            
+            /* ADDED: ===== CONVERSATION SEARCH LOGIC ===== */
+            const searchInput = document.getElementById('conversationSearch');
+            const conversations = document.querySelectorAll('.conversation-item');
+            const noResultsMessage = document.getElementById('noResultsMessage');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    const searchTerm = searchInput.value.toLowerCase().trim();
+                    let visibleCount = 0;
+
+                    conversations.forEach(conv => {
+                        const nameEl = conv.querySelector('.conversation-name');
+                        const subjectEl = conv.querySelector('.conversation-meta');
+                        
+                        if (nameEl && subjectEl) {
+                            // Search in both name and subject
+                            const textToSearch = (nameEl.textContent + ' ' + subjectEl.textContent).toLowerCase();
+                            
+                            if (textToSearch.includes(searchTerm)) {
+                                conv.style.display = 'block';
+                                visibleCount++;
+                            } else {
+                                conv.style.display = 'none';
+                            }
+                        }
+                    });
+
+                    if (noResultsMessage) {
+                        // Show or hide the 'no results' message
+                        noResultsMessage.style.display = (visibleCount === 0) ? 'block' : 'none';
+                    }
+                });
+            }
+            /* ADDED: ===== END CONVERSATION SEARCH LOGIC ===== */
         });
 
         function toggleNotifications(event) {
@@ -1013,6 +1239,7 @@ $conversations = $stmt->fetchAll();
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) return ''; // ADDED: Null check
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1060,7 +1287,7 @@ $conversations = $stmt->fetchAll();
                         }
                     });
             }
-        }, 30000);
+        }, 1000);
     </script>
 </body>
 </html>

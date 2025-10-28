@@ -71,12 +71,12 @@ $recent_matches_stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'
 $recent_matches = $recent_matches_stmt->fetchAll();
 ?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="color-scheme" content="light dark">
     <title>Dashboard - Study Buddy</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -88,20 +88,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             --text-primary: #1a1a1a;
             --text-secondary: #666;
             --border-color: #e5e5e5;
-            --shadow: 0 1px 3px rgba(0,0,0,0.05);
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            --bg-color: #fafafa;
-            --card-bg: white;
-        }
-
-        [data-theme="dark"] {
-            --primary-color: #3b82f6;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --border-color: #374151;
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-            --bg-color: #111827;
-            --card-bg: #1f2937;
         }
 
         * {
@@ -118,23 +105,20 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg-color);
-            color: var(--text-primary);
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background: #fafafa;
+            color: #1a1a1a;
         }
 
-        /* Header */
+        /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: var(--card-bg);
+            background: white;
             border-bottom: 1px solid var(--border-color);
-            padding: 0;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
             height: 60px;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -205,17 +189,16 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: var(--text-secondary);
             font-size: 0.95rem;
             font-weight: 500;
-            transition: color 0.2s;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            transition: color 0.2s;
         }
 
         .nav-links a:hover {
             color: var(--primary-color);
         }
 
-        /* Notification & Profile Buttons */
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -225,17 +208,15 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             height: 40px;
             cursor: pointer;
             border-radius: 8px;
+            background: transparent;
             border: none;
-            transition: all 0.2s;
+            transition: background 0.2s;
             font-size: 1.1rem;
             color: var(--text-secondary);
-            background: transparent;
-            min-height: 44px;
-            min-width: 44px;
         }
-        
+
         .notification-bell:hover {
-            background: var(--border-color);
+            background: #f0f0f0;
             color: var(--primary-color);
         }
 
@@ -251,92 +232,32 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid var(--card-bg);
+            border: 2px solid white;
         }
 
-        .profile-icon {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            cursor: pointer;
-            border-radius: 8px;
-            border: none;
-            transition: all 0.2s;
-            font-size: 1.1rem;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
-            color: white;
-            overflow: hidden;
-            min-height: 44px;
-            min-width: 44px;
-        }
-
-        .profile-icon:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        .profile-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        /* NEW rule from chat.php */
-        .profile-menu {
-            position: relative;
-        }
-
-        /* Dropdowns */
         .notification-dropdown {
             display: none;
             position: absolute;
-            right: 0;
+            right: -10px;
             top: 100%;
             margin-top: 0.75rem;
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: var(--shadow-lg);
-            z-index: 1002; /* FIX: Set high z-index */
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-            transition: background-color 0.3s ease;
             width: 380px;
             max-height: 450px;
-            flex-direction: column;
-        }
-
-        /* SEPARATED rule from chat.php */
-        .profile-dropdown {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 100%;
-            margin-top: 0.5rem; /* Copied from chat.php */
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
-            z-index: 1002; /* FIX: Set high z-index */
+            z-index: 1000;
             overflow: hidden;
-            border: 1px solid var(--border-color);
-            transition: background-color 0.3s ease;
-            width: 240px;
+            flex-direction: column;
         }
 
         .notification-dropdown.show {
             display: flex;
         }
-        
-        /* UPDATED rule from chat.php */
-        .profile-dropdown.show {
-            display: block; 
-        }
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -349,7 +270,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -357,25 +278,70 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .notification-item-dropdown:hover {
-            background: var(--border-color);
+            background: #fafafa;
+        }
+
+        .notification-item-dropdown.unread {
+            background: #fefbeb; /* CHANGED: Light yellow */
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid var(--border-color);
+            border-top: 1px solid #f0f0f0;
         }
 
-        .notification-footer a {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.9rem;
+        .profile-menu {
+            position: relative;
+        }
+
+        .profile-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 1.1rem;
+            border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
+        }
+
+        .profile-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.5rem;
+            width: 240px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+        }
+
+        .profile-dropdown.show {
+            display: block;
         }
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
             text-align: center;
         }
 
@@ -388,7 +354,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
         .user-role {
             font-size: 0.8rem;
-            color: var(--text-secondary);
+            color: #999;
         }
 
         .profile-dropdown-menu {
@@ -396,6 +362,9 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             padding: 0.75rem 1rem;
             color: var(--text-secondary);
             text-decoration: none;
@@ -406,13 +375,10 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             text-align: left;
             font-size: 0.9rem;
             background: transparent;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
         }
 
         .profile-dropdown-item:hover {
-            background: var(--border-color);
+            background: #f5f5f5;
             color: var(--primary-color);
         }
 
@@ -421,10 +387,9 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .profile-dropdown-item.logout:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: #fee2e2;
         }
 
-        /* Main Content */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -474,18 +439,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: #991b1b;
         }
 
-        [data-theme="dark"] .alert-warning {
-            background: rgba(254, 243, 199, 0.1);
-            border-color: rgba(252, 211, 77, 0.3);
-            color: #fcd34d;
-        }
-
-        [data-theme="dark"] .alert-error {
-            background: rgba(254, 226, 226, 0.1);
-            border-color: rgba(252, 165, 165, 0.3);
-            color: #fca5a5;
-        }
-
         .alert i {
             flex-shrink: 0;
             font-size: 1.25rem;
@@ -506,7 +459,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .stat-card {
-            background: var(--card-bg);
+            background: white;
             padding: 1.5rem;
             border-radius: 12px;
             border: 1px solid var(--border-color);
@@ -544,18 +497,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: #d97706;
         }
 
-        [data-theme="dark"] .stat-icon.primary {
-            background: rgba(219, 234, 254, 0.1);
-        }
-
-        [data-theme="dark"] .stat-icon.success {
-            background: rgba(220, 252, 231, 0.1);
-        }
-
-        [data-theme="dark"] .stat-icon.warning {
-            background: rgba(254, 243, 199, 0.1);
-        }
-
         .stat-value {
             font-size: 1.875rem;
             font-weight: 700;
@@ -577,11 +518,10 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .card {
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             overflow: hidden;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .card-header {
@@ -590,7 +530,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: var(--bg-color);
+            background: #fafafa;
         }
 
         .card-header i {
@@ -626,6 +566,17 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             min-height: 44px;
             width: 100%;
         }
+        
+        /* ADDED: btn-outline for dark mode */
+        .btn-outline {
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            background: transparent;
+        }
+        .btn-outline:hover {
+            background: #f5f5f5;
+        }
+        /* END ADDED */
 
         .btn-primary {
             background: var(--primary-color);
@@ -636,23 +587,61 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             background: #1d4ed8;
         }
 
-        .btn-secondary {
-            background: var(--border-color);
-            color: var(--text-primary);
+        /* Action Grid */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
         }
 
-        .btn-secondary:hover {
-            background: #d1d5db;
-        }
-
-        .btn-outline {
+        .action-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 1rem 0.5rem;
+            border-radius: 10px;
+            background: #fafafa;
             border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            background: transparent;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+            font-weight: 500;
+            min-height: 90px;
         }
 
-        .btn-outline:hover {
-            background: var(--border-color);
+        .action-item:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .action-item i {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+            transition: color 0.2s ease;
+        }
+
+        .action-item.primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+
+        .action-item.primary i {
+            color: white;
+        }
+
+        .action-item.primary:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: white;
+            transform: translateY(-2px);
         }
 
         /* Action List */
@@ -668,7 +657,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             justify-content: space-between;
             align-items: center;
             padding: 1rem;
-            background: var(--bg-color);
+            background: #fafafa;
             border-radius: 10px;
             border: 1px solid var(--border-color);
             transition: all 0.2s;
@@ -698,10 +687,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             width: 100%;
             height: 100%;
             object-fit: cover;
-        }
-
-        [data-theme="dark"] .match-info-icon {
-            background: rgba(219, 234, 254, 0.1);
         }
 
         .match-info {
@@ -735,18 +720,8 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        [data-theme="dark"] .status-accepted {
-            background: rgba(220, 252, 231, 0.15);
-            color: #86efac;
-        }
-
-        [data-theme="dark"] .status-pending {
-            background: rgba(254, 243, 199, 0.15);
-            color: #fcd34d;
+            background: #fef3c7; /* CHANGED: */
+            color: #92400e; /* CHANGED: */
         }
 
         .empty-state {
@@ -761,7 +736,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             color: var(--border-color);
         }
 
-        /* Mobile */
+        /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
@@ -781,7 +756,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: var(--card-bg);
+                background: white;
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -807,8 +782,8 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 padding: 1rem 0;
             }
 
-            .container {
-                padding: 0 0.75rem;
+            .page-header h1 {
+                font-size: 1.5rem;
             }
 
             .stats-grid,
@@ -817,8 +792,8 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 gap: 1rem;
             }
 
-            .page-header h1 {
-                font-size: 1.5rem;
+            .container {
+                padding: 0 0.75rem;
             }
 
             .stat-card {
@@ -831,6 +806,20 @@ $recent_matches = $recent_matches_stmt->fetchAll();
 
             .card-body {
                 padding: 1rem;
+            }
+
+            .action-grid {
+                gap: 0.5rem;
+            }
+
+            .action-item {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.8rem;
+                min-height: 80px;
+            }
+
+            .action-item i {
+                font-size: 1.25rem;
             }
 
             .btn {
@@ -849,23 +838,12 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             }
 
             .notification-dropdown {
-                /* FIX: Use vw width and remove conflicting left property */
-                width: 95vw;
-                max-width: 380px;
-                right: 0;
-                /* left: 1rem; */ /* Removed */
+                width: 320px;
+                right: -60px;
             }
-
-            /* FIX: The broken .profile-dropdown rule was REMOVED */
-            /*
-            .profile-dropdown {
-                width: 100%;
-                max-width: 240px;
-            }
-            */
 
             input, select, textarea, button {
-                font-size: 16px;
+                font-size: 16px !important;
             }
         }
 
@@ -883,6 +861,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             }
 
             .stats-grid {
+                grid-template-columns: 1fr;
                 gap: 0.75rem;
             }
 
@@ -953,8 +932,204 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             .alert p {
                 font-size: 0.8rem;
             }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
+            }
         }
+        
+        /* ===== DARK MODE STYLES ===== */
+        [data-theme="dark"] {
+            --primary-color: #3b82f6; /* User requested */
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --border-color: #374151; /* User requested */
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+
+            /* Semantic colors */
+            --bg-body: #111827;       /* User requested as --bg-color */
+            --bg-card: #1f2937;       /* User requested as --card-bg */
+            --bg-card-header: #3a3a3e; /* Unchanged from original */
+            --bg-hover: #374151;       /* Matched to new border-color */
+        }
+
+        [data-theme="dark"] body {
+            background: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        [data-theme="dark"] .header,
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .stat-card,
+        [data-theme="dark"] .profile-dropdown,
+        [data-theme="dark"] .notification-dropdown,
+        [data-theme="dark"] .nav-links {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .card-header {
+            background: var(--bg-card-header);
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-menu hr,
+        [data-theme="dark"] .nav-links a,
+        [data-theme="dark"] .notification-footer,
+        [data-theme="dark"] .notification-header,
+        [data-theme="dark"] .notification-item-dropdown,
+        [data-theme="dark"] .profile-dropdown-header {
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .btn-outline {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .btn-outline:hover,
+        [data-theme="dark"] .notification-bell:hover,
+        [data-theme="dark"] .profile-dropdown-item:hover,
+        [data-theme="dark"] .notification-item-dropdown:hover {
+            background: var(--bg-hover);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item:hover {
+            color: var(--primary-color);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item.logout:hover {
+            background: #3f1212;
+        }
+        
+        [data-theme="dark"] .notification-item-dropdown.unread {
+            background: #3a3a3e; /* CHANGED: Dark yellow background */
+        }
+        
+        [data-theme="dark"] .alert-error {
+            background: #3f1212;
+            border-color: #dc2626;
+            color: #fca5a5;
+        }
+        
+        [data-theme="dark"] .alert-success {
+            background: #062f1e;
+            border-color: #16a34a;
+            color: #a7f3d0;
+        }
+
+        [data-theme="dark"] .alert-warning {
+            background: #451a03;
+            border-color: #d97706;
+            color: #fcd34d;
+        }
+        
+        [data-theme="dark"] .stat-card {
+            box-shadow: none;
+        }
+        [data-theme="dark"] .stat-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+        
+        [data-theme="dark"] .stat-icon.primary {
+            background: #1e3a8a;
+            color: #93c5fd;
+        }
+        [data-theme="dark"] .stat-icon.success {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+        [data-theme="dark"] .stat-icon.warning {
+            background: #451a03;
+            color: #fcd34d;
+        }
+        
+        [data-theme="dark"] .action-item {
+            background: var(--bg-card-header);
+            border-color: var(--border-color);
+            color: var(--text-secondary);
+        }
+        [data-theme="dark"] .action-item:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            background: rgba(59, 130, 246, 0.05);
+            box-shadow: none;
+        }
+        [data-theme="dark"] .action-item.primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        [data-theme="dark"] .action-item.primary:hover {
+             background: #1d4ed8;
+             border-color: #1d4ed8;
+        }
+
+        [data-theme="dark"] .match-item {
+            background: var(--bg-card-header);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .match-item:hover {
+            border-color: var(--primary-color);
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        [data-theme="dark"] .match-info-icon {
+            background: #1e3a8a;
+            color: #93c5fd;
+        }
+        
+        [data-theme="dark"] .status-accepted {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+        [data-theme="dark"] .status-pending {
+            background: #451a03; /* CHANGED: */
+            color: #fef9c3; /* CHANGED: */
+        }
+        
+        [data-theme="dark"] .empty-state i {
+            color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .hamburger span {
+            background-color: var(--text-primary);
+        }
+        
+        [data-theme="dark"] .profile-icon:hover {
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        [data-theme="dark"] .user-role {
+            color: var(--text-secondary);
+        }
+        
+        /* Fix for JS-injected inline styles */
+        [data-theme="dark"] .notification-list div[style*="color: #999"] {
+            color: var(--text-secondary) !important;
+        }
+        [data-theme="dark"] .notification-list div[style*="color: #666"] {
+            color: var(--text-secondary) !important;
+        }
+        
     </style>
+    
+    <script>
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                // No theme saved, use system preference
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
 </head>
 <body>
     <header class="header">
@@ -976,9 +1151,9 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                 <li><a href="messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -989,12 +1164,14 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                             <h4><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem;">
+                            <div style="text-align: center; padding: 1.5rem; color: #999;">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="notifications/index.php">View All</a>
+                            <a href="notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -1027,7 +1204,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                            <button class="profile-dropdown-item" id="theme-toggle-btn" style="cursor: pointer;">
+                                <i class="fas fa-moon" id="theme-toggle-icon"></i>
+                                <span id="theme-toggle-text">Dark Mode</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
                             <a href="auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -1035,7 +1216,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                         </div>
                     </div>
                 </div>
-                
             </div>
         </div>
     </header>
@@ -1061,10 +1241,11 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                             <h4>Account Suspended</h4>
                             <p>Your account has been suspended due to unpaid commissions. Please settle all overdue payments to continue.</p>
                         <?php else: ?>
-                            <h4>Overdue Commissions</h4>
-                            <p><?php echo $commission_warning['overdue_count']; ?> payment(s) pending • ₱<?php echo number_format($commission_warning['total_overdue'], 2); ?></p>
+                            <h4>Overdue Commission Payments</h4>
+                            <p>You have <?php echo $commission_warning['overdue_count']; ?> overdue commission payment(s) totaling ₱<?php echo number_format($commission_warning['total_overdue'], 2); ?>.</p>
+                            <p>Oldest unpaid commission: <?php echo $commission_warning['oldest_days']; ?> days overdue.</p>
                             <?php if ($commission_warning['oldest_days'] > 21): ?>
-                                <p><strong>Warning:</strong> Account will be suspended in <?php echo (30 - $commission_warning['oldest_days']); ?> days</p>
+                                <p><strong>Warning:</strong> Your account will be suspended if commissions remain unpaid after 30 days.</p>
                             <?php endif; ?>
                         <?php endif; ?>
                         <a href="profile/commission-payments.php" class="btn" style="background: #dc2626; color: white; font-size: 0.8rem; padding: 0.5rem 0.75rem; width: auto; margin-top: 0.5rem;">
@@ -1105,19 +1286,61 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                         <h3 class="card-title">Quick Actions</h3>
                     </div>
                     <div class="card-body">
-                        <div class="action-list">
+                        <div class="action-grid">
                             <?php if ($user['role'] === 'student'): ?>
-                                <a href="matches/find.php" class="btn btn-primary"><i class="fas fa-search"></i> Find a Mentor</a>
-                                <a href="sessions/schedule.php" class="btn btn-secondary"><i class="fas fa-calendar-plus"></i> Schedule Session</a>
+                                <a href="matches/find.php" class="action-item primary">
+                                    <i class="fas fa-search"></i>
+                                    <span>Find a Mentor</span>
+                                </a>
+                                <a href="sessions/schedule.php" class="action-item">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <span>Schedule Session</span>
+                                </a>
+                                <a href="profile/subjects.php" class="action-item">
+                                    <i class="fas fa-book"></i>
+                                    <span>Manage Subjects</span>
+                                </a>
+                                <a href="matches/index.php" class="action-item">
+                                    <i class="fas fa-handshake"></i>
+                                    <span>View Matches</span>
+                                </a>
+
                             <?php elseif ($user['role'] === 'peer'): ?>
-                                <a href="matches/find.php" class="btn btn-primary"><i class="fas fa-users"></i> Find Study Partners</a>
-                                <a href="matches/index.php" class="btn btn-secondary"><i class="fas fa-inbox"></i> Match Requests</a>
-                                <a href="profile/availability.php" class="btn btn-outline"><i class="fas fa-clock"></i> Update Availability</a>
-                            <?php else: ?>
-                                <a href="matches/index.php" class="btn btn-primary"><i class="fas fa-inbox"></i> Match Requests</a>
-                                <a href="profile/availability.php" class="btn btn-secondary"><i class="fas fa-clock"></i> Update Availability</a>
+                                <a href="matches/find.php" class="action-item primary">
+                                    <i class="fas fa-users"></i>
+                                    <span>Find Partners</span>
+                                </a>
+                                <a href="matches/index.php" class="action-item">
+                                    <i class="fas fa-inbox"></i>
+                                    <span>Match Requests</span>
+                                </a>
+                                <a href="profile/availability.php" class="action-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span>Set Availability</span>
+                                </a>
+                                <a href="profile/subjects.php" class="action-item">
+                                    <i class="fas fa-book"></i>
+                                    <span>Manage Subjects</span>
+                                </a>
+
+                            <?php elseif ($user['role'] === 'mentor'): ?>
+                                <a href="matches/index.php" class="action-item primary">
+                                    <i class="fas fa-inbox"></i>
+                                    <span>Match Requests</span>
+                                </a>
+                                <a href="profile/availability.php" class="action-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span>Set Availability</span>
+                                </a>
+                                <a href="profile/commission-payments.php" class="action-item">
+                                    <i class="fas fa-wallet"></i>
+                                    <span>View Commissions</span>
+                                </a>
+                                <a href="profile/subjects.php" class="action-item">
+                                    <i class="fas fa-book"></i>
+                                    <span>Manage Subjects</span>
+                                </a>
                             <?php endif; ?>
-                            <a href="profile/subjects.php" class="btn btn-outline"><i class="fas fa-book"></i> Manage Subjects</a>
                         </div>
                     </div>
                 </div>
@@ -1169,11 +1392,6 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
-        // Dark Mode Handler
-        const htmlElement = document.documentElement;
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        htmlElement.setAttribute('data-theme', currentTheme);
-
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -1185,7 +1403,61 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                     hamburger.classList.toggle("active");
                     navLinks.classList.toggle("active");
                 });
+
+                const links = navLinks.querySelectorAll("a");
+                links.forEach((link) => {
+                    link.addEventListener("click", () => {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    });
+                });
+
+                document.addEventListener("click", (event) => {
+                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                        hamburger.classList.remove("active");
+                        navLinks.classList.remove("active");
+                    }
+                });
             }
+            
+            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const themeToggleIcon = document.getElementById('theme-toggle-icon');
+            const themeToggleText = document.getElementById('theme-toggle-text');
+            
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                    if(themeToggleText) themeToggleText.textContent = 'Light Mode';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    if(themeToggleText) themeToggleText.textContent = 'Dark Mode';
+                }
+            }
+
+            // Set initial state for the button
+            let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+            setTheme(currentTheme);
+
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let newTheme = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
+                    setTheme(newTheme);
+                });
+            }
+            
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
         });
 
         function toggleNotifications(event) {
@@ -1218,14 +1490,13 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         function loadNotifications() {
-            // Path fixed: removed ../
             fetch('api/notifications.php')
                 .then(response => response.json())
                 .then(data => {
                     const list = document.getElementById('notificationList');
                     
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
                         return;
                     }
                     
@@ -1233,37 +1504,24 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                         <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
                              onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-primary);">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
+                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
                     `).join('');
-                })
-                .catch(error => {
-                    console.error('Error loading notifications:', error);
-                    document.getElementById('notificationList').innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);">Error loading notifications</div>';
                 });
         }
 
         function handleNotificationClick(notificationId, link) {
-            // Path fixed: removed ../
             fetch('api/notifications.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
             }).then(() => {
-                // Path fixed: check for ../ and remove it if present
-                if (link) {
-                    if (link.startsWith('../')) {
-                        window.location.href = link.substring(3);
-                    } else {
-                        window.location.href = link;
-                    }
-                } else {
-                    loadNotifications();
-                }
+                if (link) window.location.href = link;
+                else loadNotifications();
             });
         }
 
@@ -1294,9 +1552,7 @@ $recent_matches = $recent_matches_stmt->fetchAll();
         }
 
         function escapeHtml(text) {
-            if (text === null || text === undefined) {
-                return '';
-            }
+            if (text === null || text === undefined) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1312,43 +1568,21 @@ $recent_matches = $recent_matches_stmt->fetchAll();
             return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        // ROBUST click listener from chat.php
-        document.addEventListener('click', function(event) {
-            // Close notification dropdown
+        document.addEventListener('click', function() {
             if (notificationDropdownOpen) {
-                const notificationDropdown = document.getElementById('notificationDropdown');
-                const notificationBell = document.querySelector('.notification-bell');
-                if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
-                    notificationDropdown.classList.remove('show');
-                    notificationDropdownOpen = false;
-                }
+                document.getElementById('notificationDropdown').classList.remove('show');
+                notificationDropdownOpen = false;
             }
-            
-            // Close profile dropdown
             if (profileDropdownOpen) {
-                const profileDropdown = document.getElementById('profileDropdown');
-                const profileIcon = document.querySelector('.profile-icon');
-                if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
-                    profileDropdown.classList.remove('show');
-                    profileDropdownOpen = false;
-                }
-            }
-
-            // Close mobile nav
-            const hamburger = document.querySelector(".hamburger");
-            const navLinks = document.querySelector(".nav-links");
-            if (hamburger && navLinks && hamburger.classList.contains('active') && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                hamburger.classList.remove("active");
-                navLinks.classList.remove("active");
+                document.getElementById('profileDropdown').classList.remove('show');
+                profileDropdownOpen = false;
             }
         });
 
-        // Update notification badge periodically
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();
             } else {
-                // Path fixed: removed ../
                 fetch('api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
@@ -1358,17 +1592,14 @@ $recent_matches = $recent_matches_stmt->fetchAll();
                                 badge.textContent = data.unread_count;
                             } else {
                                 const bell = document.querySelector('.notification-bell');
-                                if (bell) {
-                                    bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
-                                }
+                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
                             }
                         } else if (badge) {
                             badge.remove();
                         }
-                    })
-                    .catch(error => console.error('Error updating badge:', error));
+                    });
             }
-        }, 30000); // Check every 30 seconds
+        }, 30000);
     </script>
 </body>
 </html>

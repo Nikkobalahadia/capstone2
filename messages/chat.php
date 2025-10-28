@@ -1555,7 +1555,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                         }
                     });
             }
-        }, 30000);
+        }, 1000);
     </script>
 </body>
 </html>

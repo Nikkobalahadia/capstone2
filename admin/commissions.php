@@ -267,12 +267,272 @@ $amount_verified = $amounts['verified'] ?? 0;
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; position: fixed; width: 250px; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .border-left-primary { border-left: 4px solid #2563eb; }
+        .border-left-success { border-left: 4px solid #10b981; }
+        .border-left-warning { border-left: 4px solid #f59e0b; }
+        .border-left-info { border-left: 4px solid #06b6d4; }
+        
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        /* Responsive Typography */
+        @media (max-width: 576px) {
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+            
+            .h5 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        /* Welcome Banner */
+        .welcome-banner {
+            background: linear-gradient(90deg, #6a7ee8 0%, #8765c5 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .welcome-banner-text h2 {
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .welcome-banner-text p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+        .welcome-banner-time {
+            text-align: right;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+        .welcome-banner-time .time-box {
+            background: rgba(255,255,255,0.15);
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: block;
+            width: 100%;
+            min-width: 190px;
+        }
+        .welcome-banner-time .time-box:first-child {
+            margin-bottom: 8px;
+        }
+        .welcome-banner-time i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        
+        /* Responsive banner */
+        @media (max-width: 768px) {
+            .welcome-banner {
+                flex-direction: column;
+                padding: 1.5rem;
+                text-align: center;
+            }
+            .welcome-banner-time {
+                text-align: center;
+                margin-top: 1.5rem;
+                margin-left: 0;
+                width: 100%;
+            }
+            .welcome-banner-time .time-box {
+                 display: inline-block;
+                 width: auto;
+            }
+        }
+        
+        /* Quick Actions */
+        .quick-action-card {
+            display: block;
+            text-decoration: none;
+            color: #333;
+            background: #fff;
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            border: 1px solid #e3e6f0;
+            height: 100%;
+        }
+        .quick-action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: #667eea;
+        }
+        .quick-action-card .icon-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .quick-action-card h5 {
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+        .quick-action-card p {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+        .bg-primary-light { background-color: rgba(37, 99, 235, 0.1); color: #2563eb; }
+        .bg-success-light { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .bg-warning-light { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .bg-info-light { background-color: rgba(6, 182, 212, 0.1); color: #06b6d4; }
+        
+        /* Commission Page Specific Styles */
         .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .stat-value { font-size: 2rem; font-weight: 700; }
         .stat-label { color: #6c757d; font-size: 0.875rem; }
@@ -283,12 +543,61 @@ $amount_verified = $amounts['verified'] ?? 0;
         .badge-overdue { background-color: #dc3545; animation: pulse 2s infinite; }
         .badge-suspended { background-color: #6c757d; color: white; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
+
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
 
     <div class="main-content">
         <div class="container-fluid">
@@ -497,5 +806,40 @@ $amount_verified = $amounts['verified'] ?? 0;
             </div>
         </div>
     </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
 </body>
 </html>

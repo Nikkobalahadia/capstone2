@@ -33,16 +33,17 @@ $past_sessions = array_filter($sessions, fn($s) => $s['status'] === 'completed')
 $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], ['cancelled', 'no_show']));
 ?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="color-scheme" content="light dark">
     <title>My Sessions - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
     <style>
         :root {
             --primary-color: #2563eb;
@@ -50,18 +51,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            --bg-color: #fafafa;
-            --card-bg: white;
-        }
-
-        [data-theme="dark"] {
-            --primary-color: #3b82f6;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --border-color: #374151;
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-            --bg-color: #111827;
-            --card-bg: #1f2937;
         }
 
         * {
@@ -78,14 +67,13 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--bg-color);
-            color: var(--text-primary);
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background: #fafafa;
+            color: #1a1a1a;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: var(--card-bg);
+            background: white;
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -93,7 +81,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             right: 0;
             z-index: 1000;
             height: 60px;
-            transition: background-color 0.3s ease;
         }
 
         .navbar {
@@ -107,7 +94,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             width: 100%;
         }
 
-        /* Hamburger Menu */
         .hamburger {
             display: none;
             flex-direction: column;
@@ -139,7 +125,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             transform: rotate(-45deg) translate(7px, -7px);
         }
 
-        /* Logo */
         .logo {
             font-size: 1.25rem;
             font-weight: 700;
@@ -152,7 +137,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             white-space: nowrap;
         }
 
-        /* Navigation Links */
         .nav-links {
             display: flex;
             list-style: none;
@@ -177,7 +161,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             color: var(--primary-color);
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -195,7 +178,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .notification-bell:hover {
-            background: var(--border-color);
+            background: #f0f0f0;
             color: var(--primary-color);
         }
 
@@ -211,7 +194,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid var(--card-bg);
+            border: 2px solid white;
         }
 
         .notification-dropdown {
@@ -222,13 +205,12 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
-            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -237,11 +219,10 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .notification-header h4 {
-            color: var(--text-primary);
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .notification-list {
@@ -251,7 +232,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -259,21 +240,19 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .notification-item-dropdown:hover {
-            background: var(--border-color);
+            background: #fafafa;
+        }
+
+        .notification-item-dropdown.unread {
+            background: #fefbeb; /* CHANGED: Light yellow */
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid var(--border-color);
+            border-top: 1px solid #f0f0f0;
         }
 
-        .notification-footer a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        /* Profile Menu */
         .profile-menu {
             position: relative;
         }
@@ -312,11 +291,10 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
-            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -325,7 +303,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #f0f0f0;
             text-align: center;
         }
 
@@ -338,7 +316,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .user-role {
             font-size: 0.8rem;
-            color: var(--text-secondary);
+            color: #999;
         }
 
         .profile-dropdown-menu {
@@ -362,7 +340,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .profile-dropdown-item:hover {
-            background: var(--border-color);
+            background: #f5f5f5;
             color: var(--primary-color);
         }
 
@@ -371,10 +349,9 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .profile-dropdown-item.logout:hover {
-            background: rgba(220, 38, 38, 0.1);
+            background: #fee2e2;
         }
 
-        /* Main Content */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -386,7 +363,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             margin-top: 60px;
         }
 
-        /* Page Header */
         .page-header {
             display: flex;
             justify-content: space-between;
@@ -402,7 +378,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            color: var(--text-primary);
         }
 
         .page-header h1 i {
@@ -440,14 +415,12 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .btn-secondary {
-            background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
+            background: #e5e7eb;
+            color: #374151;
         }
 
         .btn-secondary:hover {
-            background: var(--border-color);
-            color: var(--text-primary);
+            background: #d1d5db;
         }
 
         .btn-success {
@@ -466,7 +439,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         .btn-outline:hover {
-            background: var(--border-color);
+            background: #f5f5f5;
         }
 
         .btn-warning {
@@ -481,16 +454,15 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         .btn-sm {
             padding: 0.5rem 0.75rem;
             font-size: 0.85rem;
+            min-height: auto;
         }
 
-        /* Card */
         .card {
-            background: var(--card-bg);
+            background: white;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             margin-bottom: 1.5rem;
             overflow: hidden;
-            transition: background-color 0.3s ease;
         }
 
         .card-header {
@@ -499,7 +471,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: var(--card-bg);
+            background: #fafafa;
         }
 
         .card-title {
@@ -511,10 +483,8 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .card-body {
             padding: 1.25rem;
-            background: var(--card-bg);
         }
 
-        /* Session Card */
         .session-card {
             padding: 1.25rem;
             border: 1px solid var(--border-color);
@@ -523,27 +493,27 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             display: flex;
             gap: 1.25rem;
             align-items: flex-start;
-            background: var(--card-bg);
+            background: white;
         }
 
         .session-card.upcoming {
-            background: rgba(37, 99, 235, 0.1);
-            border-color: rgba(37, 99, 235, 0.3);
+            background: rgba(37, 99, 235, 0.05);
+            border-color: rgba(37, 99, 235, 0.2);
         }
 
         .session-card.pending {
-            background: rgba(245, 158, 11, 0.1);
-            border-color: rgba(245, 158, 11, 0.3);
+            background: #fffbeb; /* CHANGED: */
+            border-color: #fde68a; /* CHANGED: */
         }
 
         .session-card.completed {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.05);
+            border-color: rgba(16, 185, 129, 0.2);
         }
 
         .session-card.cancelled {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.05);
+            border-color: rgba(239, 68, 68, 0.2);
         }
 
         .session-avatar {
@@ -559,13 +529,21 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             color: white;
             overflow: hidden;
         }
+        
+        /* ADDED: */
+        .session-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
         .session-avatar.upcoming {
             background: #3b82f6;
         }
 
         .session-avatar.pending {
-            background: #f59e0b;
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
         }
 
         .session-avatar.completed {
@@ -606,24 +584,12 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             color: #2563eb;
         }
 
-        [data-theme="dark"] .session-time.upcoming {
-            color: #60a5fa;
-        }
-
         .session-time.pending {
-            color: #f59e0b;
-        }
-
-        [data-theme="dark"] .session-time.pending {
-            color: #fbbf24;
+            color: #d97706; /* CHANGED: */
         }
 
         .session-time.completed {
             color: #10b981;
-        }
-
-        [data-theme="dark"] .session-time.completed {
-            color: #34d399;
         }
 
         .session-actions {
@@ -636,6 +602,21 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         .session-actions .btn {
             width: 130px;
         }
+        
+        /* ADDED: */
+        .rated-badge {
+            padding: 0.5rem 0.75rem;
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-align: center;
+            justify-content: center;
+        }
 
         .empty-state {
             text-align: center;
@@ -644,7 +625,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
 
         .empty-state i {
             font-size: 3rem;
-            color: var(--border-color);
+            color: #e5e7eb;
             margin-bottom: 1rem;
             display: block;
         }
@@ -679,7 +660,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: var(--card-bg);
+                background: white;
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -729,15 +710,21 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                 flex: 1;
                 min-width: 80px;
             }
+            
+            /* ADDED: */
+            .rated-badge {
+                width: auto;
+                flex: 1;
+                min-width: 80px;
+            }
 
             .container {
                 padding: 0 0.75rem;
             }
 
             .notification-dropdown {
-                width: calc(100vw - 2rem);
-                right: 0;
-                left: 1rem;
+                width: 320px;
+                right: -60px;
             }
 
             input, select, textarea, button {
@@ -772,26 +759,146 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             .card-body {
                 padding: 1rem;
             }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
+            }
         }
+        
+        /* ADDED: ===== DARK MODE STYLES ===== */
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-body: #111827;
+            --bg-card: #1f2937;
+            --bg-card-header: #374151;
+            --bg-hover: #374151;
+        }
+        
+        [data-theme="dark"] body { background: var(--bg-body); color: var(--text-primary); }
+        
+        [data-theme="dark"] .header,
+        [data-theme="dark"] .card,
+        [data-theme="dark"] .profile-dropdown,
+        [data-theme="dark"] .notification-dropdown,
+        [data-theme="dark"] .nav-links {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .card-header { background: var(--bg-card-header); border-color: var(--border-color); }
+        
+        [data-theme="dark"] .profile-dropdown-menu hr,
+        [data-theme="dark"] .nav-links a,
+        [data-theme="dark"] .notification-footer,
+        [data-theme="dark"] .notification-header,
+        [data-theme="dark"] .notification-item-dropdown,
+        [data-theme="dark"] .profile-dropdown-header {
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .btn-outline { color: var(--text-primary); border-color: var(--border-color); }
+        
+        [data-theme="dark"] .btn-outline:hover,
+        [data-theme="dark"] .notification-bell:hover,
+        [data-theme="dark"] .profile-dropdown-item:hover,
+        [data-theme="dark"] .notification-item-dropdown:hover {
+            background: var(--bg-hover);
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item:hover { color: var(--primary-color); }
+        [data-theme="dark"] .profile-dropdown-item.logout:hover { background: #3f1212; }
+        
+        [data-theme="dark"] .notification-item-dropdown.unread {
+            background: #3a3a3e; /* CHANGED: Dark yellow background */
+        }
+        
+        [data-theme="dark"] .session-card {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .session-card.upcoming {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+        }
+        [data-theme="dark"] .session-card.pending {
+            background: var(--bg-card-header); /* CHANGED: */
+            border-color: #fde68a; /* CHANGED: */
+        }
+        [data-theme="dark"] .session-card.completed {
+            background: #064e3b;
+            border-color: #10b981;
+        }
+        [data-theme="dark"] .session-card.cancelled {
+            background: #450a0a;
+            border-color: #ef4444;
+        }
+        
+        [data-theme="dark"] .session-avatar.upcoming { background: #3b82f6; }
+        [data-theme="dark"] .session-avatar.pending {
+            background: #fbbf24; /* CHANGED: */
+            color: #78350f; /* CHANGED: */
+        }
+        [data-theme="dark"] .session-avatar.completed { background: #10b981; }
+        [data-theme="dark"] .session-avatar.cancelled { background: #ef4444; }
+        
+        [data-theme="dark"] .session-time.upcoming { color: #60a5fa; }
+        [data-theme="dark"] .session-time.pending { color: #facc15; } /* CHANGED: */
+        [data-theme="dark"] .session-time.completed { color: #34d399; }
+        
+        [data-theme="dark"] .btn-secondary {
+            background: #3f3f46;
+            color: #d4d4d8;
+            border: 1px solid #52525b;
+        }
+        [data-theme="dark"] .btn-secondary:hover { background: #52525b; }
+        
+        [data-theme="dark"] .rated-badge {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+        
+        [data-theme="dark"] .empty-state i { color: var(--border-color); }
+        [data-theme="dark"] .hamburger span { background-color: var(--text-primary); }
+        [data-theme="dark"] .profile-icon:hover { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        [data-theme="dark"] .user-role { color: var(--text-secondary); }
+        
+        [data-theme="dark"] .notification-list div[style*="color: #999"] { color: var(--text-secondary) !important; }
+        [data-theme="dark"] .notification-list div[style*="color: #666"] { color: var(--text-secondary) !important; }
     </style>
+    
+    <script>
+        (function() {
+            let theme = localStorage.getItem('theme');
+            if (!theme) {
+                // No theme saved, use system preference
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -799,11 +906,9 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)">
+                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -819,12 +924,13 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php">View All</a>
+                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -853,7 +959,11 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                            <button class="profile-dropdown-item" id="theme-toggle-btn" style="cursor: pointer;">
+                                <i class="fas fa-moon" id="theme-toggle-icon"></i>
+                                <span id="theme-toggle-text">Dark Mode</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -872,9 +982,14 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                     <h1><i class="fas fa-calendar-check"></i> My Sessions</h1>
                     <p class="page-subtitle">Manage your study sessions and track your learning progress</p>
                 </div>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <a href="history.php" class="btn btn-secondary">
+                        <i class="fas fa-history"></i> Session History
+                    </a>
                 <a href="schedule.php" class="btn btn-primary">
                     <i class="fas fa-calendar-plus"></i> Schedule Session
                 </a>
+                </div>
             </div>
 
             <?php if (!empty($upcoming_sessions)): ?>
@@ -889,7 +1004,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <div class="session-avatar upcoming">
                                     <?php 
                                     if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '" style="width: 100%; height: 100%; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($session['partner_name'], 0, 1));
                                     }
@@ -933,7 +1048,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <div class="session-avatar pending">
                                     <?php 
                                     if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '" style="width: 100%; height: 100%; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($session['partner_name'], 0, 1));
                                     }
@@ -976,7 +1091,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <div class="session-avatar completed">
                                     <?php 
                                     if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '" style="width: 100%; height: 100%; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($session['partner_name'], 0, 1));
                                     }
@@ -1004,8 +1119,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                             <i class="fas fa-star"></i> Rate
                                         </a>
                                     <?php else: ?>
-                                        <span style="padding: 0.5rem 0.75rem; background: rgba(16, 185, 129, 0.2); color: #10b981; border-radius: 6px; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem;">
-                                            <i class="fas fa-check-circle"></i> Rated
+                                        <span class="rated-badge"> <i class="fas fa-check-circle"></i> Rated
                                         </span>
                                     <?php endif; ?>
                                 </div>
@@ -1027,7 +1141,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                                 <div class="session-avatar cancelled">
                                     <?php 
                                     if (!empty($session['partner_profile_picture']) && file_exists('../' . $session['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '" style="width: 100%; height: 100%; object-fit: cover;">';
+                                        echo '<img src="../' . htmlspecialchars($session['partner_profile_picture']) . '" alt="' . htmlspecialchars($session['partner_name']) . '">';
                                     } else {
                                         echo strtoupper(substr($session['partner_name'], 0, 1));
                                     }
@@ -1068,10 +1182,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
-        // Theme management
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', currentTheme);
-
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -1084,7 +1194,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                     navLinks.classList.toggle("active");
                 });
 
-                // Close menu when clicking on links
                 const links = navLinks.querySelectorAll("a");
                 links.forEach((link) => {
                     link.addEventListener("click", () => {
@@ -1093,7 +1202,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                     });
                 });
 
-                // Close menu when clicking outside
                 document.addEventListener("click", (event) => {
                     if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
                         hamburger.classList.remove("active");
@@ -1101,6 +1209,45 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
                     }
                 });
             }
+            
+            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const themeToggleIcon = document.getElementById('theme-toggle-icon');
+            const themeToggleText = document.getElementById('theme-toggle-text');
+            
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                    if(themeToggleText) themeToggleText.textContent = 'Light Mode';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    if(themeToggleText) themeToggleText.textContent = 'Dark Mode';
+                }
+            }
+
+            // Set initial state for the button
+            let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+            setTheme(currentTheme);
+
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let newTheme = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
+                    setTheme(newTheme);
+                });
+            }
+            
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
         });
 
         function toggleNotifications(event) {
@@ -1195,6 +1342,7 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) return ''; // ADDED: Null check
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1221,7 +1369,6 @@ $cancelled_sessions = array_filter($sessions, fn($s) => in_array($s['status'], [
             }
         });
 
-        // Periodic notification check
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();

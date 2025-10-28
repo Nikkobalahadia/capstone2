@@ -383,6 +383,59 @@ html {
   transform: translateY(-1px);
 }
 
+/* === STYLES ADDED FROM LOGIN.PHP === */
+.password-input-group {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #6b7280; /* text-gray-500 */
+    transition: color 0.2s ease;
+    background: none;
+    border: none;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px; /* Slightly larger for easier tapping */
+    border-radius: 50%; /* Makes the hover/focus state cleaner */
+}
+
+.password-toggle:hover {
+    color: #374151; /* text-gray-700 */
+    background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+.password-toggle:focus {
+    outline: 2px solid #3b82f6; /* focus:ring-blue-500 */
+    outline-offset: 2px;
+}
+
+.password-input-group .form-input {
+    /* Ensures text doesn't flow under the button */
+    padding-right: 45px; 
+}
+
+
+/* === Form Validation States === */
+.form-error-message {
+    color: #ef4444; /* text-red-500 */
+    font-size: 0.875rem; /* text-sm */
+    margin-top: 0.5rem; /* mt-2 */
+}
+
+.input-error {
+    border-color: #ef4444 !important; /* border-red-500 */
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); /* Red focus ring */
+}
+/* === END OF ADDED STYLES === */
+
+
 .btn {
   display: inline-flex;
   align-items: center;

@@ -253,27 +253,236 @@ $stats = $db->query("
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
-        .report-card { transition: all 0.3s ease; }
-        .report-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .action-btn { margin: 2px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; /* Assuming header height is 60px */
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px; /* Assuming header height is 60px */
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .border-left-primary { border-left: 4px solid #2563eb; }
+        .border-left-success { border-left: 4px solid #10b981; }
+        .border-left-warning { border-left: 4px solid #f59e0b; }
+        .border-left-info { border-left: 4px solid #06b6d4; }
+        .border-left-secondary { border-left: 4px solid #6c757d; } /* Added for dismissed */
+        
+        /* Responsive Typography */
+        @media (max-width: 576px) {
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+            
+            .h5 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        /* Page-specific styles */
+        .report-card { 
+            transition: all 0.3s ease; 
+        }
+        .report-card:hover { 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        .action-btn { 
+            margin: 2px; 
+        }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
+
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>" href="reports.php">
+                <i class="fas fa-flag me-2"></i> User Reports
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
 
     <div class="main-content">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h1 class="h3 mb-0">User Reports Management</h1>
-                    <p class="text-muted">Review and take action on user reports</p>
+                    <p class="text-muted mb-0">Review and take action on user reports</p>
                 </div>
                 <a href="?export=csv" class="btn btn-success">
                     <i class="fas fa-download me-2"></i> Export to CSV
@@ -462,13 +671,13 @@ $stats = $db->query("
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <div class="ms-3">
+                                <div class="ms-3 flex-shrink-0">
                                     <?php if ($report['status'] === 'pending' || $report['status'] === 'reviewed'): ?>
-                                        <button type="button" class="btn btn-primary btn-sm action-btn" data-bs-toggle="modal" data-bs-target="#actionModal<?php echo $report['id']; ?>">
+                                        <button type="button" class="btn btn-primary btn-sm action-btn mb-1 w-100" data-bs-toggle="modal" data-bs-target="#actionModal<?php echo $report['id']; ?>">
                                             <i class="fas fa-gavel me-1"></i>Take Action
                                         </button>
                                     <?php endif; ?>
-                                    <button type="button" class="btn btn-info btn-sm action-btn" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $report['id']; ?>">
+                                    <button type="button" class="btn btn-info btn-sm action-btn w-100" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $report['id']; ?>">
                                         <i class="fas fa-eye me-1"></i>Details
                                     </button>
                                 </div>
@@ -599,5 +808,38 @@ $stats = $db->query("
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
 </body>
 </html>

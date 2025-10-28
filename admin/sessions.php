@@ -167,7 +167,8 @@ $stmt = $db->prepare("
            m.subject,
            st.first_name as student_first_name, st.last_name as student_last_name,
            mt.first_name as mentor_first_name, mt.last_name as mentor_last_name,
-           sr.rating, sr.feedback,
+           sr.rating,
+           sr.feedback,
            TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) as duration_minutes
     FROM sessions s
     JOIN matches m ON s.match_id = m.id
@@ -176,127 +177,248 @@ $stmt = $db->prepare("
     LEFT JOIN session_ratings sr ON s.id = sr.session_id
     $where_clause
     ORDER BY s.session_date DESC, s.start_time DESC
+    LIMIT 200
 ");
 $stmt->execute($params);
 $sessions = $stmt->fetchAll();
-
-// Get enhanced session statistics
-$stats = $db->query("
-    SELECT 
-        COUNT(*) as total_sessions,
-        COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled_sessions,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_sessions,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_sessions,
-        COUNT(CASE WHEN session_date >= CURDATE() THEN 1 END) as upcoming_sessions,
-        AVG(TIMESTAMPDIFF(MINUTE, start_time, end_time)) as avg_duration
-    FROM sessions
-")->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Sessions - Study Buddy Admin</title>
-    <!-- Updated to use Bootstrap and purple admin theme -->
+    <title>Manage Sessions - Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; padding: 20px; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+
+        /* Session Page Specific Styles */
+        .badge-scheduled { background-color: #0dcaf0; color: #000; }
+        .badge-completed { background-color: #198754; }
+        .badge-cancelled { background-color: #dc3545; }
+        .rating-stars .fa-star { color: #ffc107; }
+        .rating-stars .fa-star.text-muted { color: #e0e0e0 !important; }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
+    
     <?php include '../includes/admin-header.php'; ?>
 
-    <!-- Updated main content area to work with sidebar layout -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
+
     <div class="main-content">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="h3 mb-0 text-gray-800">Manage Sessions</h1>
-                    <p class="text-muted">Monitor and manage tutoring sessions.</p>
-                </div>
-                <div>
-                    <a href="?export=csv" class="btn btn-success">
-                        <i class="fas fa-download me-2"></i> Export to CSV
-                    </a>
-                </div>
+                <h1 class="h3 mb-0">Manage Sessions</h1>
+                <a href="?export=csv" class="btn btn-success">
+                    <i class="fas fa-download me-2"></i> Export to CSV
+                </a>
             </div>
 
             <?php if (isset($success_message)): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?php echo $success_message; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: '<?php echo $success_message; ?>',
+                            icon: 'success',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    });
+                </script>
             <?php endif; ?>
 
-            <!-- Session Statistics -->
-            <div class="row mb-4">
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-primary shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Sessions</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo $stats['total_sessions']; ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-warning shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Scheduled</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo $stats['scheduled_sessions']; ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-success shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Completed</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo $stats['completed_sessions']; ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-danger shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Cancelled</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo $stats['cancelled_sessions']; ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-info shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Upcoming</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo $stats['upcoming_sessions']; ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-2 col-md-4 mb-3">
-                    <div class="card border-left-secondary shadow h-100 py-2">
-                        <div class="card-body">
-                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Avg Duration</div>
-                            <div class="h5 mb-0 font-weight-bold"><?php echo round($stats['avg_duration'] ?? 0); ?> min</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Filters -->
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select name="status" class="form-select">
-                                <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                                <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Statuses</option>
                                 <option value="scheduled" <?php echo $status_filter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
                                 <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                                 <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
@@ -307,36 +429,34 @@ $stats = $db->query("
                             <select name="date" class="form-select">
                                 <option value="all" <?php echo $date_filter === 'all' ? 'selected' : ''; ?>>All Time</option>
                                 <option value="today" <?php echo $date_filter === 'today' ? 'selected' : ''; ?>>Today</option>
-                                <option value="week" <?php echo $date_filter === 'week' ? 'selected' : ''; ?>>Last 7 Days</option>
-                                <option value="month" <?php echo $date_filter === 'month' ? 'selected' : ''; ?>>Last 30 Days</option>
+                                <option value="week" <?php echo $date_filter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                                <option value="month" <?php echo $date_filter === 'month' ? 'selected' : ''; ?>>This Month</option>
                             </select>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="fas fa-filter me-2"></i>Apply Filters
+                                <i class="fas fa-filter me-2"></i> Filter
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <!-- Sessions Table -->
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">All Sessions (<?php echo count($sessions); ?>)</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Session Log</h6>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-bordered mb-0">
-                            <thead class="table-light">
+                        <table class="table table-hover align-middle">
+                            <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>Student</th>
                                     <th>Mentor</th>
                                     <th>Subject</th>
-                                    <th>Date & Time</th>
+                                    <th>Date</th>
+                                    <th>Time</th>
                                     <th>Duration</th>
-                                    <th>Location</th>
                                     <th>Status</th>
                                     <th>Rating</th>
                                     <th>Actions</th>
@@ -345,51 +465,42 @@ $stats = $db->query("
                             <tbody>
                                 <?php foreach ($sessions as $session): ?>
                                     <tr>
-                                        <td><?php echo $session['id']; ?></td>
                                         <td><?php echo htmlspecialchars($session['student_first_name'] . ' ' . $session['student_last_name']); ?></td>
                                         <td><?php echo htmlspecialchars($session['mentor_first_name'] . ' ' . $session['mentor_last_name']); ?></td>
                                         <td><?php echo htmlspecialchars($session['subject']); ?></td>
+                                        <td><?php echo date('M d, Y', strtotime($session['session_date'])); ?></td>
+                                        <td><?php echo date('g:i A', strtotime($session['start_time'])); ?> - <?php echo date('g:i A', strtotime($session['end_time'])); ?></td>
+                                        <td><?php echo $session['duration_minutes']; ?> mins</td>
                                         <td>
-                                            <div><?php echo date('M j, Y', strtotime($session['session_date'])); ?></div>
-                                            <div class="small text-muted"><?php echo date('g:i A', strtotime($session['start_time'])) . ' - ' . date('g:i A', strtotime($session['end_time'])); ?></div>
+                                            <?php if ($session['status'] === 'scheduled'): ?>
+                                                <span class="badge badge-scheduled">Scheduled</span>
+                                            <?php elseif ($session['status'] === 'completed'): ?>
+                                                <span class="badge badge-completed">Completed</span>
+                                            <?php elseif ($session['status'] === 'cancelled'): ?>
+                                                <span class="badge badge-cancelled">Cancelled</span>
+                                            <?php endif; ?>
                                         </td>
-                                        <td><?php echo $session['duration_minutes'] ?? 0; ?> min</td>
-                                        <td><?php echo htmlspecialchars($session['location'] ?? 'N/A'); ?></td>
-                                        <td>
-                                            <span class="badge bg-<?php 
-                                                echo $session['status'] === 'completed' ? 'success' : 
-                                                    ($session['status'] === 'scheduled' ? 'info' : 
-                                                    ($session['status'] === 'cancelled' ? 'danger' : 'warning')); 
-                                            ?>">
-                                                <?php echo ucfirst($session['status']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
+                                        <td class="rating-stars">
                                             <?php if ($session['rating']): ?>
-                                                <div><?php echo $session['rating']; ?>/5 ⭐</div>
-                                                <?php if ($session['feedback']): ?>
-                                                    <div class="small text-muted" title="<?php echo htmlspecialchars($session['feedback']); ?>">
-                                                        <?php echo substr(htmlspecialchars($session['feedback']), 0, 20) . '...'; ?>
-                                                    </div>
-                                                <?php endif; ?>
+                                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                    <i class="fas fa-star <?php echo $i <= $session['rating'] ? '' : 'text-muted'; ?>"></i>
+                                                <?php endfor; ?>
                                             <?php else: ?>
-                                                <span class="text-muted">No rating</span>
+                                                <span class="text-muted small">N/A</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($session['status'] === 'scheduled'): ?>
-                                                <form method="POST" class="d-inline">
+                                                <form method="POST" action="" class="d-inline" id="session-form-<?php echo $session['id']; ?>">
                                                     <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                                                    <!-- Add complete button -->
-                                                    <button type="submit" name="action" value="complete" class="btn btn-success btn-sm me-1" onclick="return confirm('Mark this session as completed?')">
-                                                        <i class="fas fa-check me-1"></i>Complete
-                                                    </button>
-                                                    <button type="submit" name="action" value="cancel" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this session?')">
-                                                        <i class="fas fa-times me-1"></i>Cancel
+                                                    <input type="hidden" name="action" value="cancel">
+                                                    
+                                                    <button type="submit" class="btn btn-danger btn-sm" onclick="confirmCancel(event, 'session-form-<?php echo $session['id']; ?>'); return false;" title="Cancel Session">
+                                                        <i class="fas fa-times"></i>
                                                     </button>
                                                 </form>
                                             <?php else: ?>
-                                                <span class="text-muted">-</span>
+                                                <span class="text-muted small">-</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -409,7 +520,61 @@ $stats = $db->query("
         </div>
     </div>
 
-    <!-- Added Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        // Mobile Menu Toggle JS from dashboard.php
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+
+        // --- SweetAlert Confirmation Function for Sessions ---
+        function confirmCancel(event, formId) {
+            event.preventDefault(); // Stop the form submission
+            const form = document.getElementById(formId);
+            
+            Swal.fire({
+                title: 'Cancel Session?',
+                text: "Are you sure you want to cancel this session? This action cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, cancel it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit(); // Submit the form
+                }
+            });
+        }
+    </script>
 </body>
 </html>

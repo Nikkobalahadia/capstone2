@@ -1,7 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../includes/subjects_hierarchy.php';
-require_once '../config/notification_helper.php'; // Added from chat.php
+require_once '../config/notification_helper.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -13,7 +13,7 @@ if (!$user) {
     redirect('../auth/login.php');
 }
 
-$unread_notifications = get_unread_count($user['id']); // Added from chat.php
+$unread_notifications = get_unread_count($user['id']);
 $db = getDB();
 $message = '';
 $error = '';
@@ -95,7 +95,6 @@ if ($user['role'] === 'peer') {
     $teaching_stmt->execute([$user['id']]);
     $teaching_subjects = $teaching_stmt->fetchAll();
 } else {
-    // Fallback for any other roles
     $subjects_stmt = $db->prepare("SELECT * FROM user_subjects WHERE user_id = ? ORDER BY subject_name");
     $subjects_stmt->execute([$user['id']]);
     $user_subjects = $subjects_stmt->fetchAll();
@@ -112,7 +111,6 @@ $proficiency_options = [
 ];
 
 if ($user['role'] === 'mentor') {
-    // Mentors can only add subjects they are advanced/expert in
     $proficiency_options = [
         'advanced' => 'Advanced (I can teach this)',
         'expert' => 'Expert (I have mastery in this)'
@@ -132,7 +130,8 @@ if ($user['role'] === 'mentor') {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/responsive.css"> <style>
+    <link rel="stylesheet" href="../assets/css/responsive.css">
+    <style>
         :root {
             --primary-color: #2563eb;
             --text-primary: #1a1a1a;
@@ -172,7 +171,7 @@ if ($user['role'] === 'mentor') {
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ===== HEADER & NAVIGATION (from chat.php) ===== */
+        /* ===== HEADER & NAVIGATION ===== */
         .header {
             background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
@@ -257,14 +256,8 @@ if ($user['role'] === 'mentor') {
             transition: color 0.2s;
         }
         .nav-links a:hover,
-        .nav-links a.active { /* Added active class */
+        .nav-links a.active {
             color: var(--primary-color);
-        }
-
-        .nav-actions {
-            display: flex; 
-            align-items: center; 
-            gap: 1rem;
         }
         
         .notification-bell {
@@ -443,72 +436,7 @@ if ($user['role'] === 'mentor') {
         .profile-dropdown-item.logout:hover {
             background: rgba(220, 38, 38, 0.1);
         }
-        
-        /* Mobile Responsive Styles from chat.php */
-        @media (max-width: 768px) {
-            .hamburger {
-                display: flex;
-                flex: 1 0 0; /* NEW: take 1/3 width */
-                justify-content: flex-start; /* NEW: align left */
-            }
-            .navbar {
-                padding: 0.75rem 0.5rem;
-            }
-            .logo {
-                font-size: 1.1rem;
-                flex: 1 0 0; /* NEW: override desktop flex: 1 and take 1/3 width */
-                text-align: center; /* NEW: center logo text */
-                justify-content: center; /* NEW: center logo icon+text */
-            }
-            .nav-actions {
-                flex: 1 0 0; /* NEW: take 1/3 width */
-                justify-content: flex-end; /* NEW: align icons to the right */
-            }
-            .nav-links {
-                display: none;
-                position: fixed;
-                top: 60px;
-                left: 0;
-                right: 0;
-                background: var(--card-bg);
-                flex-direction: column;
-                gap: 0;
-                max-height: 0;
-                overflow: hidden;
-                transition: max-height 0.3s ease;
-                box-shadow: var(--shadow-lg);
-                z-index: 999;
-            }
-            .nav-links.active {
-                max-height: 500px;
-                display: flex;
-            }
-            .nav-links a {
-                padding: 1rem;
-                border-bottom: 1px solid var(--border-color);
-                display: block;
-                text-align: left;
-            }
-            .notification-dropdown {
-                width: calc(100vw - 2rem);
-                right: -0.5rem;
-            }
-            input, select, textarea, button {
-                font-size: 16px !important;
-            }
-        }
 
-        @media (max-width: 480px) {
-            .logo {
-                font-size: 1rem;
-            }
-            .nav-actions {
-                gap: 0.5rem;
-            }
-        }
-    </style>
-    
-    <style>
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -534,14 +462,14 @@ if ($user['role'] === 'mentor') {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            color: var(--text-primary); /* Adapted */
+            color: var(--text-primary);
         }
         .page-header h1 i {
             color: var(--primary-color);
         }
         .page-subtitle {
             font-size: 0.95rem;
-            color: var(--text-secondary); /* Adapted */
+            color: var(--text-secondary);
         }
 
         /* Alerts */
@@ -574,9 +502,9 @@ if ($user['role'] === 'mentor') {
 
         /* Card */
         .card {
-            background: var(--card-bg); /* Adapted */
+            background: var(--card-bg);
             border-radius: 10px;
-            border: 1px solid var(--border-color); /* Adapted */
+            border: 1px solid var(--border-color);
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             transition: box-shadow 0.2s, background-color 0.3s ease, border-color 0.3s ease;
@@ -585,24 +513,25 @@ if ($user['role'] === 'mentor') {
             box-shadow: 0 4px 16px rgba(0,0,0,0.08);
         }
         
-        /* ########## THIS IS THE CORRECTED STYLE ########## */
         .card-header {
             padding: 1.25rem;
-            border-bottom: 1px solid var(--border-color); /* Adapted */
-            background: var(--bg-color); /* Makes header bg same as page bg */
+            border-bottom: 1px solid var(--border-color);
             transition: background-color 0.3s ease, border-color 0.3s ease;
         }
-        /* ################################################## */
+
+        [data-theme="dark"] .card-header {
+            background: rgba(0, 0, 0, 0.2);
+        }
         
         .card-title {
             font-size: 1.1rem;
             font-weight: 600;
-            color: var(--text-primary); /* Adapted */
+            color: var(--text-primary);
             margin: 0;
         }
         .card-subtitle {
             font-size: 0.85rem;
-            color: var(--text-secondary); /* Adapted */
+            color: var(--text-secondary);
             margin-top: 0.5rem;
             line-height: 1.5;
         }
@@ -618,17 +547,17 @@ if ($user['role'] === 'mentor') {
             display: block;
             font-size: 0.9rem;
             font-weight: 500;
-            color: var(--text-primary); /* Adapted */
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
         .form-control {
             width: 100%;
             padding: 0.75rem;
-            border: 1px solid var(--border-color); /* Adapted */
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 0.95rem;
-            background: var(--card-bg); /* Adapted */
-            color: var(--text-primary); /* Adapted */
+            background: var(--card-bg);
+            color: var(--text-primary);
             transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s ease, color 0.3s ease;
         }
         .form-control:focus {
@@ -637,8 +566,8 @@ if ($user['role'] === 'mentor') {
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
         .form-control:disabled {
-            background: var(--bg-color); /* Adapted */
-            color: var(--text-secondary); /* Adapted */
+            background: var(--bg-color);
+            color: var(--text-secondary);
             cursor: not-allowed;
         }
 
@@ -656,6 +585,7 @@ if ($user['role'] === 'mentor') {
             cursor: pointer;
             text-decoration: none;
             transition: all 0.2s;
+            min-height: 44px;
         }
         .btn-primary {
             background: var(--primary-color);
@@ -665,15 +595,15 @@ if ($user['role'] === 'mentor') {
             background: #1d4ed8;
         }
         .btn-secondary {
-            background: var(--border-color); /* Adapted */
-            color: var(--text-primary); /* Adapted */
+            background: var(--border-color);
+            color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
         .btn-secondary:hover {
             background: rgba(0,0,0,0.1);
         }
         [data-theme="dark"] .btn-secondary:hover {
-            background: rgba(255,255,255,0.1); /* Dark mode hover for secondary */
+            background: rgba(255,255,255,0.1);
         }
         .btn-danger {
             background: #fee2e2;
@@ -686,6 +616,7 @@ if ($user['role'] === 'mentor') {
         .btn-sm {
             padding: 0.5rem 0.75rem;
             font-size: 0.85rem;
+            min-height: 36px;
         }
 
         /* Subject List */
@@ -699,7 +630,7 @@ if ($user['role'] === 'mentor') {
             align-items: center;
             justify-content: space-between;
             padding: 0.875rem 0;
-            border-bottom: 1px solid var(--border-color); /* Adapted */
+            border-bottom: 1px solid var(--border-color);
         }
         .subject-item:last-child {
             border-bottom: none;
@@ -710,12 +641,12 @@ if ($user['role'] === 'mentor') {
         }
         .subject-name {
             font-weight: 500;
-            color: var(--text-primary); /* Adapted */
+            color: var(--text-primary);
             font-size: 0.95rem;
         }
         .subject-level {
             font-size: 0.85rem;
-            color: var(--text-secondary); /* Adapted */
+            color: var(--text-secondary);
             text-transform: capitalize;
         }
         .subject-actions {
@@ -728,7 +659,7 @@ if ($user['role'] === 'mentor') {
         .empty-state {
             text-align: center;
             padding: 2rem;
-            color: var(--text-secondary); /* Adapted */
+            color: var(--text-secondary);
             font-size: 0.9rem;
         }
         .empty-state i {
@@ -737,95 +668,156 @@ if ($user['role'] === 'mentor') {
             margin-bottom: 1rem;
             display: block;
         }
+
+        .hide-on-small {
+            display: inline;
+        }
         
-        /* Responsive Grid */
-        @media (max-width: 992px) {
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .hamburger {
+                display: flex;
+            }
+            .navbar {
+                padding: 0.75rem 0.5rem;
+            }
+            .logo {
+                font-size: 1.1rem;
+            }
+            .nav-links {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: var(--card-bg);
+                flex-direction: column;
+                gap: 0;
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                box-shadow: var(--shadow-lg);
+                z-index: 999;
+            }
+            .nav-links.active {
+                max-height: 500px;
+                display: flex;
+            }
+            .nav-links a {
+                padding: 1rem;
+                border-bottom: 1px solid var(--border-color);
+                display: block;
+                text-align: left;
+            }
+            .notification-dropdown {
+                width: calc(100vw - 2rem);
+                right: -0.5rem;
+            }
             .grid {
                 grid-template-columns: 1fr;
+            }
+            main {
+                padding: 1rem 0;
+            }
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+            .container {
+                padding: 0 0.75rem;
+            }
+            input, select, textarea, button {
+                font-size: 16px !important;
+            }
+            .hide-on-small {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 1rem;
+            }
+            .page-header h1 {
+                font-size: 1.25rem;
             }
         }
     </style>
 </head>
 <body>
 
-<script>
-    (function() {
-        const theme = localStorage.getItem('theme');
-        if (theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            document.body.classList.add('dark-mode');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
-    })();
-</script>
-
 <header class="header">
     <nav class="navbar">
-        
-        <button class="hamburger" id="hamburger-menu" aria-label="Toggle menu">
+        <button class="hamburger" id="hamburger">
             <span></span>
             <span></span>
             <span></span>
         </button>
         
         <a href="../dashboard.php" class="logo">
-            <i class="fas fa-brain"></i> Study Buddy
+            <i class="fas fa-book-open"></i> Study Buddy
         </a>
 
-        <ul class="nav-links">
+        <ul class="nav-links" id="navLinks">
             <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="../find_match.php"><i class="fas fa-search"></i> Find a Match</a></li>
-            <li><a href="../matches.php"><i class="fas fa-user-friends"></i> Matches</a></li>
-            <li><a href="index.php" class="active"><i class="fas fa-user"></i> Profile</a></li>
+            <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
+            <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
+            <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
         </ul>
 
-        <div class="nav-actions">
-            <button class="notification-bell" id="notification-bell" aria-label="Notifications">
-                <i class="fas fa-bell"></i>
-                <?php if ($unread_notifications > 0): ?>
-                    <span class="notification-badge"><?php echo $unread_notifications; ?></span>
-                <?php endif; ?>
-            </button>
-            
-            <div class="notification-dropdown" id="notification-dropdown">
-                <div class="notification-header">
-                    <h3 style="font-weight: 600; font-size: 1rem;">Notifications</h3>
-                    <button class="btn-sm btn-outline" id="mark-all-read" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">Mark all as read</button>
-                </div>
-                <div class="notification-list" id="notification-list">
-                    <p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading notifications...</p>
-                </div>
-                <div class="notification-footer">
-                    <a href="../notifications.php">View all notifications</a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="position: relative;">
+                <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <?php if ($unread_notifications > 0): ?>
+                        <span class="notification-badge"><?php echo $unread_notifications; ?></span>
+                    <?php endif; ?>
+                </button>
+                <div class="notification-dropdown" id="notificationDropdown">
+                    <div class="notification-header">
+                        <h4 style="margin: 0; font-size: 1rem;"><i class="fas fa-bell"></i> Notifications</h4>
+                    </div>
+                    <div class="notification-list" id="notificationList">
+                        <div style="text-align: center; padding: 1.5rem; color: #999;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
+                    <div class="notification-footer">
+                        <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
+                    </div>
                 </div>
             </div>
 
             <div class="profile-menu">
-                <button class="profile-icon" id="profile-icon" aria-label="Profile menu">
-                    <?php if ($user['profile_picture'] && file_exists('../' . $user['profile_picture'])): ?>
+                <button class="profile-icon" onclick="toggleProfileMenu(event)">
+                    <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
                         <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
                     <?php else: ?>
-                        <span><?php echo strtoupper(substr($user['first_name'], 0, 1)); ?></span>
+                        <i class="fas fa-user"></i>
                     <?php endif; ?>
                 </button>
-                <div class="profile-dropdown" id="profile-dropdown">
+                <div class="profile-dropdown" id="profileDropdown">
                     <div class="profile-dropdown-header">
-                        <div class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></div>
-                        <div class="user-role"><?php echo htmlspecialchars(ucfirst($user['role'])); ?></div>
+                        <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
+                        <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
                     </div>
                     <div class="profile-dropdown-menu">
                         <a href="index.php" class="profile-dropdown-item">
-                            <i class="fas fa-user-circle"></i> View Profile
+                            <i class="fas fa-user-circle"></i> <span>View Profile</span>
                         </a>
+                        <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <a href="commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i> <span>Commissions</span>
+                            </a>
+                        <?php endif; ?>
                         <a href="settings.php" class="profile-dropdown-item">
-                            <i class="fas fa-cog"></i> Settings
+                            <i class="fas fa-sliders-h"></i> <span>Settings</span>
                         </a>
-                        <button class="profile-dropdown-item" id="dark-mode-toggle">
-                            <i class="fas fa-moon"></i> <span>Dark Mode</span>
+                        <button type="button" class="profile-dropdown-item" onclick="toggleTheme()">
+                            <i class="fas fa-sun" id="theme-icon"></i> <span id="theme-text">Toggle Theme</span>
                         </button>
+                        <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                         <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                            <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                         </a>
                     </div>
                 </div>
@@ -845,14 +837,20 @@ if ($user['role'] === 'mentor') {
                     <p class="page-subtitle">Add the subjects you are an expert in and can mentor.</p>
                 <?php endif; ?>
             </div>
-            <a href="index.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to Profile</a>
+            <a href="index.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> <span class="hide-on-small">Back to Profile</span></a>
         </div>
 
         <?php if ($message): ?>
-            <div class="alert alert-success"><?php echo $message; ?></div>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <div><?php echo $message; ?></div>
+            </div>
         <?php endif; ?>
         <?php if ($error): ?>
-            <div class="alert alert-error"><?php echo $error; ?></div>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <div><?php echo $error; ?></div>
+            </div>
         <?php endif; ?>
 
         <div class="card" style="margin-bottom: 1.5rem;">
@@ -1001,185 +999,181 @@ if ($user['role'] === 'mentor') {
 </main>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const hamburger = document.querySelector('.hamburger');
-        const navLinks = document.querySelector('.nav-links');
-        const profileIcon = document.getElementById('profile-icon');
-        const profileDropdown = document.getElementById('profile-dropdown');
-        const notificationBell = document.getElementById('notification-bell');
-        const notificationDropdown = document.getElementById('notification-dropdown');
-        const notificationList = document.getElementById('notification-list');
-        const markAllReadBtn = document.getElementById('mark-all-read');
-        const darkModeToggle = document.getElementById('dark-mode-toggle');
-        const darkModeToggleText = darkModeToggle.querySelector('span');
-        const darkModeToggleIcon = darkModeToggle.querySelector('i');
-
-        let notificationDropdownOpen = false;
-
-        // Hamburger Menu
-        if (hamburger) {
-            hamburger.addEventListener('click', () => {
-                hamburger.classList.toggle('active');
-                navLinks.classList.toggle('active');
-            });
+    // --- Theme Toggle JS ---
+    const body = document.body;
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    function setTheme(theme) {
+        body.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        updateThemeToggleUI(theme);
+    }
+    
+    function updateThemeToggleUI(theme) {
+        if (theme === 'dark') {
+            themeIcon.classList.remove('fa-sun');
+            themeIcon.classList.add('fa-moon');
+            themeText.textContent = 'Light Mode';
+        } else {
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+            themeText.textContent = 'Dark Mode';
         }
-
-        // Profile Dropdown
-        if (profileIcon) {
-            profileIcon.addEventListener('click', (event) => {
-                event.stopPropagation();
-                profileDropdown.classList.toggle('show');
-                notificationDropdown.classList.remove('show');
-                notificationDropdownOpen = false;
-            });
+    }
+    
+    function toggleTheme() {
+        const currentTheme = body.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+    }
+    
+    // Load theme on initial page load
+    (function loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        let initialTheme = 'light';
+        
+        if (savedTheme) {
+            initialTheme = savedTheme;
+        } else if (prefersDark) {
+            initialTheme = 'dark';
         }
+        
+        setTheme(initialTheme);
+    })();
+    // --- End Theme Toggle JS ---
 
-        // Notification Dropdown
-        if (notificationBell) {
-            notificationBell.addEventListener('click', (event) => {
-                event.stopPropagation();
-                notificationDropdown.classList.toggle('show');
-                profileDropdown.classList.remove('show');
-                notificationDropdownOpen = notificationDropdown.classList.contains('show');
-                
-                if (notificationDropdownOpen) {
-                    loadNotifications();
-                }
-            });
+    let notificationDropdownOpen = false;
+    let profileDropdownOpen = false;
+
+    // Mobile Menu Toggle
+    document.getElementById('hamburger').addEventListener('click', function() {
+        this.classList.toggle('active');
+        document.getElementById('navLinks').classList.toggle('active');
+    });
+
+    function toggleNotifications(event) {
+        event.stopPropagation();
+        if (profileDropdownOpen) {
+            document.getElementById('profileDropdown').classList.remove('show');
+            profileDropdownOpen = false;
         }
+        const dropdown = document.getElementById('notificationDropdown');
+        notificationDropdownOpen = !notificationDropdownOpen;
+        dropdown.classList.toggle('show');
+        if (notificationDropdownOpen) {
+            loadNotifications();
+        }
+    }
 
-        // Close dropdowns on outside click
-        document.addEventListener('click', (event) => {
-            if (profileDropdown && !profileDropdown.contains(event.target) && !profileIcon.contains(event.target)) {
-                profileDropdown.classList.remove('show');
-            }
-            if (notificationDropdown && !notificationDropdown.contains(event.target) && !notificationBell.contains(event.target)) {
-                notificationDropdown.classList.remove('show');
-                notificationDropdownOpen = false;
-            }
-        });
+    function toggleProfileMenu(event) {
+        event.stopPropagation();
+        if (notificationDropdownOpen) {
+            document.getElementById('notificationDropdown').classList.remove('show');
+            notificationDropdownOpen = false;
+        }
+        const dropdown = document.getElementById('profileDropdown');
+        profileDropdownOpen = !profileDropdownOpen;
+        dropdown.classList.toggle('show');
+    }
 
-        // Dark Mode Toggle
-        if (darkModeToggle) {
-            // Set initial state of the toggle
-            if (document.body.classList.contains('dark-mode')) {
-                darkModeToggleText.textContent = 'Light Mode';
-                darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
-            } else {
-                darkModeToggleText.textContent = 'Dark Mode';
-                darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
-            }
-
-            darkModeToggle.addEventListener('click', () => {
-                document.body.classList.toggle('dark-mode');
-                const isDarkMode = document.body.classList.contains('dark-mode');
-                
-                if (isDarkMode) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    localStorage.setItem('theme', 'dark');
-                    darkModeToggleText.textContent = 'Light Mode';
-                    darkModeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+    function loadNotifications() {
+        const list = document.getElementById('notificationList');
+        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-spinner fa-spin"></i></div>';
+        
+        fetch('../api/notifications.php?mark_read=true')
+            .then(response => response.json())
+            .then(data => {
+                if (data.notifications && data.notifications.length > 0) {
+                    list.innerHTML = '';
+                    data.notifications.forEach(n => {
+                        list.innerHTML += `
+                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="window.location.href='${n.link}'">
+                                <div style="flex-shrink: 0;"><i class="fas fa-info-circle" style="color: var(--primary-color);"></i></div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary);">${n.message}</p>
+                                    <small style="color: var(--text-secondary);">${formatMessageTime(n.created_at)}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.querySelector('.notification-badge')?.remove();
                 } else {
-                    document.documentElement.setAttribute('data-theme', 'light');
-                    localStorage.setItem('theme', 'light');
-                    darkModeToggleText.textContent = 'Dark Mode';
-                    darkModeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">No notifications</div>';
                 }
+            })
+            .catch(() => {
+                list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">Failed to load</div>';
             });
-        }
+    }
 
-        // Notification Functions
-        function loadNotifications() {
-            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Loading...</p>';
+    function formatMessageTime(dateTime) {
+        const dt = new Date(dateTime + ' UTC');
+        return dt.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+        });
+    }
+
+    document.addEventListener('click', function(event) {
+        const hamburger = document.getElementById('hamburger');
+        const navLinks = document.getElementById('navLinks');
+        
+        if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+            hamburger.classList.remove('active');
+            navLinks.classList.remove('active');
+        }
+        
+        if (notificationDropdownOpen) {
+            const notifDropdown = document.getElementById('notificationDropdown');
+            const notifBell = document.querySelector('.notification-bell');
+            if (!notifDropdown.contains(event.target) && !notifBell.contains(event.target)) {
+                notificationDropdownOpen = false;
+                notifDropdown.classList.remove('show');
+            }
+        }
+        
+        if (profileDropdownOpen) {
+            const profDropdown = document.getElementById('profileDropdown');
+            const profIcon = document.querySelector('.profile-icon');
+            if (!profDropdown.contains(event.target) && !profIcon.contains(event.target)) {
+                profileDropdownOpen = false;
+                profDropdown.classList.remove('show');
+            }
+        }
+    });
+
+    // Periodic notification check
+    setInterval(() => {
+        if (notificationDropdownOpen) {
+            loadNotifications();
+        } else {
             fetch('../api/notifications.php')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        notificationList.innerHTML = '';
-                        if (data.notifications.length === 0) {
-                            notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">No new notifications.</p>';
+                    const badge = document.querySelector('.notification-badge');
+                    if (data.unread_count > 0) {
+                        if (badge) {
+                            badge.textContent = data.unread_count;
                         } else {
-                            data.notifications.forEach(item => {
-                                const el = document.createElement('div');
-                                el.className = 'notification-item-dropdown';
-                                if (!item.is_read) {
-                                    el.classList.add('unread');
-                                }
-                                el.dataset.id = item.id;
-                                el.innerHTML = `
-                                    <div style="font-size: 1.25rem; color: var(--primary-color); padding-top: 0.25rem;"><i class="fas ${item.icon}"></i></div>
-                                    <div>
-                                        <p style="color: var(--text-primary); margin-bottom: 0.25rem;">${item.message}</p>
-                                        <small style="color: var(--text-secondary);">${item.time_ago}</small>
-                                    </div>
-                                `;
-                                el.addEventListener('click', () => {
-                                    window.location.href = item.link;
-                                });
-                                notificationList.appendChild(el);
-
-                            });
+                            const bell = document.querySelector('.notification-bell');
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'notification-badge';
+                            newBadge.textContent = data.unread_count;
+                            bell.appendChild(newBadge);
                         }
-                        updateNotificationBadge(data.unread_count);
+                    } else if (badge) {
+                        badge.remove();
                     }
-                })
-                .catch(err => {
-                    notificationList.innerHTML = '<p style="padding: 1rem; text-align: center; color: #dc2626;">Failed to load notifications.</p>';
                 });
         }
+    }, 30000);
 
-        if (markAllReadBtn) {
-            markAllReadBtn.addEventListener('click', () => {
-                fetch('../api/notifications.php?action=mark_all_read', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            loadNotifications();
-                        }
-                    });
-            });
-        }
-        
-        function updateNotificationBadge(count) {
-            const badge = document.querySelector('.notification-badge');
-            if (count > 0) {
-                if (badge) {
-                    badge.textContent = count;
-                } else {
-                    const newBadge = document.createElement('span');
-                    newBadge.className = 'notification-badge';
-                    newBadge.textContent = count;
-                    notificationBell.appendChild(newBadge);
-                }
-            } else if (badge) {
-                badge.remove();
-            }
-        }
-
-        // Auto-update notification badge
-        setInterval(() => {
-            if (!notificationDropdownOpen) {
-                fetch('../api/notifications.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            updateNotificationBadge(data.unread_count);
-                        }
-                    });
-            } else {
-                // If dropdown is open, refresh the list
-                loadNotifications();
-            }
-        }, 30000); // Poll every 30 seconds
-    });
-</script>
-
-<script>
+    // Subjects hierarchy data and cascading dropdown
     document.addEventListener('DOMContentLoaded', function() {
-        // Subjects hierarchy data
         const subjectsHierarchy = <?php echo json_encode(getSubjectsHierarchy()); ?>;
-
-        // Cascading Dropdown for Subtopics
         const mainSubjectSelect = document.getElementById('main_subject');
         const subtopicSelect = document.getElementById('subtopic');
         

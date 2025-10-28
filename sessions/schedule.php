@@ -37,7 +37,7 @@ while ($row = $settings_stmt->fetch()) {
     $settings[$row['setting_key']] = $row['setting_value'];
 }
 $commission_percentage = $settings['commission_percentage'] ?? 10;
-$terms_url = $settings['coa_terms_url'] ?? '/terms-and-conditions.php';
+$terms_url = $settings['coa_terms_url'] ?? '/terms-and-conditions.php'; // This is kept but the link will be overridden to use the modal
 
 // Get user's active matches
 $matches_query = "
@@ -89,7 +89,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $duration = (int)$_POST['duration'];
         $location = sanitize_input($_POST['location']);
         $notes = sanitize_input($_POST['notes']);
-        $send_reminder = isset($_POST['send_reminder']) ? 1 : 0;
+        // === MODIFICATION: Removed $send_reminder line ===
         $terms_accepted = isset($_POST['terms_accepted']) ? 1 : 0;
         
         if (empty($selected_match_id) || empty($session_date) || empty($start_time) || empty($duration)) {
@@ -97,15 +97,12 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!$terms_accepted) {
             $error = 'You must accept the terms and conditions to schedule a session.';
         } else {
-            // Create DateTime objects for validation
             $now = new DateTime();
             $session_datetime = new DateTime($session_date . ' ' . $start_time);
             
-            // Calculate minimum allowed time (1 hour from now)
             $minimum_time = clone $now;
             $minimum_time->add(new DateInterval('PT1H'));
             
-            // Validate session is not in the past and is at least 1 hour ahead
             if ($session_datetime < $now) {
                 $error = 'Session date and time cannot be in the past.';
             } elseif ($session_datetime < $minimum_time) {
@@ -283,6 +280,18 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -299,13 +308,14 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -313,6 +323,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -410,7 +421,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -426,7 +437,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -437,12 +448,13 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -451,7 +463,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -464,7 +476,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -472,17 +484,23 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
 
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: rgba(37, 99, 235, 0.1);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.9rem;
         }
 
         .profile-menu {
@@ -502,11 +520,18 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 1.1rem;
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         }
 
         .profile-icon:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .profile-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .profile-dropdown {
@@ -516,10 +541,11 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -528,7 +554,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -541,7 +567,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -565,7 +591,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -574,7 +600,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
 
         .container {
@@ -635,7 +661,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .btn-outline {
-            background: white;
+            background: transparent;
             color: var(--primary-color);
             border: 2px solid var(--primary-color);
         }
@@ -646,8 +672,8 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .btn-secondary {
-            background: #e5e7eb;
-            color: #374151;
+            background: var(--border-color);
+            color: var(--text-primary);
         }
 
         .btn-secondary:hover {
@@ -663,7 +689,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .calendar-card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 1.5rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -680,7 +706,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .calendar-header h3 {
             font-size: 1.125rem;
-            color: #111827;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
@@ -690,7 +716,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .calendar-nav button {
-            background: #f3f4f6;
+            background: var(--border-color);
             border: none;
             width: 36px;
             height: 36px;
@@ -719,7 +745,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             text-align: center;
             font-size: 0.75rem;
             font-weight: 600;
-            color: #6b7280;
+            color: var(--text-secondary);
             padding: 0.5rem 0;
         }
 
@@ -733,25 +759,28 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             cursor: pointer;
             transition: all 0.2s;
             position: relative;
+            color: var(--text-primary);
         }
 
         .calendar-day:hover:not(.empty):not(.past) {
-            background: #e0e7ff;
+            background: rgba(37, 99, 235, 0.2);
             transform: scale(1.05);
         }
 
         .calendar-day.empty {
             cursor: default;
-            color: #d1d5db;
+            color: var(--text-secondary);
+            opacity: 0.3;
         }
 
         .calendar-day.past {
-            color: #d1d5db;
+            color: var(--text-secondary);
             cursor: not-allowed;
+            opacity: 0.5;
         }
 
         .calendar-day.today {
-            background: #dbeafe;
+            background: rgba(37, 99, 235, 0.2);
             color: var(--primary-color);
             font-weight: 600;
         }
@@ -779,7 +808,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .form-card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 2rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -788,7 +817,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .form-card h3 {
             font-size: 1.25rem;
-            color: #111827;
+            color: var(--text-primary);
             margin-bottom: 1.5rem;
             font-weight: 600;
         }
@@ -801,19 +830,20 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             display: block;
             font-size: 0.875rem;
             font-weight: 600;
-            color: #374151;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
 
         .form-input, .form-select, .form-textarea {
             width: 100%;
             padding: 0.75rem;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 0.875rem;
-            color: #111827;
+            color: var(--text-primary);
             font-family: 'Inter', sans-serif;
             transition: all 0.2s;
+            background: var(--card-bg);
         }
 
         .form-input:focus, .form-select:focus, .form-textarea:focus {
@@ -833,8 +863,22 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center;
             gap: 0.5rem;
             padding: 0.75rem;
-            background: #f9fafb;
+            background: rgba(37, 99, 235, 0.05);
             border-radius: 8px;
+        }
+
+        [data-theme="dark"] .checkbox-group {
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .checkbox-group-warning {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+        }
+
+        [data-theme="dark"] .checkbox-group-warning {
+            background: #3f3014;
+            border: 1px solid #92400e;
         }
 
         .checkbox-group input[type="checkbox"] {
@@ -845,7 +889,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .checkbox-group label {
             font-size: 0.875rem;
-            color: #374151;
+            color: var(--text-primary);
             cursor: pointer;
         }
 
@@ -903,24 +947,137 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .no-matches-card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 3rem 2rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             text-align: center;
             max-width: 600px;
             margin: 0 auto;
+            border: 1px solid var(--border-color);
         }
 
         .no-matches-card h3 {
             font-size: 1.5rem;
-            color: #111827;
+            color: var(--text-primary);
             margin-bottom: 1rem;
         }
 
         .no-matches-card p {
-            color: #6b7280;
+            color: var(--text-secondary);
             margin-bottom: 1.5rem;
+        }
+
+        .hide-on-small {
+            display: inline;
+        }
+        
+        /* ===== MODAL STYLES ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 1rem;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .modal-container {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.125rem;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.75rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+
+        .modal-content h4 {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .modal-content h4:first-child {
+            margin-top: 0;
+        }
+
+        .modal-content ul {
+            padding-left: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        
+        .modal-content li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-content a {
+            color: var(--primary-color);
+            text-decoration: underline;
+        }
+        
+        .modal-content p {
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            text-align: right;
+            background: var(--bg-color);
         }
 
         /* ===== MOBILE RESPONSIVE ===== */
@@ -943,7 +1100,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -969,6 +1126,10 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 padding: 1rem 0;
             }
 
+            .container {
+                padding: 0 0.75rem;
+            }
+
             .page-header h1 {
                 font-size: 1.5rem;
             }
@@ -990,17 +1151,17 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 grid-template-columns: 1fr;
             }
 
-            .container {
-                padding: 0 0.75rem;
-            }
-
             .notification-dropdown {
-                width: 320px;
-                right: -60px;
+                width: calc(100vw - 2rem);
+                right: -0.5rem;
             }
 
             input, select, textarea, button {
                 font-size: 16px !important;
+            }
+
+            .hide-on-small {
+                display: none;
             }
         }
 
@@ -1033,22 +1194,18 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -1056,9 +1213,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -1068,7 +1223,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     </button>
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-header">
-                            <h4><i class="fas fa-bell"></i> Notifications</h4>
+                            <h4 style="margin: 0; font-size: 1rem;"><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
                             <div style="text-align: center; padding: 1.5rem; color: #999;">
@@ -1076,17 +1231,18 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-arrow-right"></i> View All
-                            </a>
+                            <a href="../notifications/index.php"><i class="fas fa-arrow-right"></i> View All</a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <i class="fas fa-user"></i>
+                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
+                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
@@ -1095,23 +1251,22 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="../profile/index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i>
-                                <span>View Profile</span>
+                                <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
                             <?php if (in_array($user['role'], ['mentor'])): ?>
-                                <a href="../profile/commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
+                            <a href="../profile/commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i> <span>Commissions</span>
+                            </a>
                             <?php endif; ?>
                             <a href="../profile/settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i>
-                                <span>Settings</span>
+                                <i class="fas fa-sliders-h"></i> <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <button type="button" class="profile-dropdown-item" onclick="toggleTheme()">
+                                <i class="fas fa-sun" id="theme-icon"></i> <span id="theme-text">Toggle Theme</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
+                                <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                             </a>
                         </div>
                     </div>
@@ -1159,10 +1314,9 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                         <div class="calendar-grid" id="calendarGrid">
-                            <!-- Calendar will be generated by JavaScript -->
-                        </div>
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #6b7280;">
+                            </div>
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
                                 <div style="display: flex; align-items: center; gap: 0.25rem;">
                                     <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></div>
                                     <span>Has sessions</span>
@@ -1218,10 +1372,10 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="form-group">
-                                <div class="checkbox-group" style="background: #fef3c7; border: 1px solid #fbbf24;">
+                                <div class="checkbox-group checkbox-group-warning">
                                     <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required>
                                     <label for="terms_accepted">
-                                        I agree to the <a href="<?php echo htmlspecialchars($terms_url); ?>" target="_blank" style="color: var(--primary-color); text-decoration: underline;">Terms and Conditions</a> including the Commission on Agreement (COA) policy *
+                                        I agree to the <a href="#" onclick="event.preventDefault(); openModal('termsModal');" style="color: var(--primary-color); text-decoration: underline;">Terms and Conditions</a> including the Commission on Agreement (COA) policy *
                                     </label>
                                 </div>
                                 <?php if ($commission_percentage > 0): ?>
@@ -1229,15 +1383,6 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <i class="fas fa-info-circle"></i> Mentors are required to pay <?php echo $commission_percentage; ?>% commission to the admin after each paid session.
                                     </p>
                                 <?php endif; ?>
-                            </div>
-
-                            <div class="form-group">
-                                <div class="checkbox-group">
-                                    <input type="checkbox" name="send_reminder" id="send_reminder" value="1" checked>
-                                    <label for="send_reminder">
-                                        <i class="fas fa-bell"></i> Send email reminder notification
-                                    </label>
-                                </div>
                             </div>
 
                             <div class="form-actions">
@@ -1255,6 +1400,71 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </main>
 
+    <div id="termsModal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>Terms and Conditions (Commission on Agreement)</h3>
+                <button class="modal-close" onclick="closeModal('termsModal')">&times;</button>
+            </div>
+            <div class="modal-content">
+                <p>By scheduling a paid session, you (the **Mentor**) agree to the following terms regarding the Commission on Agreement (COA) policy.</p>
+                
+                <h4>1. Mentor Responsibilities</h4>
+                <ul>
+                    <li>You agree that as a Mentor offering paid services on the Study Buddy platform, you are an independent contractor and not an employee of Study Buddy.</li>
+                    <li>You are solely responsible for accurately reporting your earnings and paying any and all applicable local, state, and federal taxes.</li>
+                    <li>You agree to conduct all paid sessions scheduled through the platform professionally, ethically, and in accordance with our Community Guidelines.</li>
+                    <li>You agree **not to circumvent** the platform's payment and commission system. This includes, but is not limited to, soliciting or accepting payments from students "off-platform" for sessions that were initiated or scheduled via Study Buddy.</li>
+                </ul>
+
+                <h4>2. Commission Rate</h4>
+                <ul>
+                    <li>A commission of <strong><?php echo $commission_percentage; ?>%</strong> (the "Commission") will be applied to the total payment amount ("Session Amount") for every completed, paid session.</li>
+                    <li>This Commission is the fee for using the Study Buddy platform, which facilitates matching, scheduling, communication, and payment processing.</li>
+                    <li>The platform reserves the right to change the Commission rate at any time, with 30 days' notice provided to all mentors.</li>
+                </ul>
+
+                <h4>3. Payment Schedule</h4>
+                <ul>
+                    <li>The Commission is calculated automatically after a session is marked as "Completed" by the student and payment is successfully processed.</li>
+                    <li>The platform will track all commissions owed in your "Commissions" dashboard, showing the status of each (e.g., "Pending", "Cleared", "Paid Out").</li>
+                    <li>Your earnings (Total Session Amount minus the Commission) will be processed and paid out to your designated payment account according to the platform's standard payout schedule (e.g., weekly, bi-weekly, or monthly).</li>
+                </ul>
+
+                <h4>4. Penalties for Non-Payment or Circumvention</h4>
+                <ul>
+                    <li>Failure to pay owed commissions (in models where payment is not automatic) or any attempt to circumvent the commission system is a serious violation of these terms.</li>
+                    <li>Violations may result in penalties, including but not limited to:
+                        <ul>
+                            <li>A formal warning.</li>
+                            <li>Temporary or permanent suspension of your Mentor account.</li>
+                            <li>Forfeiture of any pending, unpaid earnings.</li>
+                            <li>Legal action to recover owed Commission fees and damages.</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h4>5. Data Privacy Policy</h4>
+                <ul>
+                    <li>We collect and store personal data necessary to operate the platform, including your name, email, payment information, and session history. This is further detailed in our full <a href="/privacy-policy.php" target="_blank">Privacy Policy</a>.</li>
+                    <li>Your data is used to:
+                        <ul>
+                            <li>Facilitate matching and scheduling.</li>
+                            <li>Process payments and calculate commissions.</li>
+                            <li>Communicate with you and provide support.</li>
+                        </ul>
+                    </li>
+                    <li>We will not sell your personal information. We only share necessary data with trusted third-party partners, such as payment processors (e.g., Stripe, PayPal), to facilitate transactions.</li>
+                </ul>
+
+                <p style="margin-top: 1.5rem;"><strong>By checking the "I agree" box on the scheduling form, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('termsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
@@ -1265,6 +1475,52 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (preselectedDate) {
             currentDate = new Date(preselectedDate);
         }
+
+        // --- Theme Toggle JS ---
+        const body = document.body;
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        
+        function setTheme(theme) {
+            body.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeToggleUI(theme);
+        }
+        
+        function updateThemeToggleUI(theme) {
+            if (theme === 'dark') {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+        
+        function toggleTheme() {
+            const currentTheme = body.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+        
+        // Load theme on initial page load
+        (function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            let initialTheme = 'light';
+            
+            if (savedTheme) {
+                initialTheme = savedTheme;
+            } else if (prefersDark) {
+                initialTheme = 'dark';
+            }
+            
+            setTheme(initialTheme);
+        })();
+        // --- End Theme Toggle JS ---
 
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
@@ -1294,7 +1550,6 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // Initialize time validation
             initializeTimeValidation();
         });
 
@@ -1312,7 +1567,6 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 const now = new Date();
                 const selectedDateTime = new Date(selectedDate + 'T' + selectedTime);
                 
-                // Calculate minimum time (1 hour from now)
                 const minimumTime = new Date(now.getTime() + 60 * 60 * 1000);
                 
                 if (selectedDateTime < now) {
@@ -1370,109 +1624,65 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function toggleNotifications(event) {
             event.stopPropagation();
-            const dropdown = document.getElementById('notificationDropdown');
-            notificationDropdownOpen = !notificationDropdownOpen;
-            
-            if (notificationDropdownOpen) {
-                dropdown.classList.add('show');
+            if (profileDropdownOpen) {
                 document.getElementById('profileDropdown').classList.remove('show');
                 profileDropdownOpen = false;
+            }
+            const dropdown = document.getElementById('notificationDropdown');
+            notificationDropdownOpen = !notificationDropdownOpen;
+            dropdown.classList.toggle('show');
+            if (notificationDropdownOpen) {
                 loadNotifications();
-            } else {
-                dropdown.classList.remove('show');
             }
         }
 
         function toggleProfileMenu(event) {
             event.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            profileDropdownOpen = !profileDropdownOpen;
-            
-            if (profileDropdownOpen) {
-                dropdown.classList.add('show');
+            if (notificationDropdownOpen) {
                 document.getElementById('notificationDropdown').classList.remove('show');
                 notificationDropdownOpen = false;
-            } else {
-                dropdown.classList.remove('show');
             }
+            const dropdown = document.getElementById('profileDropdown');
+            profileDropdownOpen = !profileDropdownOpen;
+            dropdown.classList.toggle('show');
         }
 
-        function loadNotifications() {
-            fetch('../api/notifications.php')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
-                        return;
-                    }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
-                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
-                            </div>
-                        </div>
-                    `).join('');
-                });
-        }
-
-        function handleNotificationClick(notificationId, link) {
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
-            }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
+        function formatMessageTime(dateTime) {
+            const dt = new Date(dateTime + ' UTC');
+            return dt.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
             });
         }
 
-        function getNotificationIcon(type) {
-            const icons = {
-                'session_scheduled': 'fa-calendar-check',
-                'session_accepted': 'fa-check-circle',
-                'session_rejected': 'fa-times-circle',
-                'match_request': 'fa-handshake',
-                'match_accepted': 'fa-user-check',
-                'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
-            };
-            return icons[type] || 'fa-bell';
-        }
-
-        function getNotificationColor(type) {
-            const colors = {
-                'session_accepted': '#16a34a',
-                'session_rejected': '#dc2626',
-                'match_accepted': '#16a34a',
-                'announcement': '#2563eb',
-                'commission_due': '#d97706',
-                'session_scheduled': '#2563eb',
-                'match_request': '#2563eb'
-            };
-            return colors[type] || '#666';
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function timeAgo(dateString) {
-            const date = new Date(dateString);
-            const seconds = Math.floor((new Date() - date) / 1000);
-            if (seconds < 60) return 'Just now';
-            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
-            return Math.floor(seconds / 604800) + 'w ago';
+        async function loadNotifications() {
+            const list = document.getElementById('notificationList');
+            list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-spinner fa-spin"></i></div>';
+            
+            try {
+                const response = await fetch('../api/notifications.php?mark_read=true');
+                const data = await response.json();
+                
+                if (data.notifications && data.notifications.length > 0) {
+                    list.innerHTML = '';
+                    data.notifications.forEach(n => {
+                        list.innerHTML += `
+                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="window.location.href='${n.link}'">
+                                <div style="flex-shrink: 0;"><i class="fas fa-info-circle" style="color: var(--primary-color);"></i></div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary);">${n.message}</p>
+                                    <small style="color: var(--text-secondary);">${formatMessageTime(n.created_at)}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.querySelector('.notification-badge')?.remove();
+                } else {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">No notifications</div>';
+                }
+            } catch (e) {
+                list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">Failed to load</div>';
+            }
         }
 
         document.addEventListener('click', function() {
@@ -1499,7 +1709,10 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 badge.textContent = data.unread_count;
                             } else {
                                 const bell = document.querySelector('.notification-bell');
-                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                                const newBadge = document.createElement('span');
+                                newBadge.className = 'notification-badge';
+                                newBadge.textContent = data.unread_count;
+                                bell.appendChild(newBadge);
                             }
                         } else if (badge) {
                             badge.remove();
@@ -1507,6 +1720,30 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     });
             }
         }, 30000);
+
+        // --- MODAL JAVASCRIPT ---
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Add event listener to close modal on overlay click
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('termsModal');
+            if (event.target == modal) {
+                closeModal('termsModal');
+            }
+        });
+        // --- END MODAL JASCRIPT ---
 
         function renderCalendar() {
             const year = currentDate.getFullYear();

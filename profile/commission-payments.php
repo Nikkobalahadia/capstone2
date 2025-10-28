@@ -188,13 +188,29 @@ foreach ($payments as $payment) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Commission Payments - Study Buddy</title>
+
+    <script>
+        (function() {
+            try {
+                const theme = localStorage.getItem('theme');
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {
+                console.error("Failed to load theme:", e);
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -202,10 +218,92 @@ foreach ($payments as $payment) {
     <style>
         :root {
             --primary-color: #2563eb;
+            --primary-color-hover: #1d4ed8;
+
+            /* Light Mode */
             --text-primary: #1a1a1a;
             --text-secondary: #666;
             --border-color: #e5e5e5;
+            --bg-primary: #fafafa;
+            --bg-surface: #ffffff;
+            --bg-hover: #f0f0f0;
+            --bg-subtle: #f3f4f6;
+
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+
+            /* Status: Pending */
+            --pending-bg: #fef3c7;
+            --pending-text: #92400e;
+            /* Status: Submitted */
+            --submitted-bg: #dbeafe;
+            --submitted-text: #1e40af;
+            /* Status: Verified */
+            --verified-bg: #d1fae5;
+            --verified-text: #065f46;
+            /* Status: Rejected / Overdue */
+            --rejected-bg: #fee2e2;
+            --rejected-text: #991b1b;
+            --rejected-border: #fecaca;
+
+            /* Alert: Success */
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --success-border: #a7f3d0;
+            /* Alert: Error */
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+            --error-border: #fecaca;
+
+            /* Info Box */
+            --info-bg: #f0fdf4;
+            --info-border: #86efac;
+            --info-text: #065f46;
+            --info-icon: #10b981;
+        }
+
+        html.dark {
+            --primary-color: #3b82f6;
+            --primary-color-hover: #2563eb;
+
+            /* Dark Mode */
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --bg-primary: #111827;
+            --bg-surface: #1f2937;
+            --bg-hover: #374151;
+            --bg-subtle: #374151;
+            
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+
+            /* Status: Pending */
+            --pending-bg: #713f12;
+            --pending-text: #fef3c7;
+            /* Status: Submitted */
+            --submitted-bg: #1e40af;
+            --submitted-text: #dbeafe;
+            /* Status: Verified */
+            --verified-bg: #065f46;
+            --verified-text: #d1fae5;
+            /* Status: Rejected / Overdue */
+            --rejected-bg: #991b1b;
+            --rejected-text: #fee2e2;
+            --rejected-border: #7f1d1d;
+            
+            /* Alert: Success */
+            --success-bg: #064e3b;
+            --success-text: #a7f3d0;
+            --success-border: #065f46;
+            /* Alert: Error */
+            --error-bg: #450a0a;
+            --error-text: #fecaca;
+            --error-border: #991b1b;
+
+            /* Info Box */
+            --info-bg: #052e16;
+            --info-border: #166534;
+            --info-text: #a7f3d0;
+            --info-icon: #34d399;
         }
 
         * {
@@ -222,13 +320,14 @@ foreach ($payments as $payment) {
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background 0.2s, color 0.2s;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--bg-surface);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -337,7 +436,7 @@ foreach ($payments as $payment) {
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--bg-hover);
             color: var(--primary-color);
         }
 
@@ -364,12 +463,13 @@ foreach ($payments as $payment) {
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--bg-surface);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -378,7 +478,7 @@ foreach ($payments as $payment) {
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -391,7 +491,7 @@ foreach ($payments as $payment) {
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -399,17 +499,25 @@ foreach ($payments as $payment) {
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--bg-hover);
         }
 
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: var(--bg-subtle);
         }
 
+        html.dark .notification-item-dropdown.unread {
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        html.dark .notification-item-dropdown:hover {
+            background: #2a384c;
+        }
+        
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
         }
 
         /* Profile Menu */
@@ -451,10 +559,11 @@ foreach ($payments as $payment) {
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--bg-surface);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -463,7 +572,7 @@ foreach ($payments as $payment) {
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -476,7 +585,7 @@ foreach ($payments as $payment) {
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -500,7 +609,7 @@ foreach ($payments as $payment) {
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--bg-hover);
             color: var(--primary-color);
         }
 
@@ -509,9 +618,13 @@ foreach ($payments as $payment) {
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: var(--rejected-bg);
         }
-
+        
+        html.dark .profile-dropdown-item.logout:hover {
+            background: #450a0a;
+        }
+        
         /* Main Content */
         .container {
             max-width: 1400px;
@@ -556,7 +669,7 @@ foreach ($payments as $payment) {
         }
 
         .stat-card {
-            background: white;
+            background: var(--bg-surface);
             border-radius: 12px;
             padding: 1.5rem;
             border: 1px solid var(--border-color);
@@ -592,7 +705,7 @@ foreach ($payments as $payment) {
 
         /* Card */
         .card {
-            background: white;
+            background: var(--bg-surface);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             padding: 1.5rem;
@@ -614,8 +727,13 @@ foreach ($payments as $payment) {
         }
 
         .payment-item.overdue {
-            background: #fef2f2;
-            border-color: #fecaca;
+            background: var(--rejected-bg);
+            border-color: var(--rejected-border);
+        }
+        
+        html.dark .payment-item.overdue {
+             background: #450a0a;
+             border-color: #7f1d1d;
         }
 
         .payment-header {
@@ -687,28 +805,28 @@ foreach ($payments as $payment) {
         }
 
         .status-pending {
-            background: #fef3c7;
-            color: #92400e;
+            background: var(--pending-bg);
+            color: var(--pending-text);
         }
 
         .status-submitted {
-            background: #dbeafe;
-            color: #1e40af;
+            background: var(--submitted-bg);
+            color: var(--submitted-text);
         }
 
         .status-verified {
-            background: #d1fae5;
-            color: #065f46;
+            background: var(--verified-bg);
+            color: var(--verified-text);
         }
 
         .status-rejected {
-            background: #fee2e2;
-            color: #991b1b;
+            background: var(--rejected-bg);
+            color: var(--rejected-text);
         }
 
         .status-overdue {
-            background: #fee2e2;
-            color: #991b1b;
+            background: var(--rejected-bg);
+            color: var(--rejected-text);
             font-weight: 700;
             animation: pulse 2s infinite;
         }
@@ -741,7 +859,7 @@ foreach ($payments as $payment) {
         }
 
         .btn-primary:hover {
-            background: #1d4ed8;
+            background: var(--primary-color-hover);
         }
 
         .btn-success {
@@ -754,7 +872,7 @@ foreach ($payments as $payment) {
         }
 
         .btn-outline {
-            background: white;
+            background: transparent;
             color: var(--primary-color);
             border: 2px solid var(--primary-color);
         }
@@ -778,15 +896,15 @@ foreach ($payments as $payment) {
         }
 
         .alert-error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid var(--error-border);
         }
 
         .alert-success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
+            background: var(--success-bg);
+            color: var(--success-text);
+            border: 1px solid var(--success-border);
         }
 
         /* Modal Styles */
@@ -803,19 +921,24 @@ foreach ($payments as $payment) {
             justify-content: center;
             padding: 1rem;
         }
+        
+        html.dark .modal {
+            background: rgba(0, 0, 0, 0.7);
+        }
 
         .modal.active {
             display: flex;
         }
 
         .modal-content {
-            background: white;
+            background: var(--bg-surface);
             border-radius: 12px;
             padding: 2rem;
             max-width: 500px;
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
+            border: 1px solid var(--border-color);
         }
 
         .modal-header {
@@ -859,7 +982,7 @@ foreach ($payments as $payment) {
         }
 
         .modal-close:hover {
-            background: #f0f0f0;
+            background: var(--bg-hover);
         }
 
         .form-group {
@@ -870,7 +993,7 @@ foreach ($payments as $payment) {
             display: block;
             font-size: 0.875rem;
             font-weight: 600;
-            color: #374151;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
 
@@ -882,6 +1005,7 @@ foreach ($payments as $payment) {
             font-size: 0.875rem;
             color: var(--text-primary);
             font-family: 'Inter', sans-serif;
+            background: transparent;
         }
 
         .form-input:focus {
@@ -889,9 +1013,17 @@ foreach ($payments as $payment) {
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
+        
+        html.dark .form-input:focus {
+             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .form-input::placeholder {
+            color: var(--text-secondary);
+        }
 
         .gcash-number-display {
-            background: #f3f4f6;
+            background: var(--bg-subtle);
             border: 2px solid var(--primary-color);
             border-radius: 8px;
             padding: 1rem;
@@ -921,12 +1053,12 @@ foreach ($payments as $payment) {
         }
 
         .copy-btn:hover {
-            background: #1d4ed8;
+            background: var(--primary-color-hover);
         }
 
         .info-box {
-            background: #f0fdf4;
-            border: 1px solid #86efac;
+            background: var(--info-bg);
+            border: 1px solid var(--info-border);
             border-radius: 8px;
             padding: 1rem;
             margin-bottom: 1.25rem;
@@ -934,7 +1066,7 @@ foreach ($payments as $payment) {
 
         .info-box p {
             font-size: 0.875rem;
-            color: #065f46;
+            color: var(--info-text);
             display: flex;
             align-items: start;
             gap: 0.5rem;
@@ -943,7 +1075,7 @@ foreach ($payments as $payment) {
 
         .info-box p::before {
             content: "✓";
-            color: #10b981;
+            color: var(--info-icon);
             font-weight: 700;
             flex-shrink: 0;
         }
@@ -957,6 +1089,11 @@ foreach ($payments as $payment) {
         .modal-actions .btn {
             flex: 1;
             padding: 0.875rem;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid var(--border-color) !important;
         }
 
         /* ===== MOBILE RESPONSIVE ===== */
@@ -979,7 +1116,7 @@ foreach ($payments as $payment) {
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--bg-surface);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -1128,7 +1265,7 @@ foreach ($payments as $payment) {
                             <h4><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
+                            <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                         </div>
@@ -1164,7 +1301,11 @@ foreach ($payments as $payment) {
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <button class="profile-dropdown-item" id="theme-toggle-btn" onclick="toggleTheme(event)">
+                                <i class="fas fa-moon"></i>
+                                <span>Dark Mode</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0;">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span>Logout</span>
@@ -1231,7 +1372,7 @@ foreach ($payments as $payment) {
                 
                 <?php if (empty($payments)): ?>
                     <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-                        <i class="fas fa-inbox" style="font-size: 3rem; color: #e5e5e5; display: block; margin-bottom: 1rem;"></i>
+                        <i class="fas fa-inbox" style="font-size: 3rem; color: var(--border-color); display: block; margin-bottom: 1rem;"></i>
                         No commission payments yet.
                     </p>
                 <?php else: ?>
@@ -1298,7 +1439,7 @@ foreach ($payments as $payment) {
                                 <?php if ($payment['payment_status'] === 'rejected' && $payment['rejection_reason']): ?>
                                     <div class="detail-item" style="grid-column: 1 / -1;">
                                         <div class="detail-label">Rejection Reason</div>
-                                        <div class="detail-value" style="color: #dc2626;"><?php echo htmlspecialchars($payment['rejection_reason']); ?></div>
+                                        <div class="detail-value" style="color: var(--rejected-text);"><?php echo htmlspecialchars($payment['rejection_reason']); ?></div>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -1412,6 +1553,10 @@ foreach ($payments as $payment) {
                     }
                 });
             }
+            
+            // Set initial theme toggle button state
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            updateThemeUI(isDarkMode);
         });
 
         function toggleNotifications(event) {
@@ -1450,7 +1595,7 @@ foreach ($payments as $payment) {
                     const list = document.getElementById('notificationList');
                     
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-secondary);"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
                         return;
                     }
                     
@@ -1460,8 +1605,8 @@ foreach ($payments as $payment) {
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
                             <div>
                                 <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(notif.message)}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
                             </div>
                         </div>
                     `).join('');
@@ -1506,6 +1651,7 @@ foreach ($payments as $payment) {
         }
 
         function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1583,6 +1729,49 @@ foreach ($payments as $payment) {
                 closePaymentModal();
             }
         });
+
+        // ===== START: THEME TOGGLE SCRIPT =====
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const themeIcon = themeToggleBtn.querySelector('i');
+        const themeText = themeToggleBtn.querySelector('span');
+
+        /**
+         * Updates the theme toggle button's icon and text
+         * @param {boolean} isDarkMode - Whether dark mode is active
+         */
+        function updateThemeUI(isDarkMode) {
+            if (isDarkMode) {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+
+        /**
+         * Toggles the theme and saves the preference to localStorage
+         * @param {Event} event - The click event
+         */
+        function toggleTheme(event) {
+            event.stopPropagation(); // Stop it from closing the profile menu
+            const isDarkMode = document.documentElement.classList.toggle('dark');
+            
+            try {
+                if (isDarkMode) {
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    localStorage.setItem('theme', 'light');
+                }
+            } catch (e) {
+                console.error("Failed to save theme preference:", e);
+            }
+            
+            updateThemeUI(isDarkMode);
+        }
+        // ===== END: THEME TOGGLE SCRIPT =====
     </script>
 </body>
 </html>

@@ -77,29 +77,177 @@ $stats = $db->query("
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>Activity Logs - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
-        .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .log-entry { border-left: 3px solid #667eea; padding-left: 15px; margin-bottom: 15px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+
+        /* Page-Specific Styles */
+        .stat-card { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 1.5rem; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+            border: 1px solid #e3e6f0;
+        }
+        
+        .log-entry { 
+            border-left: 3px solid #667eea; 
+            padding-left: 15px; 
+            margin-bottom: 15px; 
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
         .log-entry.admin { border-left-color: #dc3545; }
         .log-entry.mentor { border-left-color: #198754; }
         .log-entry.student { border-left-color: #0dcaf0; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } }
+        .log-entry.peer { border-left-color: #fd7e14; }
+        
     </style>
 </head>
 <body>
     <?php include '../includes/admin-header.php'; ?>
     <?php include '../includes/admin-sidebar.php'; ?>
 
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
     <div class="main-content">
         <div class="container-fluid">
             
@@ -110,32 +258,30 @@ $stats = $db->query("
                 </div>
             </div>
 
-            <!-- Statistics -->
             <div class="row mb-4">
                 <div class="col-md-4 mb-3">
-                    <div class="stat-card">
-                        <div class="text-muted small">Total Actions</div>
-                        <div class="h3 mb-0"><?php echo number_format($stats['total_actions']); ?></div>
+                    <div class="stat-card h-100">
+                        <div class="text-muted small text-uppercase">Total Actions</div>
+                        <div class="h3 mb-0 font-weight-bold"><?php echo number_format($stats['total_actions']); ?></div>
                     </div>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <div class="stat-card">
-                        <div class="text-muted small">Unique Users</div>
-                        <div class="h3 mb-0"><?php echo number_format($stats['unique_users']); ?></div>
+                    <div class="stat-card h-100">
+                        <div class="text-muted small text-uppercase">Unique Users</div>
+                        <div class="h3 mb-0 font-weight-bold"><?php echo number_format($stats['unique_users']); ?></div>
                     </div>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <div class="stat-card">
-                        <div class="text-muted small">Active Days</div>
-                        <div class="h3 mb-0"><?php echo number_format($stats['active_days']); ?></div>
+                    <div class="stat-card h-100">
+                        <div class="text-muted small text-uppercase">Active Days</div>
+                        <div class="h3 mb-0 font-weight-bold"><?php echo number_format($stats['active_days']); ?></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Filters -->
             <div class="card shadow mb-4">
                 <div class="card-body">
-                    <form method="GET" class="row g-3">
+                    <form method="GET" class="row g-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label">Action Type</label>
                             <select name="action" class="form-select">
@@ -159,7 +305,7 @@ $stats = $db->query("
                             <label class="form-label">Search</label>
                             <input type="text" name="search" class="form-control" placeholder="Search logs..." value="<?php echo htmlspecialchars($search); ?>">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
+                        <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-filter me-2"></i> Filter
                             </button>
@@ -168,36 +314,40 @@ $stats = $db->query("
                 </div>
             </div>
 
-            <!-- Activity Logs -->
             <div class="card shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">Activity Timeline</h6>
                 </div>
                 <div class="card-body">
                     <?php if (empty($logs)): ?>
-                        <p class="text-center text-muted py-4">No activity logs found for the selected filters.</p>
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-history fa-3x mb-3"></i>
+                            <p>No activity logs found for the selected filters.</p>
+                        </div>
                     <?php else: ?>
                         <?php foreach ($logs as $log): ?>
-                            <div class="log-entry <?php echo $log['user_role'] ?? ''; ?>">
+                            <div class="log-entry <?php echo $log['user_role'] ?? 'system'; ?>">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
-                                        <strong><?php echo htmlspecialchars($log['user_name'] ?? 'System'); ?></strong>
+                                        <strong class="text-dark"><?php echo htmlspecialchars($log['user_name'] ?? 'System'); ?></strong>
                                         <?php if ($log['user_role']): ?>
-                                            <span class="badge bg-secondary"><?php echo ucfirst($log['user_role']); ?></span>
+                                            <span class="badge bg-secondary fw-normal"><?php echo ucfirst($log['user_role']); ?></span>
                                         <?php endif; ?>
-                                        <div class="text-muted small"><?php echo htmlspecialchars($log['user_email'] ?? ''); ?></div>
+                                        <div class="text-muted small"><?php echo htmlspecialchars($log['user_email'] ?? 'system@internal'); ?></div>
                                     </div>
-                                    <div class="text-end">
-                                        <div class="small text-muted"><?php echo date('M d, Y g:i A', strtotime($log['created_at'])); ?></div>
+                                    <div class="text-end flex-shrink-0 ms-3">
+                                        <div class="small text-muted" title="<?php echo $log['created_at']; ?>"><?php echo date('M d, Y g:i A', strtotime($log['created_at'])); ?></div>
                                         <?php if ($log['ip_address']): ?>
                                             <div class="small text-muted">IP: <?php echo htmlspecialchars($log['ip_address']); ?></div>
                                         <?php endif; ?>
                                     </div>
                                 </div>
                                 <div class="mt-2">
-                                    <span class="badge bg-primary"><?php echo ucfirst(str_replace('_', ' ', $log['action'])); ?></span>
+                                    <span class="badge bg-primary fw-normal"><?php echo ucfirst(str_replace('_', ' ', $log['action'])); ?></span>
                                     <?php if ($log['details']): ?>
-                                        <div class="mt-1 text-muted small"><?php echo htmlspecialchars($log['details']); ?></div>
+                                        <div class="mt-1 text-muted small bg-light p-2 rounded" style="font-family: monospace, monospace;">
+                                            <?php echo htmlspecialchars($log['details']); ?>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -209,5 +359,39 @@ $stats = $db->query("
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
+    </body>
 </html>

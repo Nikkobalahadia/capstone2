@@ -123,28 +123,7 @@ if ($user && $user['id']) {
         <!-- Navbar content -->
         <div class="collapse navbar-collapse" id="adminNavbar">
             <ul class="navbar-nav ms-auto">
-                <!-- Notifications -->
-                <li class="nav-item dropdown me-3">
-                    <a class="nav-link position-relative" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-bell fa-lg"></i>
-                        <span class="notification-badge" id="notificationBadge" style="<?php echo $unread_count > 0 ? 'display: inline-flex;' : 'display: none;'; ?>">
-                            <?php echo $unread_count; ?>
-                        </span>
-                    </a>
-                    <div class="dropdown-menu dropdown-menu-end profile-dropdown" aria-labelledby="notificationDropdown" style="max-height: 400px; overflow-y: auto;">
-                        <div class="dropdown-header">
-                            <strong>Notifications</strong>
-                        </div>
-                        <div id="notificationsList">
-                            <div class="dropdown-item text-muted text-center py-3">
-                                <small>Loading notifications...</small>
-                            </div>
-                        </div>
-                        <a href="../notifications/index.php" class="dropdown-item text-center py-2 text-primary">
-                            <small><strong>View All</strong></small>
-                        </a>
-                    </div>
-                </li>
+                
                 
                 <!-- Profile Dropdown -->
                 <li class="nav-item dropdown">
@@ -178,6 +157,9 @@ if ($user && $user['id']) {
                         <a class="dropdown-item" href="activity-logs.php">
                             <i class="fas fa-history me-2"></i> Activity Logs
                         </a>
+                        <a class="dropdown-item" href="announcements.php">
+                            <i class="fas fa-plus me-2"></i> Announcements
+                    </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item text-danger" href="../auth/logout.php">
                             <i class="fas fa-sign-out-alt me-2"></i> Logout

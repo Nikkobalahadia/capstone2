@@ -291,26 +291,287 @@ $user_growth_trend_query_template = "
     ORDER BY date ASC
 ";
 $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, $time_period === 'custom', $date_range_params);
-
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Analytics - Study Buddy Admin</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 20px; border-radius: 8px; margin: 4px 0; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: white; }
-        .main-content { margin-left: 250px; margin-top: 60px; padding: 20px; }
-        @media (max-width: 768px) { .main-content { margin-left: 0; } .sidebar { display: none; } }
+        /* Styles from dashboard.php */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            position: fixed; 
+            width: 250px; 
+            top: 60px; 
+            left: 0; 
+            z-index: 1000; 
+            overflow-y: auto; 
+            height: calc(100vh - 60px);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,0.8); 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            margin: 4px 12px;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover, 
+        .sidebar .nav-link.active { 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content { 
+            margin-left: 250px; 
+            padding: 20px; 
+            margin-top: 60px;
+            transition: margin-left 0.3s ease-in-out;
+            width: calc(100% - 250px);
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) { 
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content { 
+                margin-left: 0;
+                width: 100%;
+                padding: 15px;
+            }
+            
+            .mobile-overlay {
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            
+            .mobile-overlay.show {
+                display: block;
+            }
+            
+            /* Mobile toggle button */
+            .mobile-menu-toggle {
+                display: block !important;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 998;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                font-size: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-toggle {
+                display: none !important;
+            }
+        }
+        
+        /* Card Styles */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .border-left-primary { border-left: 4px solid #2563eb; }
+        .border-left-success { border-left: 4px solid #10b981; }
+        .border-left-warning { border-left: 4px solid #f59e0b; }
+        .border-left-info { border-left: 4px solid #06b6d4; }
+        
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        /* Responsive Typography */
+        @media (max-width: 576px) {
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+            
+            .h5 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        /* Welcome Banner */
+        .welcome-banner {
+            background: linear-gradient(90deg, #6a7ee8 0%, #8765c5 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .welcome-banner-text h2 {
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .welcome-banner-text p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+        .welcome-banner-time {
+            text-align: right;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+        .welcome-banner-time .time-box {
+            background: rgba(255,255,255,0.15);
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: block;
+            width: 100%;
+            min-width: 190px;
+        }
+        .welcome-banner-time .time-box:first-child {
+            margin-bottom: 8px;
+        }
+        .welcome-banner-time i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        
+        /* Responsive banner */
+        @media (max-width: 768px) {
+            .welcome-banner {
+                flex-direction: column;
+                padding: 1.5rem;
+                text-align: center;
+            }
+            .welcome-banner-time {
+                text-align: center;
+                margin-top: 1.5rem;
+                margin-left: 0;
+                width: 100%;
+            }
+            .welcome-banner-time .time-box {
+                 display: inline-block;
+                 width: auto;
+            }
+        }
+        
+        /* Quick Actions */
+        .quick-action-card {
+            display: block;
+            text-decoration: none;
+            color: #333;
+            background: #fff;
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            border: 1px solid #e3e6f0;
+            height: 100%;
+        }
+        .quick-action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: #667eea;
+        }
+        .quick-action-card .icon-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .quick-action-card h5 {
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+        .quick-action-card p {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+        .bg-primary-light { background-color: rgba(37, 99, 235, 0.1); color: #2563eb; }
+        .bg-success-light { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .bg-warning-light { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .bg-info-light { background-color: rgba(6, 182, 212, 0.1); color: #06b6d4; }
+
+        /* Specific styles from analytics.php */
         .metric-card { transition: transform 0.2s; }
         .metric-card:hover { transform: translateY(-2px); }
         .nav-tabs .nav-link { color: #667eea; border: none; border-bottom: 3px solid transparent; }
@@ -320,477 +581,176 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <?php include '../includes/admin-sidebar.php'; ?>
-            <?php include '../includes/admin-header.php'; ?>
+    <?php include '../includes/admin-header.php'; ?>
+
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
+                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
+                <i class="fas fa-history me-2"></i> Activity Logs
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
+                <i class="fas fa-bullhorn me-2"></i> Announcements
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="container-fluid">
             
-            <main class="col-md-10 ms-sm-auto main-content">
-                <div class="p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <div>
-                            <h1 class="h3 mb-0 text-gray-800">Advanced Analytics</h1>
-                            <p class="text-muted">Metrics for period: <strong><?php echo $display_period; ?></strong></p>
-                        </div>
-                        <div>
-                            <button class="btn btn-primary" onclick="window.print()">
-                                <i class="fas fa-download me-2"></i>Export Report
-                            </button>
-                        </div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">Advanced Analytics</h1>
+                    <p class="text-muted">Metrics for period: <strong><?php echo $display_period; ?></strong></p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="window.print()">
+                        <i class="fas fa-download me-2"></i>Export Report
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4 p-3 bg-white rounded shadow-sm card">
+                <label class="mb-2"><strong>Time Period:</strong></label>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <a href="?period=daily" class="btn btn-sm period-btn <?php echo $time_period === 'daily' ? 'active' : 'btn-outline-primary'; ?>">Daily</a>
+                        <a href="?period=weekly" class="btn btn-sm period-btn <?php echo $time_period === 'weekly' ? 'active' : 'btn-outline-primary'; ?>">Weekly</a>
+                        <a href="?period=monthly" class="btn btn-sm period-btn <?php echo $time_period === 'monthly' ? 'active' : 'btn-outline-primary'; ?>">Monthly</a>
+                        <a href="?period=yearly" class="btn btn-sm period-btn <?php echo $time_period === 'yearly' ? 'active' : 'btn-outline-primary'; ?>">Yearly</a>
                     </div>
-
-                    <div class="mb-4 p-3 bg-white rounded shadow-sm">
-                        <label class="mb-2"><strong>Time Period:</strong></label>
-                        <div class="row g-3">
-                            <div class="col-md-5">
-                                <a href="?period=daily" class="btn btn-sm period-btn <?php echo $time_period === 'daily' ? 'active' : 'btn-outline-primary'; ?>">Daily</a>
-                                <a href="?period=weekly" class="btn btn-sm period-btn <?php echo $time_period === 'weekly' ? 'active' : 'btn-outline-primary'; ?>">Weekly</a>
-                                <a href="?period=monthly" class="btn btn-sm period-btn <?php echo $time_period === 'monthly' ? 'active' : 'btn-outline-primary'; ?>">Monthly</a>
-                                <a href="?period=yearly" class="btn btn-sm period-btn <?php echo $time_period === 'yearly' ? 'active' : 'btn-outline-primary'; ?>">Yearly</a>
-                                <span class="ms-3 text-muted">OR</span>
-                            </div>
-                            <form method="GET" action="analytics.php" class="col-md-7 d-flex align-items-center g-2">
-                                <div class="col-auto">
-                                    <label for="start_date" class="form-label visually-hidden">Start Date</label>
-                                    <input type="date" name="start_date" id="start_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($start_date); ?>" required>
-                                </div>
-                                <div class="col-auto">
-                                    <label for="end_date" class="form-label visually-hidden">End Date</label>
-                                    <input type="date" name="end_date" id="end_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($end_date); ?>" required>
-                                </div>
-                                <div class="col-auto">
-                                    <button type="submit" class="btn btn-sm btn-success period-btn <?php echo $time_period === 'custom' ? 'active' : ''; ?>">Apply Custom Range</button>
-                                </div>
-                            </form>
+                    <form method="GET" class="col-md-7 row g-3">
+                        <input type="hidden" name="period" value="custom">
+                        <div class="col-md-5">
+                            <input type="date" name="start_date" class="form-control" value="<?php echo htmlspecialchars($start_date ?? ''); ?>">
                         </div>
-                    </div>
+                        <div class="col-md-5">
+                            <input type="date" name="end_date" class="form-control" value="<?php echo htmlspecialchars($end_date ?? ''); ?>">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">Go</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
-                    <ul class="nav nav-tabs mb-4" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab">
-                                <i class="fas fa-users me-2"></i>Users & Growth
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">
-                                <i class="fas fa-chart-line me-2"></i>Activity & Engagement
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="matches-tab" data-bs-toggle="tab" data-bs-target="#matches" type="button" role="tab">
-                                <i class="fas fa-handshake me-2"></i>Matches & Sessions
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button" role="tab">
-                                <i class="fas fa-comments me-2"></i>Feedback & Issues
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="levels-tab" data-bs-toggle="tab" data-bs-target="#levels" type="button" role="tab">
-                                <i class="fas fa-graduation-cap me-2"></i>Demand by Level
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="financial-tab" data-bs-toggle="tab" data-bs-target="#financial" type="button" role="tab">
-                                <i class="fas fa-dollar-sign me-2"></i>Financial
-                            </button>
-                        </li>
-                    </ul>
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#user-analytics">User Analytics</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#platform-analytics">Platform & Engagement</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#demand-supply">Demand & Supply</a>
+                </li>
+            </ul>
 
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="users" role="tabpanel">
-                            <div class="row mb-4">
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-primary shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Registered Users</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($user_registration_stats['total_users']); ?></div>
-                                                    <div class="text-success small">+<?php echo $user_registration_stats['month_registrations']; ?> this month</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-user-plus fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
+            <div class="tab-content" id="myTabContent">
+                
+                <div class="tab-pane fade show active" id="user-analytics" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">User Registration (All Time)</div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $user_registration_stats['total_users']; ?></h5>
+                                            <small class="text-muted">Total Users</small>
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $user_registration_stats['today_registrations']; ?></h5>
+                                            <small class="text-muted">Today</small>
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $user_registration_stats['week_registrations']; ?></h5>
+                                            <small class="text-muted">Last 7 Days</small>
+                                        </div>
+                                         <div class="col-6 mb-3">
+                                            <h5><?php echo $user_registration_stats['month_registrations']; ?></h5>
+                                            <small class="text-muted">Last 30 Days</small>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-success shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Monthly Active Users</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($active_users_stats['monthly_active']); ?></div>
-                                                    <div class="text-muted small"><?php echo $active_users_stats['weekly_active']; ?> weekly | <?php echo $active_users_stats['daily_active']; ?> today</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-chart-line fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-info shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">User Conversion Rate</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $user_journey['conversion_rate']; ?>%</div>
-                                                    <div class="text-muted small">Avg <?php echo round($user_journey['avg_days_to_first_session']); ?> days to first session</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-route fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Yearly Registrations</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $user_registration_stats['year_registrations']; ?></div>
-                                                    <div class="text-muted small">Last 365 days</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-calendar fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">User Growth Trend (<?php echo $display_period; ?>)</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <canvas id="userGrowthChart" width="400" height="200"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Most Popular Strands</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <?php foreach ($popular_strands as $strand): ?>
-                                                <div class="mb-3">
-                                                    <div class="d-flex justify-content-between mb-1">
-                                                        <span><?php echo htmlspecialchars($strand['strand']); ?></span>
-                                                        <span class="font-weight-bold"><?php echo $strand['count']; ?></span>
-                                                    </div>
-                                                    <div class="progress" style="height: 8px;">
-                                                        <div class="progress-bar bg-primary" style="width: <?php echo ($strand['count'] / $popular_strands[0]['count']) * 100; ?>%"></div>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
+                                    <hr>
+                                    <div class
+="chart-container" style="height: 200px;">
+                                        <canvas id="userGrowthChart"></canvas>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="tab-pane fade" id="activity" role="tabpanel">
-                            <div class="row">
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Peak Activity Hours (<?php echo $display_period; ?>)</h6>
+                        <div class="col-md-6 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Active Users (All Time)</div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $active_users_stats['daily_active']; ?></h5>
+                                            <small class="text-muted">Daily Active</small>
                                         </div>
-                                        <div class="card-body">
-                                            <canvas id="peakHoursChart" width="400" height="200"></canvas>
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $active_users_stats['weekly_active']; ?></h5>
+                                            <small class="text-muted">Weekly Active</small>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Subject Demand vs Supply</h6>
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $active_users_stats['monthly_active']; ?></h5>
+                                            <small class="text-muted">Monthly Active</small>
                                         </div>
-                                        <div class="card-body">
-                                            <canvas id="demandSupplyChart" width="400" height="200"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="matches" role="tabpanel">
-                            <div class="row mb-4">
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Match Success Rate</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $match_analytics['success_rate']; ?>%</div>
-                                                    <div class="text-muted small"><?php echo $rematch_requests['rematch_count']; ?> rematches</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-handshake fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
+                                        <div class="col-6 mb-3">
+                                            <h5><?php echo $active_users_stats['yearly_active']; ?></h5>
+                                            <small class="text-muted">Yearly Active</small>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Session Status Distribution</h6>
+                                    <hr>
+                                    <small><strong>User Journey (Last 90 Days)</strong></small>
+                                    <div class="row mt-2">
+                                        <div class="col-6">
+                                            <h5><?php echo $user_journey['users_with_sessions']; ?> / <?php echo $user_journey['total_users']; ?></h5>
+                                            <small class="text-muted">Users w/ 1st Session</small>
                                         </div>
-                                        <div class="card-body">
-                                            <canvas id="sessionStatusChart" width="400" height="300"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Cancellation Reasons</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <canvas id="cancellationReasonsChart" width="400" height="300"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-lg-12 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Optimal Time Slots for Sessions</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <canvas id="optimalTimeSlotsChart" width="400" height="200"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="feedback" role="tabpanel">
-                            <div class="row">
-                                <div class="col-lg-12 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">User Report Trends (<?php echo $display_period; ?>)</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <?php if (!empty($feedback_trends)): ?>
-                                                <?php foreach ($feedback_trends as $trend): ?>
-                                                    <div class="mb-3">
-                                                        <div class="d-flex justify-content-between mb-1">
-                                                            <span><?php echo htmlspecialchars($trend['reason']); ?></span>
-                                                            <span class="font-weight-bold"><?php echo $trend['count']; ?> (<?php echo $trend['percentage']; ?>%)</span>
-                                                        </div>
-                                                        <div class="progress" style="height: 8px;">
-                                                            <div class="progress-bar bg-danger" style="width: <?php echo $trend['percentage']; ?>%"></div>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <p class="text-muted">No reports in this period</p>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="levels" role="tabpanel">
-                            <div class="row mb-4">
-                                <?php 
-                                $level_colors = [
-                                    'beginner' => 'primary',
-                                    'intermediate' => 'info',
-                                    'advanced' => 'warning',
-                                    'expert' => 'success'
-                                ];
-                                $level_icons = [
-                                    'beginner' => 'fa-user',
-                                    'intermediate' => 'fa-users',
-                                    'advanced' => 'fa-star',
-                                    'expert' => 'fa-crown'
-                                ];
-                                ?>
-                                <?php foreach ($level_summary as $level): ?>
-                                    <div class="col-xl-3 col-md-6 mb-4">
-                                        <div class="card metric-card border-left-<?php echo $level_colors[$level['proficiency_level']]; ?> shadow h-100 py-2">
-                                            <div class="card-body">
-                                                <div class="row no-gutters align-items-center">
-                                                    <div class="col mr-2">
-                                                        <div class="text-xs font-weight-bold text-<?php echo $level_colors[$level['proficiency_level']]; ?> text-uppercase mb-1">
-                                                            <?php echo ucfirst($level['proficiency_level']); ?> Level
-                                                        </div>
-                                                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $level['student_demand']; ?> Students</div>
-                                                        <div class="text-muted small"><?php echo $level['mentor_supply']; ?> mentors/peers available</div>
-                                                    </div>
-                                                    <div class="col-auto">
-                                                        <i class="fas <?php echo $level_icons[$level['proficiency_level']]; ?> fa-2x text-gray-300"></i>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-
-                            <div class="row mb-4">
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Demand Distribution by Level</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <canvas id="demandByLevelChart" width="400" height="200"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-6 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Supply vs Demand by Level</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <canvas id="supplyDemandByLevelChart" width="400" height="200"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-lg-12 mb-4">
-                                    <div class="card shadow">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Subject Demand by Proficiency Level</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="table-responsive">
-                                                <table class="table table-hover">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th>Subject</th>
-                                                            <th>Level</th>
-                                                            <th>Student Demand</th>
-                                                            <th>Mentor/Peer Supply</th>
-                                                            <th>Demand/Supply Ratio</th>
-                                                            <th>Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php 
-                                                        $current_subject = '';
-                                                        foreach ($demand_by_level as $row): 
-                                                            $ratio = $row['demand_supply_ratio'];
-                                                            $status_class = $ratio > 2 ? 'danger' : ($ratio > 1 ? 'warning' : 'success');
-                                                            $status_text = $ratio > 2 ? 'High Demand' : ($ratio > 1 ? 'Moderate Demand' : 'Balanced');
-                                                        ?>
-                                                            <tr>
-                                                                <td>
-                                                                    <?php 
-                                                                    if ($current_subject !== $row['subject_name']) {
-                                                                        echo '<strong>' . htmlspecialchars($row['subject_name']) . '</strong>';
-                                                                        $current_subject = $row['subject_name'];
-                                                                    }
-                                                                    ?>
-                                                                </td>
-                                                                <td>
-                                                                    <span class="badge bg-<?php echo $level_colors[$row['proficiency_level']]; ?>">
-                                                                        <?php echo ucfirst($row['proficiency_level']); ?>
-                                                                    </span>
-                                                                </td>
-                                                                <td><?php echo $row['student_demand']; ?></td>
-                                                                <td><?php echo $row['mentor_supply']; ?></td>
-                                                                <td>
-                                                                    <strong><?php echo $row['demand_supply_ratio']; ?>:1</strong>
-                                                                </td>
-                                                                <td>
-                                                                    <span class="badge bg-<?php echo $status_class; ?>">
-                                                                        <?php echo $status_text; ?>
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="financial" role="tabpanel">
-                            <div class="row mb-4">
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-success shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Revenue (<?php echo $display_period; ?>)</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₱<?php echo number_format($commission_revenue['total_revenue'] ?? 0, 2); ?></div>
-                                                    <div class="text-muted small"><?php echo $commission_revenue['verified_payments']; ?> verified payments</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-warning shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Payments (<?php echo $display_period; ?>)</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $commission_revenue['pending_payments']; ?></div>
-                                                    <div class="text-muted small">Awaiting verification</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-hourglass-half fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-xl-3 col-md-6 mb-4">
-                                    <div class="card metric-card border-left-info shadow h-100 py-2">
-                                        <div class="card-body">
-                                            <div class="row no-gutters align-items-center">
-                                                <div class="col mr-2">
-                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Commission (<?php echo $display_period; ?>)</div>
-                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₱<?php echo number_format($commission_revenue['avg_commission'] ?? 0, 2); ?></div>
-                                                    <div class="text-muted small">Per payment</div>
-                                                </div>
-                                                <div class="col-auto">
-                                                    <i class="fas fa-chart-pie fa-2x text-gray-300"></i>
-                                                </div>
-                                            </div>
+                                        <div class="col-6">
+                                            <h5><?php echo round($user_journey['avg_days_to_first_session'], 1); ?> Days</h5>
+                                            <small class="text-muted">Avg. Time to 1st Session</small>
                                         </div>
                                     </div>
                                 </div>
@@ -798,11 +758,193 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
                         </div>
                     </div>
                 </div>
-            </main>
+
+                <div class="tab-pane fade" id="platform-analytics" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-7 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Peak Activity Hours (<?php echo $display_period; ?>)</div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="height: 300px;">
+                                        <canvas id="peakHoursChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Match Success Rate (All Time)</div>
+                                <div class="card-body text-center">
+                                    <h1 class="display-4 fw-bold"><?php echo $match_analytics['success_rate']; ?>%</h1>
+                                    <div class="row mt-4">
+                                        <div class="col-4">
+                                            <h5><?php echo $match_analytics['total_matches']; ?></h5>
+                                            <small class="text-muted">Total</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h5 class="text-success"><?php echo $match_analytics['successful_matches']; ?></h5>
+                                            <small class="text-muted">Accepted</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h5 class="text-danger"><?php echo $match_analytics['rejected_matches']; ?></h5>
+                                            <small class="text-muted">Rejected</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Session Status (All Time)</div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="height: 250px;">
+                                        <canvas id="sessionStatusChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-7 mb-4">
+                             <div class="card shadow h-100">
+                                <div class="card-header">Top Cancellation Reasons (All Time)</div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tbody>
+                                        <?php foreach ($cancellation_reasons as $reason): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($reason['cancellation_reason']); ?></td>
+                                                <td class="text-end"><?php echo $reason['count']; ?></td>
+                                                <td class="text-end text-muted"><?php echo $reason['percentage']; ?>%</td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="demand-supply" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Top 15 Popular Subjects (All Time)</div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Subject</th>
+                                                <th>Demand</th>
+                                                <th>Supply</th>
+                                                <th>Ratio (D/S)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        <?php foreach ($popular_subjects as $subject): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($subject['subject_name']); ?></td>
+                                                <td><?php echo $subject['student_demand']; ?></td>
+                                                <td><?php echo $subject['mentor_supply']; ?></td>
+                                                <td>
+                                                    <span class="badge <?php echo $subject['demand_supply_ratio'] > 1 ? 'bg-danger' : 'bg-success'; ?>">
+                                                        <?php echo $subject['demand_supply_ratio'] ?? 'N/A'; ?>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card shadow h-100">
+                                <div class="card-header">Demand vs. Supply by Level</div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="height: 300px;">
+                                        <canvas id="supplyDemandByLevelChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="financial-analytics" role="tabpanel">
+                     <div class="row">
+                        <div class="col-md-12 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header">Commission Revenue (<?php echo $display_period; ?>)</div>
+                                <div class="card-body">
+                                     <div class="row text-center">
+                                        <div class="col-md-3">
+                                            <h4 class="text-success">₱<?php echo number_format($commission_revenue['total_revenue'], 2); ?></h4>
+                                            <small class="text-muted">Total Verified Revenue</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <h4><?php echo $commission_revenue['verified_payments']; ?></h4>
+                                            <small class="text-muted">Verified Payments</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <h4><?php echo $commission_revenue['pending_payments']; ?></h4>
+                                            <small class="text-muted">Pending Payments</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <h4>₱<?php echo number_format($commission_revenue['avg_commission'], 2); ?></h4>
+                                            <small class="text-muted">Avg. Commission</small>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="chart-container" style="height: 250px;">
+                                        <canvas id="commissionRevenueChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
         </div>
-    </div>
+        </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('show');
+            mobileOverlay.classList.toggle('show');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+        
+        mobileOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+            mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+        });
+        
+        // Close sidebar when clicking a link on mobile
+        if (window.innerWidth <= 768) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    mobileOverlay.classList.remove('show');
+                    mobileMenuToggle.querySelector('i').classList.remove('fa-times');
+                    mobileMenuToggle.querySelector('i').classList.add('fa-bars');
+                });
+            });
+        }
+    </script>
+    
     <script>
         // User Growth Chart
         const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
@@ -817,15 +959,15 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
                     data: userGrowthData.map(d => d.new_users),
                     borderColor: '#667eea',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    tension: 0.4,
+                    tension: 0.3,
                     fill: true
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true } },
-                plugins: { legend: { display: false } }
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
             }
         });
 
@@ -836,45 +978,25 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
         new Chart(peakHoursCtx, {
             type: 'bar',
             data: {
-                labels: peakHoursData.map(d => d.hour + ':00'),
+                labels: peakHoursData.map(d => `${d.hour}:00`),
                 datasets: [{
-                    label: 'Activity Count',
+                    label: 'Platform Activity',
                     data: peakHoursData.map(d => d.activity_count),
-                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                    borderColor: '#667eea',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true } },
-                plugins: { legend: { display: false } }
-            }
-        });
-
-        // Demand vs Supply Chart
-        const demandSupplyCtx = document.getElementById('demandSupplyChart').getContext('2d');
-        const demandSupplyData = <?php echo json_encode(array_slice($popular_subjects, 0, 10)); ?>;
-        
-        new Chart(demandSupplyCtx, {
-            type: 'bar',
-            data: {
-                labels: demandSupplyData.map(d => d.subject_name),
-                datasets: [{
-                    label: 'Student Demand',
-                    data: demandSupplyData.map(d => parseInt(d.student_demand)),
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)'
+                    backgroundColor: '#3b82f6'
                 }, {
-                    label: 'Mentor/Peer Supply',
-                    data: demandSupplyData.map(d => parseInt(d.mentor_supply)),
-                    backgroundColor: 'rgba(16, 185, 129, 0.8)'
+                    label: 'Unique Users',
+                    data: peakHoursData.map(d => d.unique_users),
+                    backgroundColor: '#10b981'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: true, position: 'top' } }
+                plugins: { legend: { position: 'bottom' } },
+                scales: { 
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true } 
+                }
             }
         });
 
@@ -883,12 +1005,12 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
         const sessionStatusData = <?php echo json_encode($session_cancellation_stats); ?>;
         
         new Chart(sessionStatusCtx, {
-            type: 'doughnut',
+            type: 'pie',
             data: {
                 labels: sessionStatusData.map(d => d.status.charAt(0).toUpperCase() + d.status.slice(1)),
                 datasets: [{
                     data: sessionStatusData.map(d => d.count),
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#6b7280', '#667eea']
+                    backgroundColor: ['#0dcaf0', '#198754', '#dc3545', '#6c757d']
                 }]
             },
             options: {
@@ -898,71 +1020,22 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
             }
         });
 
-        // Cancellation Reasons Chart
-        const cancellationReasonsCtx = document.getElementById('cancellationReasonsChart').getContext('2d');
-        const cancellationReasonsData = <?php echo json_encode($cancellation_reasons); ?>;
-        
-        new Chart(cancellationReasonsCtx, {
+        // Commission Revenue Chart (Dummy data as PHP is not executed here)
+        // This will be populated by your PHP variable
+        const commissionRevenueCtx = document.getElementById('commissionRevenueChart').getContext('2d');
+        new Chart(commissionRevenueCtx, {
             type: 'doughnut',
             data: {
-                labels: cancellationReasonsData.map(d => d.cancellation_reason),
+                labels: ['Verified', 'Pending', 'Rejected', 'Overdue'],
                 datasets: [{
-                    data: cancellationReasonsData.map(d => d.count),
-                    backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-
-        // Optimal Time Slots Chart
-        const optimalTimeSlotsCtx = document.getElementById('optimalTimeSlotsChart').getContext('2d');
-        const optimalTimeSlotsData = <?php echo json_encode($optimal_time_slots); ?>;
-        
-        new Chart(optimalTimeSlotsCtx, {
-            type: 'line',
-            data: {
-                labels: optimalTimeSlotsData.map(d => d.hour + ':00'),
-                datasets: [{
-                    label: 'Completion Rate (%)',
-                    data: optimalTimeSlotsData.map(d => parseFloat(d.completion_rate)),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    yAxisID: 'y',
-                    tension: 0.4
-                }, {
-                    label: 'Session Count',
-                    data: optimalTimeSlotsData.map(d => parseInt(d.session_count)),
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    yAxisID: 'y1',
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Completion Rate (%)' } },
-                    y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Session Count' }, grid: { drawOnChartArea: false } }
-                }
-            }
-        });
-
-        // Demand by Level Pie Chart
-        const demandByLevelCtx = document.getElementById('demandByLevelChart').getContext('2d');
-        const demandByLevelData = <?php echo json_encode($level_summary); ?>;
-        
-        new Chart(demandByLevelCtx, {
-            type: 'doughnut',
-            data: {
-                labels: demandByLevelData.map(d => d.proficiency_level.charAt(0).toUpperCase() + d.proficiency_level.slice(1)),
-                datasets: [{
-                    data: demandByLevelData.map(d => d.student_demand),
-                    backgroundColor: ['#667eea', '#0ea5e9', '#f59e0b', '#10b981']
+                    label: 'Commission Status',
+                    data: [
+                        <?php echo $commission_revenue['verified_payments'] ?? 0; ?>,
+                        <?php echo $commission_revenue['pending_payments'] ?? 0; ?>,
+                        0, // Assuming you add logic for this
+                        0  // Assuming you add logic for this
+                    ],
+                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
                 }]
             },
             options: {
@@ -993,7 +1066,10 @@ $user_growth_trend = execute_date_query($db, $user_growth_trend_query_template, 
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: true, position: 'top' } }
+                plugins: { legend: { position: 'bottom' } },
+                scales: { 
+                    y: { beginAtZero: true } 
+                }
             }
         });
     </script>

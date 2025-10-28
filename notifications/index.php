@@ -52,6 +52,18 @@ $total_count = $total_stmt->fetch()['count'];
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --bg-color: #fafafa;
+            --card-bg: white;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
+            --bg-color: #111827;
+            --card-bg: #1f2937;
         }
 
         * {
@@ -68,13 +80,14 @@ $total_count = $total_stmt->fetch()['count'];
 
         body {
             font-family: 'Inter', sans-serif;
-            background: #fafafa;
-            color: #1a1a1a;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* ===== HEADER & NAVIGATION ===== */
         .header {
-            background: white;
+            background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
             position: fixed;
             top: 0;
@@ -82,6 +95,7 @@ $total_count = $total_stmt->fetch()['count'];
             right: 0;
             z-index: 1000;
             height: 60px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .navbar {
@@ -184,7 +198,7 @@ $total_count = $total_stmt->fetch()['count'];
         }
 
         .notification-bell:hover {
-            background: #f0f0f0;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -200,7 +214,7 @@ $total_count = $total_stmt->fetch()['count'];
             font-weight: 700;
             min-width: 20px;
             text-align: center;
-            border: 2px solid white;
+            border: 2px solid var(--card-bg);
         }
 
         .notification-dropdown {
@@ -211,12 +225,13 @@ $total_count = $total_stmt->fetch()['count'];
             margin-top: 0.75rem;
             width: 380px;
             max-height: 450px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
             overflow: hidden;
             flex-direction: column;
+            border: 1px solid var(--border-color);
         }
 
         .notification-dropdown.show {
@@ -225,7 +240,7 @@ $total_count = $total_stmt->fetch()['count'];
 
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -238,7 +253,7 @@ $total_count = $total_stmt->fetch()['count'];
 
         .notification-item-dropdown {
             padding: 0.875rem;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background 0.15s;
             display: flex;
@@ -246,17 +261,23 @@ $total_count = $total_stmt->fetch()['count'];
         }
 
         .notification-item-dropdown:hover {
-            background: #fafafa;
+            background: var(--border-color);
         }
 
         .notification-item-dropdown.unread {
-            background: #f0f7ff;
+            background: rgba(37, 99, 235, 0.1);
         }
 
         .notification-footer {
             padding: 0.75rem;
             text-align: center;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .notification-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.9rem;
         }
 
         /* Profile Menu */
@@ -298,10 +319,11 @@ $total_count = $total_stmt->fetch()['count'];
             top: 100%;
             margin-top: 0.5rem;
             width: 240px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: var(--shadow-lg);
             z-index: 1000;
+            border: 1px solid var(--border-color);
         }
 
         .profile-dropdown.show {
@@ -310,7 +332,7 @@ $total_count = $total_stmt->fetch()['count'];
 
         .profile-dropdown-header {
             padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
@@ -323,7 +345,7 @@ $total_count = $total_stmt->fetch()['count'];
 
         .user-role {
             font-size: 0.8rem;
-            color: #999;
+            color: var(--text-secondary);
         }
 
         .profile-dropdown-menu {
@@ -347,7 +369,7 @@ $total_count = $total_stmt->fetch()['count'];
         }
 
         .profile-dropdown-item:hover {
-            background: #f5f5f5;
+            background: var(--border-color);
             color: var(--primary-color);
         }
 
@@ -356,7 +378,7 @@ $total_count = $total_stmt->fetch()['count'];
         }
 
         .profile-dropdown-item.logout:hover {
-            background: #fee2e2;
+            background: rgba(220, 38, 38, 0.1);
         }
 
         /* Main Content */
@@ -373,11 +395,12 @@ $total_count = $total_stmt->fetch()['count'];
 
         /* Card Styles */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             margin-bottom: 1.5rem;
             overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .card-body {
@@ -413,7 +436,7 @@ $total_count = $total_stmt->fetch()['count'];
         .btn-outline {
             background: transparent;
             color: var(--primary-color);
-            border: 1px solid var(--primary-color);
+            border: 2px solid var(--primary-color);
         }
 
         .btn-outline:hover {
@@ -441,21 +464,26 @@ $total_count = $total_stmt->fetch()['count'];
             color: #1e40af;
         }
 
+        [data-theme="dark"] .badge-primary {
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+        }
+
         /* Notification Styles */
         .notification-item {
             padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border-color);
             transition: background-color 0.2s;
             cursor: pointer;
         }
 
         .notification-item:hover {
-            background-color: #f9fafb;
+            background-color: var(--border-color);
         }
 
         .notification-item.unread {
-            background-color: #eff6ff;
-            border-left: 3px solid #3b82f6;
+            background-color: rgba(37, 99, 235, 0.1);
+            border-left: 3px solid var(--primary-color);
         }
 
         .notification-icon {
@@ -471,7 +499,7 @@ $total_count = $total_stmt->fetch()['count'];
         .filter-tabs {
             display: flex;
             gap: 1rem;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 2px solid var(--border-color);
             margin-bottom: 1.5rem;
             flex-wrap: wrap;
         }
@@ -487,8 +515,8 @@ $total_count = $total_stmt->fetch()['count'];
         }
 
         .filter-tab.active {
-            border-bottom-color: #3b82f6;
-            color: #3b82f6;
+            border-bottom-color: var(--primary-color);
+            color: var(--primary-color);
             font-weight: 600;
         }
 
@@ -537,14 +565,30 @@ $total_count = $total_stmt->fetch()['count'];
         .bg-yellow-100 { background-color: #fef3c7; }
         .bg-purple-100 { background-color: #f3e8ff; }
 
+        [data-theme="dark"] .bg-blue-100 { background-color: rgba(59, 130, 246, 0.2); }
+        [data-theme="dark"] .bg-green-100 { background-color: rgba(34, 197, 94, 0.2); }
+        [data-theme="dark"] .bg-red-100 { background-color: rgba(239, 68, 68, 0.2); }
+        [data-theme="dark"] .bg-yellow-100 { background-color: rgba(234, 179, 8, 0.2); }
+        [data-theme="dark"] .bg-purple-100 { background-color: rgba(168, 85, 247, 0.2); }
+
         .text-blue-600 { color: #2563eb; }
         .text-green-600 { color: #16a34a; }
         .text-red-600 { color: #dc2626; }
         .text-yellow-600 { color: #ca8a04; }
         .text-purple-600 { color: #9333ea; }
 
+        [data-theme="dark"] .text-blue-600 { color: #60a5fa; }
+        [data-theme="dark"] .text-green-600 { color: #4ade80; }
+        [data-theme="dark"] .text-red-600 { color: #f87171; }
+        [data-theme="dark"] .text-yellow-600 { color: #facc15; }
+        [data-theme="dark"] .text-purple-600 { color: #c084fc; }
+
         .text-gray-300 { color: #d1d5db; }
         .text-gray-400 { color: #9ca3af; }
+
+        .hide-on-small {
+            display: inline;
+        }
 
         /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
@@ -566,7 +610,7 @@ $total_count = $total_stmt->fetch()['count'];
                 top: 60px;
                 left: 0;
                 right: 0;
-                background: white;
+                background: var(--card-bg);
                 flex-direction: column;
                 gap: 0;
                 max-height: 0;
@@ -606,8 +650,7 @@ $total_count = $total_stmt->fetch()['count'];
 
             .notification-dropdown {
                 width: calc(100vw - 2rem);
-                right: 0;
-                left: 1rem;
+                right: -0.5rem;
             }
 
             .filter-tabs {
@@ -624,13 +667,17 @@ $total_count = $total_stmt->fetch()['count'];
             }
 
             .filter-tab.active {
-                border-left-color: #3b82f6;
+                border-left-color: var(--primary-color);
                 border-bottom-color: var(--border-color);
-                background: #f0f7ff;
+                background: rgba(37, 99, 235, 0.1);
             }
 
             .notification-item {
                 padding: 0.875rem;
+            }
+
+            .hide-on-small {
+                display: none;
             }
         }
 
@@ -642,6 +689,11 @@ $total_count = $total_stmt->fetch()['count'];
             .btn {
                 padding: 0.625rem 1rem;
                 font-size: 0.85rem;
+            }
+
+            .notification-dropdown {
+                width: calc(100vw - 20px);
+                right: -10px;
             }
         }
     </style>
@@ -682,7 +734,7 @@ $total_count = $total_stmt->fetch()['count'];
                     </button>
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-header">
-                            <h4><i class="fas fa-bell"></i> Notifications</h4>
+                            <h4 style="margin: 0; font-size: 1rem;"><i class="fas fa-bell"></i> Notifications</h4>
                         </div>
                         <div class="notification-list" id="notificationList">
                             <div style="text-align: center; padding: 1.5rem; color: #999;">
@@ -711,23 +763,22 @@ $total_count = $total_stmt->fetch()['count'];
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="../profile/index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i>
-                                <span>View Profile</span>
+                                <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
                             <?php if (in_array($user['role'], ['mentor'])): ?>
-                                <a href="../profile/commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
+                            <a href="../profile/commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i> <span>Commissions</span>
+                            </a>
                             <?php endif; ?>
                             <a href="../profile/settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i>
-                                <span>Settings</span>
+                                <i class="fas fa-sliders-h"></i> <span>Settings</span>
                             </a>
-                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
+                            <button type="button" class="profile-dropdown-item" onclick="toggleTheme()">
+                                <i class="fas fa-sun" id="theme-icon"></i> <span id="theme-text">Toggle Theme</span>
+                            </button>
+                            <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
+                                <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                             </a>
                         </div>
                     </div>
@@ -747,14 +798,14 @@ $total_count = $total_stmt->fetch()['count'];
                 <div class="card-body">
                     <div class="filter-tabs">
                         <a href="?filter=all" class="filter-tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
-                            All (<?php echo $total_count; ?>)
+                            All <span class="hide-on-small">(<?php echo $total_count; ?>)</span>
                         </a>
                         <a href="?filter=unread" class="filter-tab <?php echo $filter === 'unread' ? 'active' : ''; ?>">
-                            Unread (<?php echo $unread_notifications; ?>)
+                            Unread <span class="hide-on-small">(<?php echo $unread_notifications; ?>)</span>
                         </a>
                         <?php if ($unread_notifications > 0): ?>
                             <button onclick="markAllRead()" class="btn btn-sm btn-outline" style="margin-left: auto;">
-                                <i class="fas fa-check-double"></i> Mark All Read
+                                <i class="fas fa-check-double"></i> <span class="hide-on-small">Mark All Read</span>
                             </button>
                         <?php endif; ?>
                     </div>
@@ -774,7 +825,7 @@ $total_count = $total_stmt->fetch()['count'];
                                             <i class="fas <?php echo get_notification_icon($notification['type']); ?>"></i>
                                         </div>
                                         <div style="flex: 1;">
-                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem; flex-wrap: wrap; gap: 0.5rem;">
                                                 <h4 class="font-semibold"><?php echo htmlspecialchars($notification['title']); ?></h4>
                                                 <?php if (!$notification['is_read']): ?>
                                                     <span class="badge badge-primary">New</span>
@@ -800,6 +851,52 @@ $total_count = $total_stmt->fetch()['count'];
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
+        // --- Theme Toggle JS ---
+        const body = document.body;
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        
+        function setTheme(theme) {
+            body.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeToggleUI(theme);
+        }
+        
+        function updateThemeToggleUI(theme) {
+            if (theme === 'dark') {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+        
+        function toggleTheme() {
+            const currentTheme = body.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+        
+        // Load theme on initial page load
+        (function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            let initialTheme = 'light';
+            
+            if (savedTheme) {
+                initialTheme = savedTheme;
+            } else if (prefersDark) {
+                initialTheme = 'dark';
+            }
+            
+            setTheme(initialTheme);
+        })();
+        // --- End Theme Toggle JS ---
+
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -812,7 +909,6 @@ $total_count = $total_stmt->fetch()['count'];
                     navLinks.classList.toggle("active");
                 });
 
-                // Close menu when clicking on links
                 const links = navLinks.querySelectorAll("a");
                 links.forEach((link) => {
                     link.addEventListener("click", () => {
@@ -821,7 +917,6 @@ $total_count = $total_stmt->fetch()['count'];
                     });
                 });
 
-                // Close menu when clicking outside
                 document.addEventListener("click", (event) => {
                     if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
                         hamburger.classList.remove("active");
@@ -833,60 +928,67 @@ $total_count = $total_stmt->fetch()['count'];
 
         function toggleNotifications(event) {
             event.stopPropagation();
-            const dropdown = document.getElementById('notificationDropdown');
-            notificationDropdownOpen = !notificationDropdownOpen;
-            
-            if (notificationDropdownOpen) {
-                dropdown.classList.add('show');
+            if (profileDropdownOpen) {
                 document.getElementById('profileDropdown').classList.remove('show');
                 profileDropdownOpen = false;
+            }
+            const dropdown = document.getElementById('notificationDropdown');
+            notificationDropdownOpen = !notificationDropdownOpen;
+            dropdown.classList.toggle('show');
+            if (notificationDropdownOpen) {
                 loadNotifications();
-            } else {
-                dropdown.classList.remove('show');
             }
         }
 
         function toggleProfileMenu(event) {
             event.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            profileDropdownOpen = !profileDropdownOpen;
-            
-            if (profileDropdownOpen) {
-                dropdown.classList.add('show');
+            if (notificationDropdownOpen) {
                 document.getElementById('notificationDropdown').classList.remove('show');
                 notificationDropdownOpen = false;
-            } else {
-                dropdown.classList.remove('show');
+            }
+            const dropdown = document.getElementById('profileDropdown');
+            profileDropdownOpen = !profileDropdownOpen;
+            dropdown.classList.toggle('show');
+        }
+
+        function formatMessageTime(dateTime) {
+            const dt = new Date(dateTime + ' UTC');
+            return dt.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            });
+        }
+
+        async function loadNotifications() {
+            const list = document.getElementById('notificationList');
+            list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-spinner fa-spin"></i></div>';
+            
+            try {
+                const response = await fetch('../api/notifications.php');
+                const data = await response.json();
+                
+                if (data.notifications && data.notifications.length > 0) {
+                    list.innerHTML = '';
+                    data.notifications.forEach(n => {
+                        list.innerHTML += `
+                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="handleDropdownNotificationClick(${n.id}, '${n.link || ''}')">
+                                <div style="flex-shrink: 0;"><i class="fas fa-info-circle" style="color: var(--primary-color);"></i></div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(n.message)}</p>
+                                    <small style="color: var(--text-secondary);">${formatMessageTime(n.created_at)}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">No notifications</div>';
+                }
+            } catch (e) {
+                list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">Failed to load</div>';
             }
         }
 
-        function loadNotifications() {
-            fetch('../api/notifications.php')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
-                        return;
-                    }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
-                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                             onclick="handleDropdownNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
-                            </div>
-                        </div>
-                    `).join('');
-                });
-        }
-
         function handleNotificationClick(notificationId, link) {
-            // Mark as read
             fetch('../api/notifications.php', {
                 method: 'POST',
                 headers: {
@@ -897,11 +999,9 @@ $total_count = $total_stmt->fetch()['count'];
                     notification_id: notificationId
                 })
             }).then(() => {
-                // Navigate to link if exists
                 if (link) {
                     window.location.href = link;
                 } else {
-                    // Reload to update UI
                     location.reload();
                 }
             });
@@ -1000,7 +1100,10 @@ $total_count = $total_stmt->fetch()['count'];
                                 badge.textContent = data.unread_count;
                             } else {
                                 const bell = document.querySelector('.notification-bell');
-                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                                const newBadge = document.createElement('span');
+                                newBadge.className = 'notification-badge';
+                                newBadge.textContent = data.unread_count;
+                                bell.appendChild(newBadge);
                             }
                         } else if (badge) {
                             badge.remove();
