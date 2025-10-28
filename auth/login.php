@@ -4,7 +4,6 @@ require_once '../config/config.php';
 $error = '';
 $success = '';
 
-// Check for errors passed in URL (e.g., from config.php)
 if (isset($_GET['error'])) {
     $error = sanitize_input($_GET['error']);
 }
@@ -574,7 +573,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 });
             }
-
+            // regex boi
             function validateEmail(email) {
                 const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 return re.test(String(email).toLowerCase());

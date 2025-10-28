@@ -17,9 +17,54 @@ $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $verified_filter = isset($_GET['verified']) ? $_GET['verified'] : '';
 $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 
+// --- START: New Date Range Handling ---
+// Set default dates: Last 365 days
+$default_end_date = date('Y-m-d');
+$default_start_date = date('Y-m-d', strtotime('-365 days'));
+
+// Get date range from GET or use defaults
+$start_date = isset($_GET['start_date']) && !empty($_GET['start_date']) ? $_GET['start_date'] : $default_start_date;
+$end_date = isset($_GET['end_date']) && !empty($_GET['end_date']) ? $_GET['end_date'] : $default_end_date;
+
+// Ensure end_date is at least the start_date
+if ($end_date < $start_date) {
+    $end_date = $start_date;
+}
+
+// Prepare date range for SQL filtering (inclusive, so end date is end of day)
+$sql_start_datetime = $start_date . ' 00:00:00';
+$sql_end_datetime = $end_date . ' 23:59:59';
+// --- END: New Date Range Handling ---
+
+
+// --- START: Sorting Logic ---
+$sort_by = isset($_GET['sort_by']) ? $_GET['sort_by'] : 'created_at'; // Default sort
+$sort_direction = isset($_GET['sort_direction']) && in_array(strtoupper($_GET['sort_direction']), ['ASC', 'DESC']) ? strtoupper($_GET['sort_direction']) : 'DESC';
+
+// Define allowed sort columns to prevent SQL injection
+$allowed_sort_columns = [
+    'created_at' => 'rc.created_at',
+    'code' => 'rc.code',
+    'uses' => 'rc.current_uses',
+    'actual_referrals' => 'actual_referrals', // Actual referrals comes from subquery alias
+    'max_uses' => 'rc.max_uses',
+];
+
+// Determine the actual column name for the SQL query
+$sql_sort_column = isset($allowed_sort_columns[$sort_by]) ? $allowed_sort_columns[$sort_by] : 'rc.created_at';
+// --- END: Sorting Logic ---
+
+
 // --- START: Filtering Logic ---
 $where_conditions = ['1=1'];
 $params = [];
+
+// Apply date range filter (to codes' creation date)
+$where_conditions[] = "rc.created_at >= ?";
+$params[] = $sql_start_datetime;
+
+$where_conditions[] = "rc.created_at <= ?";
+$params[] = $sql_end_datetime;
 
 if ($status_filter === 'active') {
     $where_conditions[] = "rc.is_active = 1 AND (rc.expires_at IS NULL OR rc.expires_at > NOW()) AND rc.current_uses < rc.max_uses";
@@ -40,6 +85,7 @@ if ($verified_filter === 'verified') {
 if ($search) {
     $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR rc.code LIKE ?)";
     $search_param = "%$search%";
+    // Append search params to $params
     $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
 }
 
@@ -47,8 +93,12 @@ $where_clause = implode(' AND ', $where_conditions);
 // --- END: Filtering Logic ---
 
 
-// --- START: Pagination Logic ---
-$limit = 20; // Codes per page
+// --- START: Pagination Logic (UPDATED) ---
+$allowed_limits = [10, 25, 50, 100];
+$default_limit = 25;
+// Validate and set the limit from GET or use the default
+$limit = isset($_GET['limit']) && in_array((int)$_GET['limit'], $allowed_limits) ? (int)$_GET['limit'] : $default_limit; 
+
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
@@ -73,7 +123,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $output = fopen('php://output', 'w');
     fputcsv($output, ['Code', 'Creator Name', 'Creator Email', 'Verified', 'Current Uses', 'Max Uses', 'Actual Referrals', 'Expires At', 'Status', 'Created Date']);
     
-    // The export query should use the filtering clause but NO LIMIT/OFFSET
+    // The export query uses the filtering clause with date range
     $export_query = "
         SELECT rc.*, 
                u.first_name, u.last_name, u.email, u.is_verified,
@@ -91,7 +141,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             GROUP BY JSON_EXTRACT(ual.details, '$.referral_code_id')
         ) referred_count ON referred_count.code_id = rc.id
         WHERE $where_clause
-        ORDER BY rc.created_at DESC
+        ORDER BY $sql_sort_column $sort_direction
     ";
     
     $export_stmt = $db->prepare($export_query);
@@ -130,7 +180,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 
-// Get referral code statistics (total, non-filtered)
+// Get referral code statistics (total, NON-FILTERED stats for context)
 $stats = $db->query("
     SELECT 
         COUNT(*) as total_codes,
@@ -141,7 +191,7 @@ $stats = $db->query("
     FROM referral_codes
 ")->fetch();
 
-// Get all referral codes with creator info (with LIMIT/OFFSET)
+// Get all referral codes with creator info (with LIMIT/OFFSET AND DATE FILTER)
 $codes_query = "
     SELECT rc.*, 
            u.first_name, u.last_name, u.email, u.is_verified,
@@ -159,7 +209,7 @@ $codes_query = "
         GROUP BY JSON_EXTRACT(ual.details, '$.referral_code_id')
     ) referred_count ON referred_count.code_id = rc.id
     WHERE $where_clause
-    ORDER BY rc.created_at DESC
+    ORDER BY $sql_sort_column $sort_direction
     LIMIT $limit OFFSET $offset
 ";
 
@@ -167,7 +217,7 @@ $stmt = $db->prepare($codes_query);
 $stmt->execute($params);
 $referral_codes = $stmt->fetchAll();
 
-// Get referral usage trends (last 30 days)
+// Get referral usage trends (last 30 days) - This chart remains fixed on the last 30 days
 $trends = $db->query("
     SELECT 
         DATE(ual.created_at) as date,
@@ -210,6 +260,15 @@ function get_pagination_query_string($new_page) {
     $params['page'] = $new_page;
     unset($params['export']);
     return http_build_query($params);
+}
+
+// Helper to determine the opposite direction for a column
+function get_sort_direction_for_column($current_col, $sort_by, $sort_direction) {
+    if ($current_col === $sort_by) {
+        return $sort_direction === 'ASC' ? 'DESC' : 'ASC';
+    }
+    // Default sort direction for a new column (e.g., uses) can be DESC
+    return 'DESC'; 
 }
 
 ?>
@@ -382,12 +441,56 @@ function get_pagination_query_string($new_page) {
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-sidebar.php'; ?>
     <?php include '../includes/admin-header.php'; ?>
 
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+<button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
     </button>
+    
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-0">Admin Panel</h4>
+            <small class="text-white-50">Study Mentorship Platform</small>
+        </div>
+        <nav class="nav flex-column px-2">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
+                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
+                <i class="fas fa-users me-2"></i> User Management
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
+                <i class="fas fa-user-check me-2"></i> Mentor Verification
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                <i class="fas fa-handshake me-2"></i> Matches
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
+                <i class="fas fa-video me-2"></i> Sessions
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
+                <i class="fas fa-cog me-2"></i> System Settings
+            </a>
+        </nav>
+    </div>
+
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <div class="main-content">
         <div class="container-fluid">
@@ -397,7 +500,7 @@ function get_pagination_query_string($new_page) {
                     <p class="text-muted">Monitor referral code usage and mentor activity.</p>
                 </div>
                 <div>
-                    <a href="?export=csv<?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $verified_filter ? '&verified='.$verified_filter : ''; ?><?php echo $search ? '&search='.$search : ''; ?>" class="btn btn-success">
+                    <a href="?export=csv&start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?><?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $verified_filter ? '&verified='.$verified_filter : ''; ?><?php echo $search ? '&search='.$search : ''; ?><?php echo $sort_by ? '&sort_by='.$sort_by : ''; ?><?php echo $sort_direction ? '&sort_direction='.$sort_direction : ''; ?>" class="btn btn-success">
                         <i class="fas fa-download me-2"></i> Export to CSV
                     </a>
                 </div>
@@ -409,7 +512,7 @@ function get_pagination_query_string($new_page) {
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Codes</div>
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Codes (System-wide)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($stats['total_codes']); ?></div>
                                 </div>
                                 <div class="col-auto">
@@ -425,7 +528,7 @@ function get_pagination_query_string($new_page) {
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Codes</div>
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Codes (System-wide)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($stats['active_codes']); ?></div>
                                 </div>
                                 <div class="col-auto">
@@ -441,7 +544,7 @@ function get_pagination_query_string($new_page) {
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Uses</div>
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Uses (System-wide)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($stats['total_uses']); ?></div>
                                 </div>
                                 <div class="col-auto">
@@ -457,7 +560,7 @@ function get_pagination_query_string($new_page) {
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Uses/Code</div>
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Uses/Code (System-wide)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($stats['avg_uses_per_code'], 1); ?></div>
                                 </div>
                                 <div class="col-auto">
@@ -472,14 +575,25 @@ function get_pagination_query_string($new_page) {
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
-                        <div class="col-md-3">
+                        <div class="col-lg-2 col-md-4">
+                            <label for="start_date" class="form-label">Created From</label>
+                            <input type="date" id="start_date" name="start_date" class="form-control" 
+                                   value="<?php echo htmlspecialchars($start_date); ?>" required>
+                        </div>
+                        <div class="col-lg-2 col-md-4">
+                            <label for="end_date" class="form-label">Created To</label>
+                            <input type="date" id="end_date" name="end_date" class="form-control" 
+                                   value="<?php echo htmlspecialchars($end_date); ?>" required>
+                        </div>
+                        
+                        <div class="col-lg-2 col-md-4">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" id="search" name="search" class="form-control" 
                                    placeholder="Name, email, or code"
                                    value="<?php echo htmlspecialchars($search); ?>">
                         </div>
                         
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-4">
                             <label for="status" class="form-label">Status</label>
                             <select id="status" name="status" class="form-select">
                                 <option value="">All Status</option>
@@ -490,23 +604,37 @@ function get_pagination_query_string($new_page) {
                             </select>
                         </div>
                         
-                        <div class="col-md-2">
-                            <label for="verified" class="form-label">Creator Status</label>
+                        <div class="col-lg-1 col-md-4">
+                            <label for="verified" class="form-label">Creator</label>
                             <select id="verified" name="verified" class="form-select">
-                                <option value="">All Creators</option>
+                                <option value="">All</option>
                                 <option value="verified" <?php echo $verified_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
                                 <option value="unverified" <?php echo $verified_filter === 'unverified' ? 'selected' : ''; ?>>Unverified</option>
                             </select>
                         </div>
                         
-                        <div class="col-md-1">
-                            <button type="submit" class="btn btn-primary">Filter</button>
+                        <div class="col-lg-1 col-md-4">
+                            <label for="limit" class="form-label">Show</label>
+                            <select id="limit" name="limit" class="form-select">
+                                <?php 
+                                    // Use the $allowed_limits array defined in the PHP block
+                                    foreach ($allowed_limits as $allowed_limit): 
+                                ?>
+                                    <option value="<?php echo $allowed_limit; ?>" <?php echo $limit === $allowed_limit ? 'selected' : ''; ?>>
+                                        <?php echo $allowed_limit; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
-                        <div class="col-md-1">
-                            <a href="referral-audit.php" class="btn btn-secondary">Clear</a>
+                        <div class="col-lg-2 col-md-4">
+                            <button type="submit" class="btn btn-primary w-100 mb-1">Filter</button>
+                            <a href="referral-audit.php" class="btn btn-secondary w-100">Clear</a>
                         </div>
                     </form>
                 </div>
+            </div>
+            <div class="alert alert-info small" role="alert">
+                <i class="fas fa-info-circle me-1"></i> Showing codes created from **<?php echo date('M j, Y', strtotime($start_date)); ?>** to **<?php echo date('M j, Y', strtotime($end_date)); ?>**.
             </div>
 
             <div class="row">
@@ -522,12 +650,26 @@ function get_pagination_query_string($new_page) {
                                 <table class="table table-bordered" width="100%" cellspacing="0">
                                     <thead>
                                         <tr>
-                                            <th>Code</th>
+                                            <?php 
+                                            // Helper to construct sort link
+                                            function get_sort_link($column, $display_name, $current_sort_by, $current_sort_direction) {
+                                                $new_direction = get_sort_direction_for_column($column, $current_sort_by, $current_sort_direction);
+                                                $icon = $current_sort_by === $column ? 
+                                                        ($current_sort_direction === 'ASC' ? '<i class="fas fa-sort-up ms-1"></i>' : '<i class="fas fa-sort-down ms-1"></i>') : 
+                                                        '<i class="fas fa-sort ms-1 text-muted"></i>';
+                                                $params = array_merge($_GET, ['sort_by' => $column, 'sort_direction' => $new_direction, 'page' => 1]);
+                                                unset($params['export']);
+                                                $query_string = http_build_query($params);
+                                                
+                                                echo '<th><a href="?' . $query_string . '" class="text-decoration-none d-block text-primary fw-bold">' . $display_name . $icon . '</a></th>';
+                                            }
+                                            ?>
+                                            <?php get_sort_link('code', 'Code', $sort_by, $sort_direction); ?>
                                             <th>Creator</th>
-                                            <th>Usage (Actual/Total)</th>
+                                            <?php get_sort_link('actual_referrals', 'Usage (Actual/Total)', $sort_by, $sort_direction); ?>
                                             <th>Expires</th>
                                             <th>Status</th>
-                                            <th>Created</th>
+                                            <?php get_sort_link('created_at', 'Created', $sort_by, $sort_direction); ?>
                                         </tr>
                                     </thead>
                                     <tbody>

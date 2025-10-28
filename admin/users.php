@@ -142,6 +142,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
     $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
     $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
     $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+    // New date range filters
+    $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : '';
+    $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : '';
     
     $where_conditions = ["u.role != 'admin'"];
     $params = [];
@@ -161,6 +164,19 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
         $where_conditions[] = "u.is_active = 0";
     }
     
+    // Date Range Filter Logic
+    if ($start_date) {
+        // Use DATE() to compare only the date part of created_at
+        $where_conditions[] = "DATE(u.created_at) >= ?";
+        $params[] = $start_date;
+    }
+
+    if ($end_date) {
+        // Use DATE() to compare only the date part of created_at
+        $where_conditions[] = "DATE(u.created_at) <= ?";
+        $params[] = $end_date;
+    }
+
     if ($search) {
         $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)";
         $search_param = "%$search%";
@@ -346,6 +362,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             .table-responsive {
                 font-size: 0.85rem;
             }
+            
+            /* Adjust column widths for better mobile view of filters */
+            #filterForm .col-md-3,
+            #filterForm .col-md-2 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
         }
         
         @media (min-width: 769px) {
@@ -491,29 +514,24 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <a class="nav-link" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
-            <a class="nav-link" href="matches.php">
+                        <a class="nav-link" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+                        <a class="nav-link" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+
+                        </a>
+            <a class="nav-link" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
             </a>
             <a class="nav-link" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
@@ -528,10 +546,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     <h1 class="h3 mb-1 text-gray-800">User Management</h1>
                     <div class="d-flex align-items-center gap-2">
                         <p class="text-muted mb-0">Manage user accounts, verification, and activity.</p>
-                        <span class="real-time-badge">
-                            <span class="pulse"></span>
-                            Real-time
-                        </span>
                     </div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
@@ -549,13 +563,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form id="filterForm" class="row g-3 align-items-end">
-                        <div class="col-md-3">
+                        <div class="col-lg-3 col-md-6 col-sm-12">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" id="search" name="search" class="form-control" 
                                    placeholder="Name, email, username">
                         </div>
                         
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-6 col-sm-12">
                             <label for="role" class="form-label">Role</label>
                             <select id="role" name="role" class="form-select">
                                 <option value="">All Roles</option>
@@ -565,7 +579,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                             </select>
                         </div>
                         
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-6 col-sm-12">
                             <label for="status" class="form-label">Status</label>
                             <select id="status" name="status" class="form-select">
                                 <option value="">All Status</option>
@@ -575,8 +589,18 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <option value="inactive">Inactive</option>
                             </select>
                         </div>
+                        
+                        <div class="col-lg-2 col-md-6 col-sm-12">
+                            <label for="start_date" class="form-label">Joined From</label>
+                            <input type="date" id="start_date" name="start_date" class="form-control">
+                        </div>
 
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-6 col-sm-12">
+                            <label for="end_date" class="form-label">Joined To</label>
+                            <input type="date" id="end_date" name="end_date" class="form-control">
+                        </div>
+
+                        <div class="col-lg-1 col-md-6 col-sm-12">
                             <label for="per_page" class="form-label">Per Page</label>
                             <select id="per_page" name="per_page" class="form-select">
                                 <option value="10">10</option>
@@ -586,7 +610,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                             </select>
                         </div>
                         
-                        <div class="col-md-2">
+                        <div class="col-lg-1 col-md-6 col-sm-12">
                             <button type="button" onclick="clearFilters()" class="btn btn-secondary w-100">Clear</button>
                         </div>
                     </form>
@@ -636,7 +660,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         </div>
     </div>
 
-    <!-- Create User Modal -->
     <div class="modal fade" id="createUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -691,7 +714,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         </div>
     </div>
 
-    <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -793,8 +815,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 document.getElementById('loadingOverlay').classList.add('show');
             }
             
-            const formData = new FormData(document.getElementById('filterForm'));
-            const params = new URLSearchParams(formData);
+            const filterForm = document.getElementById('filterForm');
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams();
+            
+            // Collect all filter parameters from the form
+            for (const pair of formData.entries()) {
+                params.append(pair[0], pair[1]);
+            }
+
             params.append('ajax', 'true');
             params.append('sort', currentSort);
             params.append('dir', currentDir);
@@ -1095,9 +1124,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             });
         });
         
-        // Handle filter changes
-        document.getElementById('filterForm').addEventListener('change', function() {
-            loadUsers();
+        // Handle filter changes (Role, Status, Per Page, Date inputs)
+        document.getElementById('filterForm').addEventListener('change', function(e) {
+            // Only load users if the changed element is not the search text input
+            if (e.target.id !== 'search') {
+                loadUsers();
+            }
         });
         
         // Handle search with debounce

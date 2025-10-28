@@ -24,7 +24,7 @@ if ($user['role'] === 'mentor') {
     
     if ($overdue_info['has_overdue']) {
         $can_accept_matches = false;
-        $commission_block_message = "You have {$overdue_info['overdue_count']} overdue commission payment(s) totaling ₱" . number_format($overdue_info['total_overdue'], 2) . ". Please pay your commissions before accepting new matches.";
+        $commission_block_message = "You have {$overdue_info['overdue_count']} overdue commission payment(s) totaling ₱" . number_format($overdue_info['total_overdue'], 2) . ". Please pay your commissions before accepting new matches or find new partners.";
     }
 }
 
@@ -533,6 +533,15 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             font-size: 0.85rem;
             min-height: auto;
         }
+
+        /* ===== MODIFICATION 1: ADDED THIS RULE ===== */
+        .btn.disabled,
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none; /* This prevents clicks and hover effects */
+        }
+        /* ===== END OF MODIFICATION 1 ===== */
 
         .alert {
             padding: 1rem;
@@ -1225,10 +1234,14 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     <h1><i class="fas fa-handshake"></i> My Matches</h1>
                     <p class="page-subtitle">Manage your study partnerships and match requests</p>
                 </div>
-                <a href="find.php" class="btn btn-primary">
+                <a href="find.php" 
+                   class="btn btn-primary <?php echo !$can_accept_matches ? 'disabled' : ''; ?>"
+                   <?php if (!$can_accept_matches): ?>
+                       title="<?php echo htmlspecialchars(strip_tags($commission_block_message)); ?>"
+                   <?php endif; ?>>
                     <i class="fas fa-search"></i> <span class="hide-on-small">Find New Partners</span>
                 </a>
-            </div>
+                </div>
 
             <?php if ($error): ?>
                 <div class="alert alert-error">

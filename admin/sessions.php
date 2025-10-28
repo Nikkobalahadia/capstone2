@@ -13,6 +13,54 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
+// --- Date Range Handling ---
+// Set default dates: Last 30 days
+$default_end_date = date('Y-m-d');
+$default_start_date = date('Y-m-d', strtotime('-30 days'));
+
+// Get date range from GET or use defaults
+$start_date = isset($_GET['start_date']) && !empty($_GET['start_date']) ? $_GET['start_date'] : $default_start_date;
+$end_date = isset($_GET['end_date']) && !empty($_GET['end_date']) ? $_GET['end_date'] : $default_end_date;
+
+// Ensure end_date is at least the start_date
+if ($end_date < $start_date) {
+    $end_date = $start_date;
+}
+// --- End Date Range Handling ---
+
+$status_filter = $_GET['status'] ?? 'all';
+$sort_by = isset($_GET['sort']) && $_GET['sort'] === 'rating' ? 'rating' : 'date'; 
+
+// --- NEW: Limit parameter handling (using 200 as default from original file) ---
+$allowed_limits = [10, 25, 50, 100, 200];
+$limit = isset($_GET['limit']) && in_array((int)$_GET['limit'], $allowed_limits) ? (int)$_GET['limit'] : 200;
+
+
+$where_conditions = [];
+$params = [];
+
+// Apply status filter
+if ($status_filter !== 'all') {
+    $where_conditions[] = "s.status = ?";
+    $params[] = $status_filter;
+}
+
+// Apply date range filter (Always applied, default is 30 days)
+// We use session_date to filter the displayed sessions
+$where_conditions[] = "s.session_date >= ?";
+$params[] = $start_date;
+
+$where_conditions[] = "s.session_date <= ?";
+$params[] = $end_date;
+
+$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+
+// Determine the ORDER BY clause based on the new sort parameter
+$order_clause = $sort_by === 'rating' 
+    ? 'sr.rating DESC, s.session_date DESC, s.start_time DESC' // Top Sessions by Rating (descending)
+    : 's.session_date DESC, s.start_time DESC'; // Latest Sessions by Date
+
+// --- CSV EXPORT LOGIC (Now respects filters and sorting) ---
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="sessions_export_' . date('Y-m-d') . '.csv"');
@@ -20,6 +68,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $output = fopen('php://output', 'w');
     fputcsv($output, ['Session ID', 'Student', 'Mentor', 'Subject', 'Date', 'Start Time', 'End Time', 'Status', 'Location', 'Rating', 'Feedback']);
     
+    // Export query does not use LIMIT
     $export_query = "
         SELECT s.id, 
                CONCAT(st.first_name, ' ', st.last_name) as student_name,
@@ -37,10 +86,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         JOIN users st ON m.student_id = st.id
         JOIN users mt ON m.mentor_id = mt.id
         LEFT JOIN session_ratings sr ON s.id = sr.session_id
-        ORDER BY s.session_date DESC, s.start_time DESC
+        {$where_clause}
+        ORDER BY {$order_clause}
     ";
     
-    $export_stmt = $db->query($export_query);
+    $export_stmt = $db->prepare($export_query);
+    $export_stmt->execute($params); // Execute with the collected parameters
     
     while ($row = $export_stmt->fetch()) {
         fputcsv($output, [
@@ -134,32 +185,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-$status_filter = $_GET['status'] ?? 'all';
-$date_filter = $_GET['date'] ?? 'all';
-
-$where_conditions = [];
-$params = [];
-
-if ($status_filter !== 'all') {
-    $where_conditions[] = "s.status = ?";
-    $params[] = $status_filter;
-}
-
-if ($date_filter !== 'all') {
-    switch ($date_filter) {
-        case 'today':
-            $where_conditions[] = "DATE(s.session_date) = CURDATE()";
-            break;
-        case 'week':
-            $where_conditions[] = "s.session_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-            break;
-        case 'month':
-            $where_conditions[] = "s.session_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
-            break;
-    }
-}
-
-$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
 // Get all sessions with enhanced details
 $stmt = $db->prepare("
@@ -176,8 +201,8 @@ $stmt = $db->prepare("
     JOIN users mt ON m.mentor_id = mt.id
     LEFT JOIN session_ratings sr ON s.id = sr.session_id
     $where_clause
-    ORDER BY s.session_date DESC, s.start_time DESC
-    LIMIT 200
+    ORDER BY {$order_clause}
+    LIMIT {$limit}
 ");
 $stmt->execute($params);
 $sessions = $stmt->fetchAll();
@@ -323,14 +348,10 @@ $sessions = $stmt->fetchAll();
             border-radius: 3px;
         }
         
-        .sidebar::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.5);
-        }
-
         /* Session Page Specific Styles */
         .badge-scheduled { background-color: #0dcaf0; color: #000; }
-        .badge-completed { background-color: #198754; }
-        .badge-cancelled { background-color: #dc3545; }
+        .badge-completed { background-color: #198754; color: #fff; }
+        .badge-cancelled { background-color: #dc3545; color: #fff; }
         .rating-stars .fa-star { color: #ffc107; }
         .rating-stars .fa-star.text-muted { color: #e0e0e0 !important; }
     </style>
@@ -360,30 +381,27 @@ $sessions = $stmt->fetchAll();
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
             </a>
@@ -394,7 +412,7 @@ $sessions = $stmt->fetchAll();
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h3 mb-0">Manage Sessions</h1>
-                <a href="?export=csv" class="btn btn-success">
+                <a href="?export=csv&status=<?php echo htmlspecialchars($status_filter); ?>&start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&sort=<?php echo htmlspecialchars($sort_by); ?>" class="btn btn-success">
                     <i class="fas fa-download me-2"></i> Export to CSV
                 </a>
             </div>
@@ -415,7 +433,7 @@ $sessions = $stmt->fetchAll();
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <label class="form-label">Status</label>
                             <select name="status" class="form-select">
                                 <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Statuses</option>
@@ -424,16 +442,35 @@ $sessions = $stmt->fetchAll();
                                 <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Date Range</label>
-                            <select name="date" class="form-select">
-                                <option value="all" <?php echo $date_filter === 'all' ? 'selected' : ''; ?>>All Time</option>
-                                <option value="today" <?php echo $date_filter === 'today' ? 'selected' : ''; ?>>Today</option>
-                                <option value="week" <?php echo $date_filter === 'week' ? 'selected' : ''; ?>>This Week</option>
-                                <option value="month" <?php echo $date_filter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label">Sort By</label>
+                            <select name="sort" class="form-select">
+                                <option value="date" <?php echo $sort_by === 'date' ? 'selected' : ''; ?>>Latest Sessions</option>
+                                <option value="rating" <?php echo $sort_by === 'rating' ? 'selected' : ''; ?>>Top Sessions (Rating)</option>
                             </select>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        
+                        <div class="col-md-2">
+                            <label for="limit" class="form-label">Show Entries</label>
+                            <select id="limit" name="limit" class="form-select">
+                                <option value="10" <?php echo $limit === 10 ? 'selected' : ''; ?>>10</option>
+                                <option value="25" <?php echo $limit === 25 ? 'selected' : ''; ?>>25</option>
+                                <option value="50" <?php echo $limit === 50 ? 'selected' : ''; ?>>50</option>
+                                <option value="100" <?php echo $limit === 100 ? 'selected' : ''; ?>>100</option>
+                                <option value="200" <?php echo $limit === 200 ? 'selected' : ''; ?>>200</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Date Range (Session Date)</label>
+                            <div class="input-group">
+                                <input type="date" name="start_date" class="form-control" value="<?php echo htmlspecialchars($start_date); ?>" required>
+                                <span class="input-group-text">to</span>
+                                <input type="date" name="end_date" class="form-control" value="<?php echo htmlspecialchars($end_date); ?>" required>
+                            </div>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-filter me-2"></i> Filter
                             </button>
@@ -442,9 +479,15 @@ $sessions = $stmt->fetchAll();
                 </div>
             </div>
 
+            <div class="alert alert-info small" role="alert">
+                <i class="fas fa-info-circle me-1"></i> Displaying **<?php echo count($sessions); ?>** sessions from **<?php echo date('M j, Y', strtotime($start_date)); ?>** to **<?php echo date('M j, Y', strtotime($end_date)); ?>**. (Showing <?php echo $limit; ?> entries maximum)
+            </div>
+
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Session Log</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <?php echo $sort_by === 'rating' ? 'Top Rated Sessions' : 'Session Log'; ?>
+                    </h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">

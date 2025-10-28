@@ -57,6 +57,7 @@ $top_mentors = $db->prepare("
         u.id,
         CONCAT(u.first_name, ' ', u.last_name) as mentor_name,
         u.email,
+        u.account_status, /* Mentor account status for UI */
         COUNT(cp.id) as total_sessions,
         SUM(cp.session_amount) as total_earned,
         SUM(cp.commission_amount) as total_commission_paid,
@@ -65,7 +66,7 @@ $top_mentors = $db->prepare("
     FROM users u
     JOIN commission_payments cp ON u.id = cp.mentor_id
     WHERE DATE(cp.created_at) BETWEEN ? AND ?
-    GROUP BY u.id
+    GROUP BY u.id, u.first_name, u.last_name, u.email, u.account_status /* Group by all non-aggregated columns */
     ORDER BY total_earned DESC
     LIMIT 10
 ");
@@ -106,12 +107,14 @@ $breakdown = $db->query("
 $cp_error = '';
 $cp_success = '';
 
+// Assuming this file exists and contains `update_overdue_status` and `verify_csrf_token`
 require_once '../config/commission_helper.php';
 update_overdue_status($db);
 
 // Handle commission verification/rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
+    // Note: ensure generate_csrf_token() and verify_csrf_token() are defined in your config/config.php or included files
+    if (!function_exists('verify_csrf_token') || !verify_csrf_token($_POST['csrf_token'])) {
         $cp_error = 'Invalid security token.';
     } else {
         $payment_id = (int)($_POST['payment_id'] ?? 0);
@@ -128,7 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt->execute([$user['id'], $payment_id]);
             $cp_success = 'Commission payment verified successfully.';
         } elseif ($_POST['action'] === 'reject') {
-            $rejection_reason = sanitize_input($_POST['rejection_reason']);
+            // Note: ensure sanitize_input() is defined in your config/config.php or included files
+            $rejection_reason = function_exists('sanitize_input') ? sanitize_input($_POST['rejection_reason']) : $_POST['rejection_reason'];
             if (empty($rejection_reason)) {
                 $cp_error = 'A rejection reason is required.';
             } else {
@@ -197,7 +201,7 @@ $cp_query = "
         cp.is_overdue,
         CONCAT(mentor.first_name, ' ', mentor.last_name) as mentor_name,
         mentor.email as mentor_email,
-        mentor.account_status as mentor_account_status,
+        mentor.account_status as mentor_account_status, /* Mentor account status for display/actions */
         CONCAT(verifier.first_name, ' ', verifier.last_name) as verifier_name,
         s.session_date,
         s.start_time,
@@ -390,13 +394,33 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             }
         }
         
-        /* Card Styles */
-        .card {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        /* Scrollbar Styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
         }
         
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        /* END NEW STYLES */
+
+        /* MODERN CARD STYLES */
+        .card {
+            border: none;
+            border-radius: 12px; /* Slightly more rounded */
+            box-shadow: 0 6px 15px rgba(0,0,0,0.08); /* Stronger shadow for depth */
+            transition: all 0.3s;
+        }
+
         /* Chart Container */
         .chart-container {
             position: relative;
@@ -404,16 +428,52 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         }
 
         /* Commission Page Specific Styles */
-        .stat-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-card { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 1.5rem; 
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+        }
+
+        /* Interactive Hover for Stat Cards */
+        .stat-card:hover {
+            transform: translateY(-2px); /* Slight lift on hover */
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+
         .stat-value { font-size: 2rem; font-weight: 700; }
         .stat-label { color: #6c757d; font-size: 0.875rem; }
+        
+        /* Badges */
         .badge-pending { background-color: #ffc107; color: #000; }
         .badge-submitted { background-color: #0dcaf0; color: #000; }
         .badge-verified { background-color: #198754; }
         .badge-rejected { background-color: #dc3545; }
-        .badge-overdue { background-color: #dc3545; animation: pulse 2s infinite; }
         .badge-suspended { background-color: #6c757d; color: white; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        
+        /* Overdue Animation */
+        .badge-overdue { 
+            background-color: #dc3545; 
+            animation: simple-pulse 1.5s infinite; 
+            box-shadow: 0 0 5px rgba(220, 53, 69, 0.5);
+            font-weight: 600;
+        }
+        @keyframes simple-pulse { 
+            0% { opacity: 1; } 
+            50% { opacity: 0.8; box-shadow: 0 0 10px rgba(220, 53, 69, 0.9); } 
+            100% { opacity: 1; } 
+        }
+
+        /* Table Enhancements */
+        .table thead th {
+            border-bottom: 2px solid #e9ecef;
+            color: #6c757d;
+            font-weight: 600;
+        }
+        .table-hover tbody tr:hover {
+            background-color: #f5f5f5 !important;
+        }
         
         /* Tab Styles */
         .nav-tabs .nav-link {
@@ -425,12 +485,24 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             border-color: #667eea;
             border-bottom-width: 3px;
         }
+
+        /* Specific Suspension Badge for Mentor List */
+        .mentor-status-badge {
+            font-size: 0.7em;
+            padding: 0.3em 0.5em;
+            border-radius: 4px;
+            vertical-align: middle;
+            background-color: #dc3545;
+            color: white;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
-    <?php include '../includes/admin-header.php'; ?>
+    <?php // Note: The admin-header.php file is assumed to be correctly included. 
+    include '../includes/admin-header.php'; ?>
 
-    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+<button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
     </button>
     
@@ -451,36 +523,34 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
             </a>
         </nav>
     </div>
 
+    <div class="mobile-overlay" id="mobileOverlay"></div>
     <div class="main-content">
         <div class="container-fluid">
             
@@ -516,7 +586,12 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="commissions-tab" data-bs-toggle="tab" data-bs-target="#commissions" type="button" role="tab" aria-controls="commissions" aria-selected="false">
-                        <i class="fas fa-money-bill-wave me-2"></i>Commission Payment
+                        <i class="fas fa-money-bill-wave me-2"></i>Commission Payment 
+                        <?php if ($cp_total_overdue > 0): ?>
+                            <span class="badge bg-danger rounded-pill ms-2"><?php echo $cp_total_overdue; ?> Overdue</span>
+                        <?php elseif ($cp_total_submitted > 0): ?>
+                            <span class="badge bg-info rounded-pill ms-2"><?php echo $cp_total_submitted; ?> Submitted</span>
+                        <?php endif; ?>
                     </button>
                 </li>
             </ul>
@@ -527,7 +602,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                     
                     <div class="card shadow mb-4">
                         <div class="card-body">
-                            <form method="GET" class="row g-3">
+                            <form method="GET" class="row g-3" id="overview-filter-form">
                                 <div class="col-md-5">
                                     <label class="form-label">From</label>
                                     <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($date_from); ?>">
@@ -537,7 +612,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                     <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($date_to); ?>">
                                 </div>
                                 <div class="col-md-2 d-flex align-items-end">
-                                    <button type="submit" class="btn btn-primary w-100">
+                                    <button type="submit" class="btn btn-primary w-100" id="overview-filter-btn">
                                         <i class="fas fa-filter me-2"></i> Filter
                                     </button>
                                 </div>
@@ -547,35 +622,37 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                     
                     <div class="row mb-4">
                         <div class="col-md-3">
-                            <div class="card shadow-sm h-100"><div class="card-body">
-                                <div class="text-xs text-uppercase mb-1">Total Session Revenue</div>
-                                <div class="h5 mb-0">₱<?php echo number_format($stats['total_session_revenue'], 2); ?></div>
-                            </div></div>
+                            <div class="stat-card h-100">
+                                <div class="stat-label text-uppercase mb-1">Total Session Revenue</div>
+                                <div class="stat-value">₱<?php echo number_format($stats['total_session_revenue'], 2); ?></div>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card shadow-sm h-100"><div class="card-body">
-                                <div class="text-xs text-uppercase mb-1">Total Commission Revenue</div>
-                                <div class="h5 mb-0 text-success">₱<?php echo number_format($stats['total_commission_revenue'], 2); ?></div>
-                            </div></div>
+                            <div class="stat-card h-100">
+                                <div class="stat-label text-uppercase mb-1">Total Commission Revenue</div>
+                                <div class="stat-value text-success">₱<?php echo number_format($stats['total_commission_revenue'], 2); ?></div>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card shadow-sm h-100"><div class="card-body">
-                                <div class="text-xs text-uppercase mb-1">Pending Commissions</div>
-                                <div class="h5 mb-0 text-warning">₱<?php echo number_format($stats['pending_amount'], 2); ?></div>
-                            </div></div>
+                            <div class="stat-card h-100">
+                                <div class="stat-label text-uppercase mb-1">Pending Commissions</div>
+                                <div class="stat-value text-warning">₱<?php echo number_format($stats['pending_amount'], 2); ?></div>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card shadow-sm h-100"><div class="card-body">
-                                <div class="text-xs text-uppercase mb-1">Total Transactions</div>
-                                <div class="h5 mb-0"><?php echo $stats['total_commissions']; ?></div>
-                            </div></div>
+                            <div class="stat-card h-100">
+                                <div class="stat-label text-uppercase mb-1">Total Transactions</div>
+                                <div class="stat-value"><?php echo $stats['total_commissions']; ?></div>
+                            </div>
                         </div>
                     </div>
                     
                     <div class="row mb-4">
                         <div class="col-md-8">
                             <div class="card shadow h-100">
-                                <div class="card-header">Daily Revenue (Last 30 Days)</div>
+                                <div class="card-header border-0 bg-white pt-3">
+                                    <h6 class="mb-0 text-primary fw-bold">Daily Revenue (Last 30 Days)</h6>
+                                </div>
                                 <div class="card-body"><div class="chart-container">
                                     <canvas id="dailyRevenueChart"></canvas>
                                 </div></div>
@@ -583,8 +660,10 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                         </div>
                         <div class="col-md-4">
                             <div class="card shadow h-100">
-                                <div class="card-header">Payment Status Breakdown (All Time)</div>
-                                <div class="card-body"><div class="chart-container">
+                                <div class="card-header border-0 bg-white pt-3">
+                                    <h6 class="mb-0 text-primary fw-bold">Payment Status Breakdown (All Time)</h6>
+                                </div>
+                                <div class="card-body d-flex align-items-center"><div class="chart-container w-100">
                                     <canvas id="statusChart"></canvas>
                                 </div></div>
                             </div>
@@ -592,10 +671,15 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                     </div>
                     
                     <div class="card shadow">
-                        <div class="card-header">Top 10 Mentors (<?php echo date('M j, Y', strtotime($date_from)); ?> - <?php echo date('M j, Y', strtotime($date_to)); ?>)</div>
+                        <div class="card-header bg-white border-0 pt-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Top 10 Mentors (<?php echo date('M j, Y', strtotime($date_from)); ?> - <?php echo date('M j, Y', strtotime($date_to)); ?>)</h6>
+                        </div>
                         <div class="card-body">
                             <div class="table-responsive">
-                                <table class="table table-hover">
+                                <?php if (empty($mentors)): ?>
+                                    <p class="text-center text-muted py-4">No mentor data available for this date range.</p>
+                                <?php else: ?>
+                                <table class="table table-hover align-middle table-striped">
                                     <thead>
                                         <tr>
                                             <th>Mentor</th>
@@ -611,6 +695,9 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                 <td>
                                                     <strong><?php echo htmlspecialchars($mentor['mentor_name']); ?></strong>
                                                     <div class="small text-muted"><?php echo htmlspecialchars($mentor['email']); ?></div>
+                                                    <?php if ($mentor['account_status'] === 'suspended'): ?>
+                                                        <span class="mentor-status-badge"><i class="fas fa-ban me-1"></i>Suspended</span>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td><?php echo $mentor['total_sessions']; ?></td>
                                                 <td>₱<?php echo number_format($mentor['total_earned'], 2); ?></td>
@@ -620,6 +707,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -632,7 +720,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                         <div class="col-md-3 mb-3">
                             <div class="stat-card">
                                 <div class="stat-label">
-                                    <i class="fas fa-exclamation-circle text-danger"></i> Overdue
+                                    <i class="fas fa-exclamation-circle text-danger me-1"></i> Overdue
                                 </div>
                                 <div class="stat-value text-danger"><?php echo $cp_total_overdue; ?></div>
                                 <div class="text-muted small">₱<?php echo number_format($cp_amount_overdue, 2); ?></div>
@@ -683,20 +771,26 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                         <i class="fas fa-filter me-2"></i> Filter
                                     </button>
                                 </div>
+                                <?php if (isset($_GET['date_from'])): ?>
+                                    <input type="hidden" name="date_from" value="<?php echo htmlspecialchars($_GET['date_from']); ?>">
+                                <?php endif; ?>
+                                <?php if (isset($_GET['date_to'])): ?>
+                                    <input type="hidden" name="date_to" value="<?php echo htmlspecialchars($_GET['date_to']); ?>">
+                                <?php endif; ?>
                             </form>
                         </div>
                     </div>
 
                     <div class="card shadow">
-                        <div class="card-header py-3">
+                        <div class="card-header py-3 bg-white border-0">
                             <h6 class="m-0 font-weight-bold text-primary">Commission Payments</h6>
                         </div>
                         <div class="card-body">
                             <?php if (empty($payments)): ?>
-                                <p class="text-center text-muted py-4">No commission payments found.</p>
+                                <p class="text-center text-muted py-4">No commission payments found matching the current filters.</p>
                             <?php else: ?>
                                 <div class="table-responsive">
-                                    <table class="table table-hover align-middle">
+                                    <table class="table table-hover align-middle table-striped">
                                         <thead>
                                             <tr>
                                                 <th>Mentor</th>
@@ -715,9 +809,6 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                     <td>
                                                         <strong><?php echo htmlspecialchars($payment['mentor_name']); ?></strong>
                                                         <div class="small text-muted"><?php echo htmlspecialchars($payment['mentor_email']); ?></div>
-                                                        <?php if (!empty($payment['mentor_gcash_number'])): ?>
-                                                            <div class="small text-muted">GCash: <?php echo htmlspecialchars($payment['mentor_gcash_number']); ?></div>
-                                                        <?php endif; ?>
                                                         <?php if ($payment['mentor_account_status'] === 'suspended'): ?>
                                                             <span class="badge badge-suspended">Suspended</span>
                                                         <?php endif; ?>
@@ -745,48 +836,52 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                     </td>
                                                     <td>
                                                         <?php if ($payment['is_overdue'] && $payment['payment_status'] !== 'verified'): ?>
-                                                            <span class="badge badge-overdue">
-                                                                <i class="fas fa-exclamation-circle"></i> OVERDUE
+                                                            <span class="badge badge-overdue rounded-pill">
+                                                                <i class="fas fa-exclamation-circle me-1"></i> OVERDUE
                                                             </span>
                                                         <?php elseif ($payment['payment_status'] === 'pending'): ?>
-                                                            <span class="badge badge-pending">Pending</span>
+                                                            <span class="badge badge-pending rounded-pill">Pending</span>
                                                         <?php elseif ($payment['payment_status'] === 'submitted'): ?>
-                                                            <span class="badge badge-submitted">Submitted</span>
+                                                            <span class="badge badge-submitted rounded-pill">Submitted</span>
                                                         <?php elseif ($payment['payment_status'] === 'verified'): ?>
-                                                            <span class="badge badge-verified">Verified</span>
+                                                            <span class="badge badge-verified rounded-pill">Verified</span>
                                                         <?php elseif ($payment['payment_status'] === 'rejected'): ?>
-                                                            <span class="badge badge-rejected">Rejected</span>
+                                                            <span class="badge badge-rejected rounded-pill">Rejected</span>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($payment['rejection_reason'])): ?>
+                                                            <i class="fas fa-info-circle text-danger ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="<?php echo htmlspecialchars($payment['rejection_reason']); ?>"></i>
                                                         <?php endif; ?>
                                                     </td>
                                                     <td>
                                                         <form method="POST" id="commission-form-<?php echo $payment['id']; ?>" class="d-inline">
                                                             <input type="hidden" name="payment_id" value="<?php echo $payment['id']; ?>">
                                                             <input type="hidden" name="mentor_id" value="<?php echo $payment['mentor_id']; ?>">
-                                                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                            <?php // Note: ensure generate_csrf_token() is defined in your config/config.php or included files ?>
+                                                            <input type="hidden" name="csrf_token" value="<?php echo function_exists('generate_csrf_token') ? generate_csrf_token() : ''; ?>">
                                                             <input type="hidden" name="action" id="action-input-<?php echo $payment['id']; ?>">
                                                             <input type="hidden" name="rejection_reason" id="reason-input-<?php echo $payment['id']; ?>">
                                                         </form>
                                                         
-                                                        <?php if ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted'): ?>
-                                                            <button class="btn btn-success btn-sm mx-1" type="button" onclick="confirmVerify(<?php echo $payment['id']; ?>)" title="Verify">
-                                                                <i class="fas fa-check"></i>
-                                                            </button>
-                                                            <button class="btn btn-danger btn-sm mx-1" type="button" onclick="confirmReject(<?php echo $payment['id']; ?>)" title="Reject">
-                                                                <i class="fas fa-times"></i>
-                                                            </button>
-                                                        <?php endif; ?>
-                                                        
-                                                        <?php if (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended'): ?>
-                                                            <button class="btn btn-warning btn-sm mx-1" type="button" onclick="confirmSuspend(<?php echo $payment['id']; ?>)" title="Suspend Mentor">
-                                                                <i class="fas fa-ban"></i>
-                                                            </button>
-                                                        <?php endif; ?>
-                                                        
-                                                        <?php if ($payment['mentor_account_status'] === 'suspended'): ?>
-                                                            <button class="btn btn-info btn-sm mx-1" type="button" onclick="confirmUnsuspend(<?php echo $payment['id']; ?>)" title="Reactivate Mentor">
-                                                                <i class="fas fa-unlock"></i>
-                                                            </button>
-                                                        <?php endif; ?>
+                                                        <div class="btn-group" role="group">
+                                                            <?php if ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted'): ?>
+                                                                <button class="btn btn-success btn-sm" type="button" onclick="confirmVerify(<?php echo $payment['id']; ?>)" title="Verify Payment">
+                                                                    <i class="fas fa-check"></i>
+                                                                </button>
+                                                                <button class="btn btn-danger btn-sm" type="button" onclick="confirmReject(<?php echo $payment['id']; ?>)" title="Reject Payment">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                            <?php endif; ?>
+                                                            
+                                                            <?php if (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended'): ?>
+                                                                <button class="btn btn-warning btn-sm" type="button" onclick="confirmSuspend(<?php echo $payment['id']; ?>)" title="Suspend Mentor">
+                                                                    <i class="fas fa-ban"></i>
+                                                                </button>
+                                                            <?php elseif ($payment['mentor_account_status'] === 'suspended'): ?>
+                                                                <button class="btn btn-info btn-sm" type="button" onclick="confirmUnsuspend(<?php echo $payment['id']; ?>)" title="Reactivate Mentor">
+                                                                    <i class="fas fa-unlock"></i>
+                                                                </button>
+                                                            <?php endif; ?>
+                                                        </div>
                                                         
                                                         <?php 
                                                             $hasActions = ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted') ||
@@ -794,7 +889,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                                           ($payment['mentor_account_status'] === 'suspended');
                                                         ?>
                                                         <?php if (!$hasActions): ?>
-                                                            <span class="text-muted small">No actions</span>
+                                                            <span class="text-muted small">N/A</span>
                                                         <?php endif; ?>
                                                     </td>
                                                 </tr>
@@ -813,7 +908,13 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Mobile Menu Toggle
+        // Initialize Bootstrap tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+
+        // Mobile Menu Toggle (NEW/UPDATED SECTION)
         const mobileMenuToggle = document.getElementById('mobileMenuToggle');
         const sidebar = document.getElementById('sidebar');
         const mobileOverlay = document.getElementById('mobileOverlay');
@@ -844,6 +945,13 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                 });
             });
         }
+        
+        // --- Loading State for Overview Filter ---
+        document.getElementById('overview-filter-form').addEventListener('submit', function() {
+            const filterButton = document.getElementById('overview-filter-btn');
+            filterButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Loading...';
+            filterButton.disabled = true;
+        });
 
         // --- SweetAlert Confirmation Functions for Commissions ---
         function getForm(id) {
@@ -857,7 +965,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         function confirmVerify(id) {
             Swal.fire({
                 title: 'Verify Payment?',
-                text: "Are you sure you want to verify this commission payment?",
+                text: "Are you sure you want to verify this commission payment? This action is usually irreversible.",
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#198754',
@@ -876,14 +984,14 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                 title: 'Enter Rejection Reason',
                 input: 'text',
                 inputLabel: 'Reason',
-                inputPlaceholder: 'e.g., Invalid reference number',
+                inputPlaceholder: 'e.g., Invalid reference number or amount mismatch',
                 showCancelButton: true,
                 confirmButtonColor: '#dc3545',
                 confirmButtonText: 'Reject Payment',
                 cancelButtonColor: '#6c757d',
                 inputValidator: (value) => {
                     if (!value) {
-                        return 'You must provide a reason to reject!'
+                        return 'You must provide a reason to reject the payment!'
                     }
                 }
             });
@@ -898,7 +1006,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         function confirmSuspend(id) {
             Swal.fire({
                 title: 'Suspend Mentor?',
-                text: "Are you sure you want to suspend this mentor for non-payment?",
+                text: "This will suspend the mentor's account due to non-payment or a severe policy violation. They will not be able to accept new sessions.",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ffc107',
@@ -915,7 +1023,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         function confirmUnsuspend(id) {
             Swal.fire({
                 title: 'Reactivate Mentor?',
-                text: "Are you sure you want to reactivate this mentor's account?",
+                text: "Are you sure you want to reactivate this mentor's account? Ensure all issues are resolved.",
                 icon: 'info',
                 showCancelButton: true,
                 confirmButtonColor: '#0dcaf0',
@@ -944,26 +1052,42 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                     borderColor: '#667eea',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     tension: 0.3,
-                    fill: true
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
                 }, {
                     label: 'Commission Revenue',
                     data: dailyData.map(d => d.commission_revenue),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.3,
-                    fill: true
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: { /* Smoother Chart Animation */
+                    duration: 1200,
+                    easing: 'easeInOutCubic'
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
                         ticks: {
                             callback: function(value) {
                                 return '₱' + value.toLocaleString();
                             }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
                         }
                     }
                 },
@@ -972,6 +1096,8 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                         position: 'bottom'
                     },
                     tooltip: {
+                        mode: 'index',
+                        intersect: false,
                         callbacks: {
                             label: function(context) {
                                 return context.dataset.label + ': ₱' + context.parsed.y.toLocaleString();
@@ -992,12 +1118,18 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                 labels: statusData.map(d => d.payment_status.charAt(0).toUpperCase() + d.payment_status.slice(1)),
                 datasets: [{
                     data: statusData.map(d => d.total_amount),
-                    backgroundColor: ['#ffc107', '#0dcaf0', '#198754', '#dc3545']
+                    backgroundColor: ['#ffc107', '#0dcaf0', '#198754', '#dc3545'],
+                    borderWidth: 1 
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
+                cutout: '70%', /* Added: Doughnut hole size */
+                animation: { /* Smoother Chart Animation */
+                    duration: 1200,
+                    easing: 'easeInOutCubic'
+                },
                 plugins: {
                     legend: {
                         position: 'bottom'
@@ -1016,19 +1148,21 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         // --- Tab Persistency ---
         // Keep the current tab active on page reload (e.g., after filtering)
         document.addEventListener('DOMContentLoaded', function() {
-            var activeTab = '<?php echo isset($_GET['cp_status']) || isset($_GET['cp_search']) ? 'commissions-tab' : 'overview-tab'; ?>';
-            var someTabTriggerEl = document.getElementById(activeTab);
-            if (someTabTriggerEl) {
-                var tab = new bootstrap.Tab(someTabTriggerEl);
-                tab.show();
-            }
-
-            // When filters are used, stay on the correct tab
+            // Check for filter parameters in the URL to determine the active tab
             const urlParams = new URLSearchParams(window.location.search);
+            let activeTabId = 'overview-tab';
+
             if (urlParams.has('cp_status') || urlParams.has('cp_search')) {
-                new bootstrap.Tab(document.getElementById('commissions-tab')).show();
+                activeTabId = 'commissions-tab';
             } else if (urlParams.has('date_from') || urlParams.has('date_to')) {
-                new bootstrap.Tab(document.getElementById('overview-tab')).show();
+                // Keep the default overview-tab if only overview filters are present
+                activeTabId = 'overview-tab';
+            }
+            
+            var activeTabTriggerEl = document.getElementById(activeTabId);
+            if (activeTabTriggerEl) {
+                var tab = new bootstrap.Tab(activeTabTriggerEl);
+                tab.show();
             }
         });
     </script>

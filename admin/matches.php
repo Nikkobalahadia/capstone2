@@ -13,6 +13,10 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
+// --- NEW: Limit parameter handling ---
+$allowed_limits = [10, 25, 50, 100];
+$limit = isset($_GET['limit']) && in_array((int)$_GET['limit'], $allowed_limits) ? (int)$_GET['limit'] : 100;
+
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="matches_export_' . date('Y-m-d') . '.csv"');
@@ -20,6 +24,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $output = fopen('php://output', 'w');
     fputcsv($output, ['Match ID', 'Student Name', 'Student Email', 'Mentor Name', 'Mentor Email', 'Subject', 'Match Score', 'Status', 'Created Date']);
     
+    // Determine sorting for export
+    $export_sort = isset($_GET['sort']) && $_GET['sort'] === 'score' ? 'm.match_score DESC, m.created_at DESC' : 'm.created_at DESC';
+
+    // Export query does not use LIMIT to get all data
     $export_query = "
         SELECT m.id, m.subject, m.match_score, m.status, m.created_at,
                s.first_name as student_first_name, s.last_name as student_last_name, s.email as student_email,
@@ -27,7 +35,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         FROM matches m
         JOIN users s ON m.student_id = s.id
         JOIN users mt ON m.mentor_id = mt.id
-        ORDER BY m.created_at DESC
+        ORDER BY {$export_sort}
     ";
     $export_stmt = $db->query($export_query);
     
@@ -69,6 +77,7 @@ $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
 $date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
 $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+$sort_by = isset($_GET['sort']) && $_GET['sort'] === 'score' ? 'score' : 'date';
 
 // Build query with filters
 $where_conditions = ['1=1'];
@@ -97,6 +106,11 @@ if ($search) {
 
 $where_clause = implode(' AND ', $where_conditions);
 
+// Determine the ORDER BY clause based on the new sort parameter
+$order_clause = $sort_by === 'score' 
+    ? 'm.match_score DESC, m.created_at DESC' // Top Matches by Score
+    : 'm.created_at DESC'; // Latest Matches by Date
+
 // Get all matches with user details
 $matches_query = "
     SELECT m.*, 
@@ -106,8 +120,8 @@ $matches_query = "
     JOIN users s ON m.student_id = s.id
     JOIN users mt ON m.mentor_id = mt.id
     WHERE $where_clause
-    ORDER BY m.created_at DESC
-    LIMIT 100
+    ORDER BY {$order_clause}
+    LIMIT {$limit}
 ";
 
 $stmt = $db->prepare($matches_query);
@@ -424,30 +438,27 @@ $stats = $db->query("
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
             </a>
@@ -462,7 +473,7 @@ $stats = $db->query("
                     <p class="text-muted">Monitor and manage student-mentor matches.</p>
                 </div>
                 <div>
-                    <a href="?export=csv<?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $date_from ? '&date_from='.$date_from : ''; ?><?php echo $date_to ? '&date_to='.$date_to : ''; ?><?php echo $search ? '&search='.$search : ''; ?>" class="btn btn-success">
+                    <a href="?export=csv<?php echo $status_filter ? '&status='.$status_filter : ''; ?><?php echo $date_from ? '&date_from='.$date_from : ''; ?><?php echo $date_to ? '&date_to='.$date_to : ''; ?><?php echo $search ? '&search='.$search : ''; ?><?php echo $sort_by ? '&sort='.$sort_by : ''; ?>" class="btn btn-success">
                         <i class="fas fa-download me-2"></i> Export to CSV
                     </a>
                 </div>
@@ -547,7 +558,7 @@ $stats = $db->query("
             <div class="card shadow mb-4">
                 <div class="card-body">
                     <form method="GET" action="" class="row g-3 align-items-end">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="search" class="form-label">Search</label>
                             <input type="text" id="search" name="search" class="form-control" 
                                    placeholder="Name, email, or subject"
@@ -562,6 +573,24 @@ $stats = $db->query("
                                 <option value="accepted" <?php echo $status_filter === 'accepted' ? 'selected' : ''; ?>>Accepted</option>
                                 <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                                 <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="sort" class="form-label">Sort By</label>
+                            <select id="sort" name="sort" class="form-select">
+                                <option value="date" <?php echo $sort_by === 'date' ? 'selected' : ''; ?>>Latest Matches</option>
+                                <option value="score" <?php echo $sort_by === 'score' ? 'selected' : ''; ?>>Top Matches (Score)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="limit" class="form-label">Show Entries</label>
+                            <select id="limit" name="limit" class="form-select">
+                                <option value="10" <?php echo $limit === 10 ? 'selected' : ''; ?>>10</option>
+                                <option value="25" <?php echo $limit === 25 ? 'selected' : ''; ?>>25</option>
+                                <option value="50" <?php echo $limit === 50 ? 'selected' : ''; ?>>50</option>
+                                <option value="100" <?php echo $limit === 100 ? 'selected' : ''; ?>>100</option>
                             </select>
                         </div>
                         
@@ -589,7 +618,9 @@ $stats = $db->query("
 
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">All Matches (<?php echo count($matches); ?>)</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <?php echo $sort_by === 'score' ? 'Top Matches by Score' : 'Latest Matches'; ?> (Displaying <?php echo count($matches); ?> of the Top <?php echo $limit; ?>)
+                    </h6>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -733,9 +764,6 @@ $stats = $db->query("
                     // Set the hidden action input
                     document.getElementById('action-input-' + matchId).value = 'reject';
                     // Submit the form
-                    //
-                    // FIX 2: Changed '-' to '+'
-                    //
                     document.getElementById('match-form-' + matchId).submit();
                 }
             });

@@ -370,52 +370,43 @@ $stats = $db->query($stats_query)->fetch();
     
     <div class="mobile-overlay" id="mobileOverlay"></div>
     
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner-border spinner-border-custom text-light" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-    </div>
-    
     <div class="sidebar" id="sidebar">
         <div class="p-4">
             <h4 class="text-white mb-0">Admin Panel</h4>
             <small class="text-white-50">Study Mentorship Platform</small>
         </div>
         <nav class="nav flex-column px-2">
-            <a class="nav-link" href="dashboard.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">
                 <i class="fas fa-tachometer-alt me-2"></i> Dashboard
             </a>
-            <a class="nav-link" href="users.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link active" href="verifications.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
-            <a class="nav-link" href="matches.php">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
-            <a class="nav-link" href="sessions.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
-            <a class="nav-link" href="settings.php">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
             </a>
         </nav>
@@ -428,10 +419,6 @@ $stats = $db->query($stats_query)->fetch();
                     <h1 class="h3 mb-1 text-gray-800">Mentor Verification</h1>
                     <div class="d-flex align-items-center gap-2">
                         <p class="text-muted mb-0">Review and approve verification documents from mentors.</p>
-                        <span class="real-time-badge">
-                            <span class="pulse"></span>
-                            Real-time
-                        </span>
                     </div>
                 </div>
             </div>

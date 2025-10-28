@@ -19,340 +19,6 @@ if (is_logged_in()) {
     <title>Study Buddy - Peer-to-Peer Learning Platform</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* Soft Light Blue Color Palette - Easy on the Eyes */
-        :root {
-            --primary-blue: #3B82F6;
-            --primary-blue-dark: #2563EB;
-            --primary-blue-light: #60A5FA;
-            --bg-light: #F9FAFB;
-            --bg-white: #ffffff;
-            --text-primary: #111827;
-            --text-secondary: #6B7280;
-            --border-light: #E5E7EB;
-            --success-green: #d1fae5;
-            --success-text: #065f46;
-            --warning-yellow: #fef3c7;
-            --warning-text: #92400e;
-            --danger-red: #dc2626;
-            --shadow-sm: 0 1px 3px rgba(59, 130, 246, 0.08);
-            --shadow-md: 0 4px 6px rgba(59, 130, 246, 0.12);
-            --shadow-lg: 0 10px 20px rgba(59, 130, 246, 0.15);
-        }
-
-        body {
-            background: var(--bg-light);
-            font-family: 'Inter', sans-serif;
-        }
-
-        /* Header */
-        .header {
-            background: var(--bg-white);
-            border-bottom: 1px solid var(--border-light);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .logo {
-            color: var(--primary-blue);
-            font-weight: 700;
-            font-size: 1.25rem;
-        }
-
-        .logo::before {
-            content: '📖 ';
-        }
-
-        .nav-links a:not(.btn) {
-            color: var(--text-secondary);
-            transition: color 0.3s ease;
-            font-weight: 500;
-        }
-
-        .nav-links a:not(.btn):hover {
-            color: var(--primary-blue);
-        }
-
-        /* Hero Section */
-        .hero-modern {
-            background: var(--primary-blue);
-            position: relative;
-            overflow: hidden;
-            padding: 5rem 0;
-        }
-
-        .hero-title {
-            color: white;
-            font-weight: 700;
-            font-size: 3rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .hero-subtitle {
-            color: rgba(255, 255, 255, 0.95);
-            font-size: 1.25rem;
-            margin-bottom: 2rem;
-        }
-
-        /* Stats Section */
-        .stats-section {
-            background: var(--bg-white);
-            padding: 4rem 0;
-        }
-
-        .stat-card {
-            background: var(--bg-white);
-            border: 1px solid var(--border-light);
-            border-radius: 8px;
-            padding: 2rem;
-            text-align: center;
-            box-shadow: var(--shadow-sm);
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            box-shadow: var(--shadow-md);
-            transform: translateY(-5px);
-            border-color: var(--primary-blue);
-        }
-
-        .stat-number {
-            color: var(--primary-blue);
-            font-size: 3rem;
-            font-weight: 700;
-            display: block;
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 1rem;
-            margin-top: 0.5rem;
-            display: block;
-        }
-
-        /* Section Titles */
-        .section-title {
-            color: var(--text-primary);
-            font-size: 2.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-
-        .section-subtitle {
-            color: var(--text-secondary);
-            font-size: 1.125rem;
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-
-        /* Features Section */
-        #features {
-            background: var(--bg-light);
-            padding: 4rem 0;
-        }
-
-        .feature-card {
-            background: var(--bg-white);
-            border: 1px solid var(--border-light);
-            border-radius: 8px;
-            padding: 2rem;
-            box-shadow: var(--shadow-sm);
-            transition: all 0.3s ease;
-            height: 100%;
-        }
-
-        .feature-card:hover {
-            box-shadow: var(--shadow-lg);
-            transform: translateY(-5px);
-            border-color: var(--primary-blue);
-        }
-
-        .feature-icon {
-            font-size: 3rem;
-            display: block;
-            margin-bottom: 1rem;
-        }
-
-        .feature-title {
-            color: var(--text-primary);
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-
-        .feature-description {
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* About Section */
-        #about {
-            background: var(--bg-white);
-            padding: 4rem 0;
-        }
-
-        #about .feature-card {
-            background: var(--bg-white);
-        }
-
-        /* CTA Section */
-        .cta-section {
-            background: var(--primary-blue);
-            padding: 5rem 0;
-            position: relative;
-        }
-
-        .cta-title {
-            color: white;
-            font-size: 2.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-
-        .cta-subtitle {
-            color: rgba(255, 255, 255, 0.95);
-            font-size: 1.125rem;
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: var(--primary-blue);
-            color: white;
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-blue-dark);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .hero-modern .btn-primary,
-        .cta-section .btn-primary {
-            background: white;
-            color: var(--primary-blue);
-        }
-
-        .hero-modern .btn-primary:hover,
-        .cta-section .btn-primary:hover {
-            background: var(--bg-light);
-            color: var(--primary-blue);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: var(--primary-blue);
-            border: 2px solid var(--primary-blue);
-        }
-
-        .btn-outline:hover {
-            background: var(--primary-blue);
-            color: white;
-        }
-
-        .hero-modern .btn-outline,
-        .cta-section .btn-outline {
-            border: 2px solid white;
-            color: white;
-        }
-
-        .hero-modern .btn-outline:hover,
-        .cta-section .btn-outline:hover {
-            background: white;
-            color: var(--primary-blue);
-        }
-
-        /* Grid Layouts */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-
-        .hero-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        /* Container */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        /* Navbar */
-        .navbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-        }
-
-        .nav-links {
-            display: flex;
-            list-style: none;
-            gap: 2rem;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Content Sections */
-        .hero-content {
-            text-align: center;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .cta-content {
-            text-align: center;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero-title, .cta-title {
-                font-size: 2rem;
-            }
-            
-            .section-title {
-                font-size: 1.75rem;
-            }
-            
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .nav-links {
-                gap: 1rem;
-            }
-        }
-    </style>
 </head>
 <body>
     <header class="header">
@@ -447,7 +113,7 @@ if (is_logged_in()) {
             </div>
         </section>
 
-        <section id="about" class="features-modern">
+        <section id="about" class="features-modern" style="background: #f8f9fa;">
             <div class="container">
                 <h2 class="section-title">About Study Buddy</h2>
                 <p class="section-subtitle">Empowering students through collaborative learning and meaningful connections</p>
@@ -495,7 +161,7 @@ if (is_logged_in()) {
                         <a href="auth/register.php?role=student" class="btn btn-primary">Get Started Free</a>
                         <a href="auth/register.php?role=mentor" class="btn btn-outline">Become a Mentor</a>
                     </div>
-                    <p style="margin-top: 1rem; text-align: center; color: rgba(255, 255, 255, 0.9); font-size: 0.875rem;">
+                    <p class="text-sm text-secondary" style="margin-top: 1rem; text-align: center;">
                         Students can upgrade to Peer status later from their profile
                     </p>
                 </div>
@@ -541,7 +207,7 @@ if (is_logged_in()) {
                 if (entry.isIntersecting) {
                     if (entry.target.classList.contains('stats-section')) {
                         animateCounters();
-                        observer.unobserve(entry.target);
+                        observer.unobserve(entry.target); // Only animate once
                     }
                     entry.target.style.opacity = '1';
                     entry.target.style.transform = 'translateY(0)';
@@ -564,11 +230,11 @@ if (is_logged_in()) {
             const featureCards = document.querySelectorAll('.feature-card');
             featureCards.forEach(card => {
                 card.addEventListener('mouseenter', () => {
-                    card.style.transform = 'translateY(-5px)';
+                    card.style.transform = 'translateY(-8px) scale(1.02)';
                 });
                 
                 card.addEventListener('mouseleave', () => {
-                    card.style.transform = 'translateY(0)';
+                    card.style.transform = 'translateY(0) scale(1)';
                 });
             });
         });

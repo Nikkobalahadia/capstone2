@@ -13,22 +13,42 @@ if (!$user || $user['role'] !== 'admin') {
 
 $db = getDB();
 
-// Get analytics data
+// --- Date Range Handling ---
+// Set default dates: Last 30 days
+$default_end_date = date('Y-m-d');
+$default_start_date = date('Y-m-d', strtotime('-30 days'));
+
+// Get date range from POST or use defaults
+$start_date = isset($_POST['start_date']) && !empty($_POST['start_date']) ? $_POST['start_date'] : $default_start_date;
+$end_date = isset($_POST['end_date']) && !empty($_POST['end_date']) ? $_POST['end_date'] : $default_end_date;
+
+// Ensure end_date is at least the start_date
+if ($end_date < $start_date) {
+    $end_date = $start_date;
+}
+
+// Prepare date range for SQL filtering (inclusive, so end date is end of day)
+$sql_start_datetime = $start_date . ' 00:00:00';
+$sql_end_datetime = $end_date . ' 23:59:59';
+// --- End Date Range Handling ---
+
 $analytics = [];
 
-// User statistics
+// --- SQL Queries Updated with Date Range where applicable ---
+
+// User statistics (Total counts remain system-wide, new users use date range)
 $user_stats = $db->query("
     SELECT 
         COUNT(*) as total_users,
         COUNT(CASE WHEN role = 'student' THEN 1 END) as students,
         COUNT(CASE WHEN role = 'mentor' THEN 1 END) as mentors,
         COUNT(CASE WHEN is_verified = 1 THEN 1 END) as verified_users,
-        COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as new_users_30d,
+        COUNT(CASE WHEN created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}' THEN 1 END) as new_users_range,
         COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as new_users_7d
     FROM users WHERE role != 'admin'
 ")->fetch();
 
-// Match statistics
+// Match statistics (Using date range for total, active, pending, rejected)
 $match_stats = $db->query("
     SELECT 
         COUNT(*) as total_matches,
@@ -37,29 +57,32 @@ $match_stats = $db->query("
         COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_matches,
         AVG(match_score) as avg_match_score
     FROM matches
+    WHERE created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}'
 ")->fetch();
 
-// Session statistics
+// Session statistics (Using date range for total, scheduled, completed, cancelled)
 $session_stats = $db->query("
     SELECT 
         COUNT(*) as total_sessions,
         COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled_sessions,
         COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_sessions,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_sessions,
-        COUNT(CASE WHEN session_date >= CURDATE() THEN 1 END) as upcoming_sessions
+        COUNT(CASE WHEN session_date >= CURDATE() THEN 1 END) as upcoming_sessions_system_wide
     FROM sessions
+    WHERE created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}'
 ")->fetch();
 
-// Rating statistics
+// Rating statistics (Filtering ratings made within the date range)
 $rating_stats = $db->query("
     SELECT 
         COUNT(*) as total_ratings,
         AVG(rating) as avg_rating,
         COUNT(CASE WHEN rating >= 4 THEN 1 END) as positive_ratings
     FROM session_ratings
+    WHERE created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}'
 ")->fetch();
 
-// Activity statistics (last 30 days)
+// Activity statistics (Uses the date range)
 $activity_stats = $db->query("
     SELECT 
         COUNT(CASE WHEN action = 'login' THEN 1 END) as logins,
@@ -67,19 +90,23 @@ $activity_stats = $db->query("
         COUNT(CASE WHEN action = 'message_sent' THEN 1 END) as messages_sent,
         COUNT(CASE WHEN action = 'session_scheduled' THEN 1 END) as sessions_scheduled
     FROM user_activity_logs 
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    WHERE created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}'
 ")->fetch();
 
-// Most popular subjects
+// Most popular subjects (Uses the date range by joining with users, assuming user_subjects created_at relates to users)
+// A more accurate query would be:
 $popular_subjects = $db->query("
-    SELECT subject_name, COUNT(*) as count
-    FROM user_subjects 
-    GROUP BY subject_name 
+    SELECT us.subject_name, COUNT(*) as count
+    FROM user_subjects us
+    JOIN users u ON us.user_id = u.id
+    WHERE u.created_at >= '{$sql_start_datetime}' AND u.created_at <= '{$sql_end_datetime}'
+    GROUP BY us.subject_name 
     ORDER BY count DESC 
     LIMIT 10
 ")->fetchAll();
 
-// Recent activity
+
+// Recent activity (System-wide or last X records, keep it recent/system-wide for utility)
 $recent_activity = $db->query("
     SELECT ual.*, u.first_name, u.last_name, u.role
     FROM user_activity_logs ual
@@ -88,13 +115,13 @@ $recent_activity = $db->query("
     LIMIT 20
 ")->fetchAll();
 
-// Daily active users (last 7 days)
+// Daily active users (Uses the date range)
 $daily_active = $db->query("
     SELECT 
         DATE(created_at) as date,
         COUNT(DISTINCT user_id) as active_users
     FROM user_activity_logs 
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    WHERE created_at >= '{$sql_start_datetime}' AND created_at <= '{$sql_end_datetime}'
     GROUP BY DATE(created_at)
     ORDER BY date DESC
 ")->fetchAll();
@@ -199,9 +226,9 @@ $daily_active = $db->query("
             .mobile-menu-toggle {
                 display: block !important;
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
-                z-index: 998;
+                bottom: 22px;
+                right: 22px;
+                z-index: 1001; /* Higher than overlay */
                 width: 56px;
                 height: 56px;
                 border-radius: 50%;
@@ -372,6 +399,33 @@ $daily_active = $db->query("
         .bg-success-light { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
         .bg-warning-light { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
         .bg-info-light { background-color: rgba(6, 182, 212, 0.1); color: #06b6d4; }
+        
+        /* Date Filter Styles */
+        .date-filter-form {
+            background-color: #fff;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .date-filter-form label {
+            font-weight: 500;
+            color: #4a5568;
+            margin-right: 0.5rem;
+        }
+        .date-filter-form input[type="date"] {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 0.375rem 0.75rem;
+            font-size: 0.9rem;
+            max-width: 150px;
+        }
+        .date-filter-form button {
+            border-radius: 6px;
+            font-size: 0.9rem;
+            padding: 0.4rem 1rem;
+        }
+
     </style>
 </head>
 <body>
@@ -398,30 +452,27 @@ $daily_active = $db->query("
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
                 <i class="fas fa-user-check me-2"></i> Mentor Verification
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'commissions.php' ? 'active' : ''; ?>" href="commissions.php">
-                <i class="fas fa-money-bill-wave me-2"></i> Commission Payments
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
-                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
-                <i class="fas fa-link me-2"></i> Referral Audit
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'activity-logs.php' ? 'active' : ''; ?>" href="activity-logs.php">
-                <i class="fas fa-history me-2"></i> Activity Logs
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
-                <i class="fas fa-chart-pie me-2"></i> Financial Overview
-            </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
                 <i class="fas fa-video me-2"></i> Sessions
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'announcements.php' ? 'active' : ''; ?>" href="announcements.php">
-                <i class="fas fa-bullhorn me-2"></i> Announcements
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
+                <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+                <i class="fas fa-heartbeat me-2"></i> System Health
+            </a>
+
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
+                <i class="fas fa-chart-pie me-2"></i> Financial Overview
+            </a>
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+                <i class="fas fa-link me-2"></i> Referral Audit
+            </a>
+
+
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
             </a>
@@ -446,15 +497,30 @@ $daily_active = $db->query("
                 </div>
             </div>
 
+            <div class="date-filter-form mb-4">
+                <form method="POST" class="d-flex align-items-center justify-content-between flex-wrap">
+                    <h6 class="m-0 font-weight-bold text-primary mb-2 mb-md-0">Data Period:</h6>
+                    <div class="d-flex align-items-center flex-wrap">
+                        <label for="start_date">From:</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control me-3 mb-2 mb-sm-0" value="<?php echo htmlspecialchars($start_date); ?>">
+                        
+                        <label for="end_date">To:</label>
+                        <input type="date" id="end_date" name="end_date" class="form-control me-3 mb-2 mb-sm-0" value="<?php echo htmlspecialchars($end_date); ?>">
+                        
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-filter me-1"></i> Apply Filter</button>
+                    </div>
+                </form>
+                <small class="d-block mt-2 text-muted">Showing data from **<?php echo date('M j, Y', strtotime($start_date)); ?>** to **<?php echo date('M j, Y', strtotime($end_date)); ?>**</small>
+            </div>
             <div class="row mb-4">
                 <div class="col-xl-3 col-md-6 mb-4">
                     <div class="card border-left-primary shadow h-100 py-2">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Users</div>
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Users (System-wide)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($user_stats['total_users']); ?></div>
-                                    <div class="text-success small">+<?php echo $user_stats['new_users_7d']; ?> this week</div>
+                                    <div class="text-success small">+<?php echo $user_stats['new_users_range']; ?> new in range</div>
                                 </div>
                                 <div class="col-auto">
                                     <i class="fas fa-users fa-2x text-gray-300"></i>
@@ -469,9 +535,9 @@ $daily_active = $db->query("
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Matches</div>
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Matches (In Range)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($match_stats['active_matches']); ?></div>
-                                    <div class="text-muted small"><?php echo $match_stats['pending_matches']; ?> pending</div>
+                                    <div class="text-muted small"><?php echo $match_stats['pending_matches']; ?> pending requests</div>
                                 </div>
                                 <div class="col-auto">
                                     <i class="fas fa-handshake fa-2x text-gray-300"></i>
@@ -486,9 +552,9 @@ $daily_active = $db->query("
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Completed Sessions</div>
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Completed Sessions (In Range)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($session_stats['completed_sessions']); ?></div>
-                                    <div class="text-muted small"><?php echo $session_stats['upcoming_sessions']; ?> upcoming</div>
+                                    <div class="text-muted small"><?php echo $session_stats['scheduled_sessions']; ?> scheduled in range</div>
                                 </div>
                                 <div class="col-auto">
                                     <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
@@ -503,7 +569,7 @@ $daily_active = $db->query("
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Rating</div>
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Avg Rating (In Range)</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $rating_stats['avg_rating'] ? number_format($rating_stats['avg_rating'], 1) : 'N/A'; ?></div>
                                     <div class="text-muted small"><?php echo $rating_stats['total_ratings']; ?> total ratings</div>
                                 </div>
@@ -520,7 +586,7 @@ $daily_active = $db->query("
                 <div class="col-lg-8 mb-4">
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Daily Active Users (Last 7 Days)</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">Daily Active Users (In Date Range)</h6>
                         </div>
                         <div class="card-body">
                             <div class="chart-container">
@@ -531,7 +597,7 @@ $daily_active = $db->query("
 
                     <div class="card shadow">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Most Popular Subjects</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">Most Popular Subjects (By New User Interest In Range)</h6>
                         </div>
                         <div class="card-body">
                             <div class="chart-container" style="height: 300px;">
@@ -544,7 +610,7 @@ $daily_active = $db->query("
                 <div class="col-lg-4">
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Platform Activity (Last 30 Days)</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">Platform Activity (In Date Range)</h6>
                         </div>
                         <div class="card-body">
                             <div class="row">
@@ -574,7 +640,7 @@ $daily_active = $db->query("
 
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">User Breakdown</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">User Breakdown (System-wide)</h6>
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
@@ -599,7 +665,7 @@ $daily_active = $db->query("
                             
                             <div>
                                 <div class="d-flex justify-content-between mb-1">
-                                    <span class="small">Verified</span>
+                                    <span class="small">Verified Mentors</span>
                                     <span class="font-weight-bold small"><?php echo $user_stats['verified_users']; ?></span>
                                 </div>
                                 <div class="progress" style="height: 8px;">
@@ -610,8 +676,11 @@ $daily_active = $db->query("
                     </div>
 
                     <div class="card shadow">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Recent Activity (Last 20 Events)</h6>
+                            <a href="activity-logs.php" class="text-xs font-weight-bold text-info text-uppercase text-decoration-none">
+                                View All <i class="fas fa-arrow-right fa-xs"></i>
+                            </a>
                         </div>
                         <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                             <?php foreach (array_slice($recent_activity, 0, 10) as $activity): ?>
@@ -628,6 +697,9 @@ $daily_active = $db->query("
                                     </div>
                                 </div>
                             <?php endforeach; ?>
+                            <?php if (empty($recent_activity)): ?>
+                                <div class="text-muted text-center py-3">No recent activity recorded.</div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

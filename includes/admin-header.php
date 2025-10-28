@@ -110,22 +110,18 @@ if ($user && $user['id']) {
 
 <nav class="navbar navbar-expand-lg admin-header">
     <div class="container-fluid">
-        <!-- Logo/Brand -->
         <a class="navbar-brand" href="dashboard.php">
             <i class="fas fa-graduation-cap me-2"></i>Study Buddy Admin
         </a>
         
-        <!-- Toggler for mobile -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
             <span class="navbar-toggler-icon"></span>
         </button>
         
-        <!-- Navbar content -->
         <div class="collapse navbar-collapse" id="adminNavbar">
             <ul class="navbar-nav ms-auto">
                 
                 
-                <!-- Profile Dropdown -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
                         <div class="admin-avatar">
@@ -151,15 +147,18 @@ if ($user && $user['id']) {
                             </div>
                         </div>
                         
+                        <a class="dropdown-item" href="announcements.php">
+                            <i class="fas fa-bullhorn me-2"></i> Announcements
+                        </a>
+                        <a class="dropdown-item" href="reports.php">
+                            <i class="fas fa-chart-line me-2"></i> Reports
+                        </a>
                         <a class="dropdown-item" href="settings.php">
                             <i class="fas fa-cog me-2"></i> Settings
                         </a>
                         <a class="dropdown-item" href="activity-logs.php">
                             <i class="fas fa-history me-2"></i> Activity Logs
                         </a>
-                        <a class="dropdown-item" href="announcements.php">
-                            <i class="fas fa-plus me-2"></i> Announcements
-                    </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item text-danger" href="../auth/logout.php">
                             <i class="fas fa-sign-out-alt me-2"></i> Logout
