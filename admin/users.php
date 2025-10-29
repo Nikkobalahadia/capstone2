@@ -115,6 +115,21 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
                     $response['success'] = true;
                     $response['message'] = 'User deleted successfully.';
                     break;
+                    
+                case 'update_document_status':
+                    $document_id = isset($_POST['document_id']) ? (int)$_POST['document_id'] : 0;
+                    $status = sanitize_input($_POST['status']);
+                    $rejection_reason = isset($_POST['rejection_reason']) ? sanitize_input($_POST['rejection_reason']) : '';
+                    
+                    $stmt = $db->prepare("UPDATE user_verification_documents SET status = ?, rejection_reason = ?, reviewed_at = NOW() WHERE id = ?");
+                    $stmt->execute([$status, $rejection_reason, $document_id]);
+                    
+                    $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_update_document_status', ?, ?)");
+                    $log_stmt->execute([$user['id'], json_encode(['document_id' => $document_id, 'status' => $status]), $_SERVER['REMOTE_ADDR']]);
+                    
+                    $response['success'] = true;
+                    $response['message'] = 'Document status updated successfully.';
+                    break;
             }
         } catch (Exception $e) {
             $response['message'] = 'Failed to perform action: ' . $e->getMessage();
@@ -142,7 +157,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
     $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
     $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
     $search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
-    // New date range filters
     $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : '';
     $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : '';
     
@@ -164,15 +178,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
         $where_conditions[] = "u.is_active = 0";
     }
     
-    // Date Range Filter Logic
     if ($start_date) {
-        // Use DATE() to compare only the date part of created_at
         $where_conditions[] = "DATE(u.created_at) >= ?";
         $params[] = $start_date;
     }
 
     if ($end_date) {
-        // Use DATE() to compare only the date part of created_at
         $where_conditions[] = "DATE(u.created_at) <= ?";
         $params[] = $end_date;
     }
@@ -192,13 +203,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
                COUNT(DISTINCT m2.id) as matches_as_mentor,
                COUNT(DISTINCT s.id) as completed_sessions,
                AVG(sr.rating) as avg_rating,
-               COUNT(DISTINCT sr.id) as rating_count
+               COUNT(DISTINCT sr.id) as rating_count,
+               COUNT(DISTINCT uvd.id) as total_documents,
+               SUM(CASE WHEN uvd.status = 'pending' THEN 1 ELSE 0 END) as pending_documents
         FROM users u
         LEFT JOIN matches m1 ON u.id = m1.student_id AND m1.status = 'accepted'
         LEFT JOIN matches m2 ON u.id = m2.mentor_id AND m2.status = 'accepted'
         LEFT JOIN matches m ON (u.id = m.student_id OR u.id = m.mentor_id) AND m.status = 'accepted'
         LEFT JOIN sessions s ON m.id = s.match_id AND s.status = 'completed'
         LEFT JOIN session_ratings sr ON u.id = sr.rated_id
+        LEFT JOIN user_verification_documents uvd ON u.id = uvd.user_id
         WHERE $where_clause
         GROUP BY u.id
         ORDER BY u.$sort_by $sort_dir
@@ -363,7 +377,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 font-size: 0.85rem;
             }
             
-            /* Adjust column widths for better mobile view of filters */
             #filterForm .col-md-3,
             #filterForm .col-md-2 {
                 flex: 0 0 100%;
@@ -511,10 +524,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <a class="nav-link active" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link" href="verifications.php">
-                <i class="fas fa-user-check me-2"></i> Mentor Verification
-            </a>
-                        <a class="nav-link" href="matches.php">
+            <a class="nav-link" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link" href="sessions.php">
@@ -523,13 +533,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <a class="nav-link" href="analytics.php">
                 <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+            <a class="nav-link" href="system-health.php">
                 <i class="fas fa-heartbeat me-2"></i> System Health
             </a>
-                        <a class="nav-link" href="financial-overview.php">
+            <a class="nav-link" href="financial-overview.php">
                 <i class="fas fa-chart-pie me-2"></i> Financial Overview
-
-                        </a>
+            </a>
             <a class="nav-link" href="referral-audit.php">
                 <i class="fas fa-link me-2"></i> Referral Audit
             </a>
@@ -619,8 +628,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
             <div class="card shadow">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-primary">Users (<span id="userCount">0</span>)
-                </h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Users (<span id="userCount">0</span>)</h6>
                     <small class="text-muted">Last updated: <span id="lastUpdate">--:--:--</span></small>
                 </div>
                 <div class="card-body p-0">
@@ -640,7 +648,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     <th class="sortable-header" data-sort="created_at">
                                         Joined <i class="fas fa-sort text-muted"></i>
                                     </th>
-                                    <th style="min-width: 200px;">Actions</th>
+                                    <th style="min-width: 250px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
@@ -769,6 +777,28 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         </div>
     </div>
 
+    <div class="modal fade" id="documentsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-alt me-2"></i>Verification Documents - <span id="doc_user_name"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="documents_loading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Loading documents...</p>
+                    </div>
+                    <div id="documents_content" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
@@ -797,7 +827,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             mobileMenuToggle.querySelector('i').classList.add('fa-bars');
         });
         
-        // Close sidebar when clicking a link on mobile
         if (window.innerWidth <= 768) {
             document.querySelectorAll('.sidebar .nav-link').forEach(link => {
                 link.addEventListener('click', function() {
@@ -819,7 +848,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             const formData = new FormData(filterForm);
             const params = new URLSearchParams();
             
-            // Collect all filter parameters from the form
             for (const pair of formData.entries()) {
                 params.append(pair[0], pair[1]);
             }
@@ -891,6 +919,14 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     month: 'short', day: 'numeric', year: 'numeric' 
                 });
                 
+                // --- MODIFIED BUTTON CODE START ---
+                const reviewDocsButton = `
+                    <button class="btn btn-sm btn-outline-info" onclick="viewDocuments(${user.id}, '${fullName}')" title="Review Documents">
+                        <i class="fas fa-file-alt me-1"></i>
+                    </button>
+                `;
+                // --- MODIFIED BUTTON CODE END ---
+                
                 return `
                     <tr>
                         <td>
@@ -917,6 +953,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         <td><div class="small">${joinDate}</div></td>
                         <td>
                             <div class="action-buttons">
+                                ${reviewDocsButton}
                                 <button class="btn btn-sm btn-outline-primary" onclick='editUser(${JSON.stringify(user)})' title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -942,6 +979,215 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     </tr>
                 `;
             }).join('');
+        }
+        
+        function viewDocuments(userId, userName) {
+            document.getElementById('doc_user_name').textContent = userName;
+            document.getElementById('documents_loading').style.display = 'block';
+            document.getElementById('documents_content').style.display = 'none';
+            
+            const modal = new bootstrap.Modal(document.getElementById('documentsModal'));
+            modal.show();
+            
+            fetch('get-user-documents.php?user_id=' + userId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('documents_loading').style.display = 'none';
+                    document.getElementById('documents_content').style.display = 'block';
+                    
+                    if (data.success) {
+                        displayDocuments(data.documents, userId);
+                    } else {
+                        document.getElementById('documents_content').innerHTML = 
+                            '<div class="alert alert-warning"><i class="fas fa-info-circle me-2"></i>' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('documents_loading').style.display = 'none';
+                    document.getElementById('documents_content').style.display = 'block';
+                    document.getElementById('documents_content').innerHTML = 
+                        '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>Error loading documents: ' + error.message + '</div>';
+                });
+        }
+        
+        function displayDocuments(documents, userId) {
+            if (documents.length === 0) {
+                document.getElementById('documents_content').innerHTML = 
+                    '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>No verification documents uploaded yet.</div>';
+                return;
+            }
+            
+            const typeLabels = {
+                'id': 'Government ID',
+                'student_id': 'Student ID',
+                'diploma': 'Diploma/Certificate',
+                'transcript': 'Academic Transcript',
+                'professional_cert': 'Professional Certification',
+                'expertise_proof': 'Proof of Expertise',
+                'other': 'Other Document'
+            };
+            
+            let html = '<div class="row">';
+            
+            documents.forEach(doc => {
+                const statusColor = doc.status === 'approved' ? 'success' : (doc.status === 'rejected' ? 'danger' : 'warning');
+                const statusIcon = doc.status === 'approved' ? 'check-circle' : (doc.status === 'rejected' ? 'times-circle' : 'clock');
+                
+                html += `
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                <strong>${typeLabels[doc.document_type] || doc.document_type}</strong>
+                                <span class="badge bg-${statusColor}">
+                                    <i class="fas fa-${statusIcon} me-1"></i>${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                ${doc.filename.match(/\.(jpg|jpeg|png|gif)$/i) ? 
+                                    `<img src="../uploads/verification/${doc.filename}" class="img-fluid mb-3" style="max-height: 300px; width: 100%; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px;">` :
+                                    `<div class="text-center py-5 bg-light rounded mb-3">
+                                        <i class="fas fa-file-pdf fa-4x text-danger mb-2"></i>
+                                        <p class="mb-0 text-muted">PDF Document</p>
+                                    </div>`
+                                }
+                                
+                                ${doc.description ? `<p class="text-muted small mb-2"><strong>Description:</strong> ${doc.description}</p>` : ''}
+                                <p class="text-muted small mb-2"><strong>Uploaded:</strong> ${new Date(doc.created_at).toLocaleDateString()}</p>
+                                ${doc.reviewed_at ? `<p class="text-muted small mb-2"><strong>Reviewed:</strong> ${new Date(doc.reviewed_at).toLocaleDateString()}</p>` : ''}
+                                ${doc.rejection_reason ? `<div class="alert alert-danger small mb-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>Rejection Reason:</strong> ${doc.rejection_reason}</div>` : ''}
+                                
+                                <div class="action-buttons mt-3">
+                                    <a href="../uploads/verification/${doc.filename}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt me-1"></i>Open
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('documents_content').innerHTML = html;
+        }
+        
+        function updateDocumentStatus(docId, userId, status) {
+            Swal.fire({
+                title: 'Confirm Action',
+                text: `Are you sure you want to ${status} this document?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: status === 'approved' ? '#28a745' : '#ffc107',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, ' + status
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                
+                const formData = new FormData();
+                formData.append('action', 'update_document_status');
+                formData.append('document_id', docId);
+                formData.append('status', status);
+                formData.append('csrf_token', CSRF_TOKEN);
+                
+                fetch('users.php?ajax=true', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Document ' + status + ' successfully.',
+                            icon: 'success',
+                            confirmButtonColor: '#667eea'
+                        }).then(() => {
+                            viewDocuments(userId, document.getElementById('doc_user_name').textContent);
+                            setTimeout(() => loadUsers(false), 1500);
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message || 'Failed to update document',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error updating document: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            });
+        }
+        
+        function rejectDocument(docId, userId) {
+            Swal.fire({
+                title: 'Reject Document',
+                input: 'textarea',
+                inputLabel: 'Rejection Reason',
+                inputPlaceholder: 'Please provide a reason for rejection...',
+                inputAttributes: {
+                    'aria-label': 'Rejection reason'
+                },
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, reject',
+                cancelButtonText: 'Cancel',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'Please provide a rejection reason'
+                    }
+                }
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                
+                const formData = new FormData();
+                formData.append('action', 'update_document_status');
+                formData.append('document_id', docId);
+                formData.append('status', 'rejected');
+                formData.append('rejection_reason', result.value);
+                formData.append('csrf_token', CSRF_TOKEN);
+                
+                fetch('users.php?ajax=true', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Rejected!',
+                            text: 'Document rejected successfully.',
+                            icon: 'success',
+                            confirmButtonColor: '#667eea'
+                        }).then(() => {
+                            viewDocuments(userId, document.getElementById('doc_user_name').textContent);
+                            setTimeout(() => loadUsers(false), 1500);
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message || 'Failed to reject document',
+                            icon: 'error',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error rejecting document: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            });
         }
         
         // Perform action
@@ -1124,9 +1370,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             });
         });
         
-        // Handle filter changes (Role, Status, Per Page, Date inputs)
+        // Handle filter changes
         document.getElementById('filterForm').addEventListener('change', function(e) {
-            // Only load users if the changed element is not the search text input
             if (e.target.id !== 'search') {
                 loadUsers();
             }
@@ -1153,7 +1398,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     currentDir = 'desc';
                 }
                 
-                // Update icons
                 document.querySelectorAll('.sortable-header i').forEach(icon => {
                     icon.className = 'fas fa-sort text-muted';
                 });

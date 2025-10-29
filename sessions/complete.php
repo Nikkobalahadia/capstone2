@@ -20,9 +20,8 @@ if (!$session_id) {
 
 $db = getDB();
 
-// Get session details and verify user access
 $session_stmt = $db->prepare("
-    SELECT s.*, m.subject,
+    SELECT s.*, m.subject, m.student_id, m.mentor_id,
            CASE 
                WHEN m.student_id = ? THEN CONCAT(u2.first_name, ' ', u2.last_name)
                ELSE CONCAT(u1.first_name, ' ', u1.last_name)
@@ -31,7 +30,7 @@ $session_stmt = $db->prepare("
     JOIN matches m ON s.match_id = m.id
     JOIN users u1 ON m.student_id = u1.id
     JOIN users u2 ON m.mentor_id = u2.id
-    WHERE s.id = ? AND (m.student_id = ? OR m.mentor_id = ?) AND s.status = 'scheduled'
+    WHERE s.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
 ");
 $session_stmt->execute([$user['id'], $session_id, $user['id'], $user['id']]);
 $session = $session_stmt->fetch();
@@ -42,39 +41,118 @@ if (!$session) {
 
 $error = '';
 $success = '';
+$auto_completed = false;
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
-        $error = 'Invalid security token. Please try again.';
-    } else {
-        try {
-            $db->beginTransaction();
+// AUTO-COMPLETION LOGIC: Check if session time has passed
+$session_end_time = new DateTime($session['session_date'] . ' ' . $session['end_time']);
+$current_time = new DateTime();
+
+error_log("[AUTO-COMPLETE] Session ID: " . $session_id . ", Status: " . $session['status']);
+error_log("[AUTO-COMPLETE] Current time: " . $current_time->format('Y-m-d H:i:s'));
+error_log("[AUTO-COMPLETE] Session end time: " . $session_end_time->format('Y-m-d H:i:s'));
+error_log("[AUTO-COMPLETE] Time passed: " . ($current_time >= $session_end_time ? 'YES' : 'NO'));
+
+if ($current_time >= $session_end_time && $session['status'] === 'scheduled') {
+    try {
+        $db->beginTransaction();
+        
+        // Update session status to completed
+        $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
+        $stmt->execute([$session_id]);
+        
+        $commission_stmt = $db->prepare("
+            SELECT m.mentor_id, m.student_id, 
+                   u_mentor.hourly_rate as mentor_rate, u_mentor.role as mentor_role,
+                   u_student.hourly_rate as student_rate, u_student.role as student_role,
+                   s.start_time, s.end_time, s.session_date,
+                   CONCAT(u_mentor.first_name, ' ', u_mentor.last_name) as mentor_name,
+                   CONCAT(u_student.first_name, ' ', u_student.last_name) as student_name
+            FROM sessions s
+            JOIN matches m ON s.match_id = m.id
+            JOIN users u_mentor ON m.mentor_id = u_mentor.id
+            JOIN users u_student ON m.student_id = u_student.id
+            WHERE s.id = ?
+        ");
+        $commission_stmt->execute([$session_id]);
+        $commission_data = $commission_stmt->fetch();
+        
+        if ($commission_data) {
+            // Calculate duration
+            $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
+            $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
+            $interval = $start->diff($end);
+            $duration_hours = $interval->h + ($interval->i / 60);
             
-            // Update session status to completed
-            $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
-            $stmt->execute([$session_id]);
+            $commissions_created = [];
             
-            $commission_stmt = $db->prepare("
-                SELECT m.mentor_id, u.hourly_rate, u.role, s.start_time, s.end_time, s.session_date,
-                       CONCAT(u.first_name, ' ', u.last_name) as mentor_name
-                FROM sessions s
-                JOIN matches m ON s.match_id = m.id
-                JOIN users u ON m.mentor_id = u.id
-                WHERE s.id = ?
-            ");
-            $commission_stmt->execute([$session_id]);
-            $commission_data = $commission_stmt->fetch();
+            // Handle mentor commission (when mentor_role is 'mentor')
+            if ($commission_data['mentor_role'] === 'mentor' && $commission_data['mentor_rate'] > 0) {
+                $session_amount = $commission_data['mentor_rate'] * $duration_hours;
+                $commission_amount = $session_amount * 0.10;
+                
+                try {
+                    $insert_commission = $db->prepare("
+                        INSERT INTO commission_payments 
+                        (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                        VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                    ");
+                    $insert_commission->execute([
+                        $commission_data['mentor_id'],
+                        $session_id,
+                        $session_amount,
+                        $commission_amount
+                    ]);
+                    $commissions_created[] = [
+                        'name' => $commission_data['mentor_name'],
+                        'amount' => $commission_amount,
+                        'role' => 'mentor',
+                        'user_id' => $commission_data['mentor_id']
+                    ];
+                } catch (PDOException $e) {
+                    error_log("Mentor commission creation error: " . $e->getMessage());
+                }
+            }
             
-            if ($commission_data) {
-                if ($commission_data['role'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
-                    $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
-                    $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
-                    $interval = $start->diff($end);
-                    $duration_hours = $interval->h + ($interval->i / 60);
-                    
-                    // Calculate session amount and commission (10%)
-                    $session_amount = $commission_data['hourly_rate'] * $duration_hours;
+            // Handle peer commission (when student is a peer with hourly rate)
+            if ($commission_data['student_role'] === 'peer' && $commission_data['student_rate'] > 0) {
+                $session_amount = $commission_data['student_rate'] * $duration_hours;
+                $commission_amount = $session_amount * 0.10;
+                
+                try {
+                    $insert_commission = $db->prepare("
+                        INSERT INTO commission_payments 
+                        (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                        VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                    ");
+                    $insert_commission->execute([
+                        $commission_data['student_id'],
+                        $session_id,
+                        $session_amount,
+                        $commission_amount
+                    ]);
+                    $commissions_created[] = [
+                        'name' => $commission_data['student_name'],
+                        'amount' => $commission_amount,
+                        'role' => 'peer',
+                        'user_id' => $commission_data['student_id']
+                    ];
+                } catch (PDOException $e) {
+                    error_log("Peer commission creation error: " . $e->getMessage());
+                }
+            }
+            
+            // Handle peer commission (when mentor is also a peer)
+            if ($commission_data['mentor_role'] === 'peer' && $commission_data['mentor_rate'] > 0) {
+                $already_created = false;
+                foreach ($commissions_created as $created) {
+                    if ($created['user_id'] == $commission_data['mentor_id']) {
+                        $already_created = true;
+                        break;
+                    }
+                }
+                
+                if (!$already_created) {
+                    $session_amount = $commission_data['mentor_rate'] * $duration_hours;
                     $commission_amount = $session_amount * 0.10;
                     
                     try {
@@ -89,15 +167,258 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $session_amount,
                             $commission_amount
                         ]);
-                        $success = 'Session marked as completed! Commission payment of ₱' . number_format($commission_amount, 2) . ' has been recorded.';
+                        $commissions_created[] = [
+                            'name' => $commission_data['mentor_name'],
+                            'amount' => $commission_amount,
+                            'role' => 'peer',
+                            'user_id' => $commission_data['mentor_id']
+                        ];
                     } catch (PDOException $e) {
-                        error_log("Commission creation error: " . $e->getMessage());
-                        $error = 'Session marked complete but commission creation failed: ' . $e->getMessage();
+                        error_log("Peer (mentor side) commission creation error: " . $e->getMessage());
                     }
-                } elseif ($commission_data['role'] === 'peer') {
-                    $success = 'Session marked as completed! (No commission for peer-to-peer sessions)';
+                }
+            }
+            
+            // Generate success message
+            if (count($commissions_created) > 0) {
+                $success = 'This session was automatically marked as completed after the scheduled time. ';
+                
+                $is_current_user_in_commissions = false;
+                foreach ($commissions_created as $commission) {
+                    if ($commission['user_id'] == $user['id']) {
+                        $is_current_user_in_commissions = true;
+                        break;
+                    }
+                }
+                
+                if ($is_current_user_in_commissions) {
+                    if (count($commissions_created) == 1) {
+                        $success .= 'Your commission payment of ₱' . number_format($commissions_created[0]['amount'], 2) . ' has been recorded.';
+                    } else {
+                        $success .= 'Commission payments recorded: ';
+                        $commission_details = array_map(function($c) {
+                            return $c['name'] . ' (₱' . number_format($c['amount'], 2) . ')';
+                        }, $commissions_created);
+                        $success .= implode(', ', $commission_details) . '.';
+                    }
                 } else {
-                    $success = 'Session marked as completed! Note: No commission was created because the mentor has not set an hourly rate.';
+                    if (count($commissions_created) == 1) {
+                        $success .= 'A commission payment of ₱' . number_format($commissions_created[0]['amount'], 2) . 
+                                   ' has been recorded for ' . $commissions_created[0]['name'] . '.';
+                    } else {
+                        $success .= 'Commission payments recorded: ';
+                        $commission_details = array_map(function($c) {
+                            return $c['name'] . ' (₱' . number_format($c['amount'], 2) . ')';
+                        }, $commissions_created);
+                        $success .= implode(', ', $commission_details) . '.';
+                    }
+                }
+            } else {
+                $success = 'This session was automatically marked as completed after the scheduled time.';
+            }
+        } else {
+            $success = 'This session was automatically marked as completed after the scheduled time.';
+        }
+        
+        // Log activity
+        $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_auto_completed', ?, ?)");
+        $log_stmt->execute([$user['id'], json_encode(['session_id' => $session_id]), $_SERVER['REMOTE_ADDR']]);
+        
+        $db->commit();
+        $auto_completed = true;
+        
+        // Redirect after 2 seconds
+        header("refresh:2;url=index.php");
+        
+    } catch (Exception $e) {
+        $db->rollBack();
+        $error = 'Failed to auto-complete session: ' . $e->getMessage();
+        error_log("Session auto-completion error: " . $e->getMessage());
+    }
+}
+
+// Handle manual form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$auto_completed) { 
+    if (!verify_csrf_token($_POST['csrf_token'])) {
+        $error = 'Invalid security token. Please try again.';
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            // Update session status to completed
+            $stmt = $db->prepare("UPDATE sessions SET status = 'completed' WHERE id = ?");
+            $stmt->execute([$session_id]);
+            
+            $commission_stmt = $db->prepare("
+                SELECT m.mentor_id, m.student_id, 
+                       u_mentor.hourly_rate as mentor_rate, u_mentor.role as mentor_role,
+                       u_student.hourly_rate as student_rate, u_student.role as student_role,
+                       s.start_time, s.end_time, s.session_date,
+                       CONCAT(u_mentor.first_name, ' ', u_mentor.last_name) as mentor_name,
+                       CONCAT(u_student.first_name, ' ', u_student.last_name) as student_name
+                FROM sessions s
+                JOIN matches m ON s.match_id = m.id
+                JOIN users u_mentor ON m.mentor_id = u_mentor.id
+                JOIN users u_student ON m.student_id = u_student.id
+                WHERE s.id = ?
+            ");
+            $commission_stmt->execute([$session_id]);
+            $commission_data = $commission_stmt->fetch();
+            
+            if ($commission_data) {
+                // Calculate duration
+                $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
+                $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
+                $interval = $start->diff($end);
+                $duration_hours = $interval->h + ($interval->i / 60);
+                
+                $commissions_created = [];
+                
+                // Handle mentor commission (when mentor_role is 'mentor')
+                if ($commission_data['mentor_role'] === 'mentor' && $commission_data['mentor_rate'] > 0) {
+                    $session_amount = $commission_data['mentor_rate'] * $duration_hours;
+                    $commission_amount = $session_amount * 0.10;
+                    
+                    try {
+                        $insert_commission = $db->prepare("
+                            INSERT INTO commission_payments 
+                            (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                            VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                        ");
+                        $insert_commission->execute([
+                            $commission_data['mentor_id'],
+                            $session_id,
+                            $session_amount,
+                            $commission_amount
+                        ]);
+                        $commissions_created[] = [
+                            'name' => $commission_data['mentor_name'],
+                            'amount' => $commission_amount,
+                            'role' => 'mentor',
+                            'user_id' => $commission_data['mentor_id']
+                        ];
+                    } catch (PDOException $e) {
+                        error_log("Mentor commission creation error: " . $e->getMessage());
+                        throw new Exception('Failed to create mentor commission');
+                    }
+                }
+                
+                // Handle peer commission (when student is a peer with hourly rate)
+                if ($commission_data['student_role'] === 'peer' && $commission_data['student_rate'] > 0) {
+                    $session_amount = $commission_data['student_rate'] * $duration_hours;
+                    $commission_amount = $session_amount * 0.10;
+                    
+                    try {
+                        $insert_commission = $db->prepare("
+                            INSERT INTO commission_payments 
+                            (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                            VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                        ");
+                        $insert_commission->execute([
+                            $commission_data['student_id'],
+                            $session_id,
+                            $session_amount,
+                            $commission_amount
+                        ]);
+                        $commissions_created[] = [
+                            'name' => $commission_data['student_name'],
+                            'amount' => $commission_amount,
+                            'role' => 'peer',
+                            'user_id' => $commission_data['student_id']
+                        ];
+                    } catch (PDOException $e) {
+                        error_log("Peer commission creation error: " . $e->getMessage());
+                        throw new Exception('Failed to create peer commission');
+                    }
+                }
+                
+                // Handle peer commission (when mentor is also a peer)
+                if ($commission_data['mentor_role'] === 'peer' && $commission_data['mentor_rate'] > 0) {
+                    $already_created = false;
+                    foreach ($commissions_created as $created) {
+                        if ($created['user_id'] == $commission_data['mentor_id']) {
+                            $already_created = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!$already_created) {
+                        $session_amount = $commission_data['mentor_rate'] * $duration_hours;
+                        $commission_amount = $session_amount * 0.10;
+                        
+                        try {
+                            $insert_commission = $db->prepare("
+                                INSERT INTO commission_payments 
+                                (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                                VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                            ");
+                            $insert_commission->execute([
+                                $commission_data['mentor_id'],
+                                $session_id,
+                                $session_amount,
+                                $commission_amount
+                            ]);
+                            $commissions_created[] = [
+                                'name' => $commission_data['mentor_name'],
+                                'amount' => $commission_amount,
+                                'role' => 'peer',
+                                'user_id' => $commission_data['mentor_id']
+                            ];
+                        } catch (PDOException $e) {
+                            error_log("Peer (mentor side) commission creation error: " . $e->getMessage());
+                            throw new Exception('Failed to create peer commission');
+                        }
+                    }
+                }
+                
+                // Generate success message based on who clicked complete
+                $is_current_user_in_commissions = false;
+                foreach ($commissions_created as $commission) {
+                    if ($commission['user_id'] == $user['id']) {
+                        $is_current_user_in_commissions = true;
+                        break;
+                    }
+                }
+                
+                if (count($commissions_created) > 0) {
+                    $success = 'Session marked as completed! ';
+                    
+                    if ($is_current_user_in_commissions) {
+                        // Current user is earning commission
+                        if (count($commissions_created) == 1) {
+                            $success .= 'Your commission payment of ₱' . number_format($commissions_created[0]['amount'], 2) . ' has been recorded.';
+                        } else {
+                            $success .= 'Commission payments recorded: ';
+                            $commission_details = array_map(function($c) {
+                                return $c['name'] . ' (₱' . number_format($c['amount'], 2) . ')';
+                            }, $commissions_created);
+                            $success .= implode(', ', $commission_details) . '.';
+                        }
+                    } else {
+                        // Current user is NOT earning commission (e.g., student completing mentor session)
+                        if (count($commissions_created) == 1) {
+                            $success .= 'A commission payment of ₱' . number_format($commissions_created[0]['amount'], 2) . 
+                                       ' has been recorded for ' . $commissions_created[0]['name'] . '.';
+                        } else {
+                            $success .= 'Commission payments recorded: ';
+                            $commission_details = array_map(function($c) {
+                                return $c['name'] . ' (₱' . number_format($c['amount'], 2) . ')';
+                            }, $commissions_created);
+                            $success .= implode(', ', $commission_details) . '.';
+                        }
+                    }
+                } else {
+                    // No commissions were created
+                    if ($commission_data['mentor_role'] === 'peer' && $commission_data['student_role'] === 'peer') {
+                        $success = 'Session marked as completed! Note: No commissions were created because neither peer has set an hourly rate.';
+                    } elseif ($commission_data['mentor_role'] === 'mentor' && $commission_data['mentor_rate'] == 0) {
+                        $success = 'Session marked as completed! Note: No commission was created because the mentor has not set an hourly rate.';
+                    } elseif ($commission_data['student_role'] === 'student') {
+                        // Student completed the session - this is normal, students don't earn commissions
+                        $success = 'Session marked as completed successfully!';
+                    } else {
+                        $success = 'Session marked as completed!';
+                    }
                 }
             } else {
                 $success = 'Session marked as completed! Note: Could not retrieve commission data.';
@@ -110,7 +431,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->commit();
             
             if (!$error && $success) {
-                header("refresh:3;url=index.php");
+                // Manual completion redirects after 3 seconds
+                header("refresh:3;url=index.php"); 
             }
             
         } catch (Exception $e) {
@@ -132,6 +454,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
         :root {
             --primary-color: #2563eb;
@@ -734,7 +1059,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <i class="fas fa-user-circle"></i>
                                 <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                                 <a href="../profile/commission-payments.php" class="profile-dropdown-item">
                                     <i class="fas fa-wallet"></i>
                                     <span>Commissions</span>
@@ -761,7 +1086,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-container">
                 <h2 class="text-center mb-4">Mark Session as Complete</h2>
                 
-                <!-- Session Details -->
                 <div class="card mb-4">
                     <div class="card-body">
                         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
@@ -787,23 +1111,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 
                 <?php if ($error): ?>
-                    <div class="alert alert-error"><?php echo $error; ?></div>
+                    <div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> <?php echo $error; ?></div>
                 <?php endif; ?>
                 
                 <?php if ($success): ?>
-                    <div class="alert alert-success"><?php echo $success; ?></div>
+                    <div class="alert alert-success"><i class="fas fa-check-circle"></i> <?php echo $success; ?></div>
                 <?php else: ?>
                     <div class="alert alert-info mb-4">
-                        <strong>Confirm Session Completion</strong><br>
-                        By marking this session as complete, you confirm that the study session took place as scheduled. This action cannot be undone.
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>Confirm Session Completion</strong><br>
+                            By marking this session as complete, you confirm that the study session took place as scheduled. This action cannot be undone.
+                        </div>
                     </div>
                     
-                    <form method="POST" action="">
+                    <form method="POST" action="" id="completeSessionForm">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         
                         <div style="display: flex; gap: 1rem;">
-                            <button type="submit" class="btn btn-success" style="flex: 1;" onclick="return confirm('Are you sure you want to mark this session as completed?');">Mark as Complete</button>
-                            <a href="index.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancel</a>
+                            <button type="button" id="completeButton" class="btn btn-success" style="flex: 1;"><i class="fas fa-check"></i> Mark as Complete</button>
+                            <a href="index.php" class="btn btn-secondary" style="flex: 1; text-align: center;"><i class="fas fa-times"></i> Cancel</a>
                         </div>
                     </form>
                 <?php endif; ?>
@@ -819,11 +1146,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const currentTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', currentTheme);
 
-        // Hamburger menu
+        // Hamburger menu and SweetAlert setup
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
             const navLinks = document.querySelector(".nav-links");
             
+            // SweetAlert target elements
+            const completeButton = document.getElementById('completeButton');
+            const completeForm = document.getElementById('completeSessionForm');
+
             if (hamburger) {
                 hamburger.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -838,14 +1169,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         navLinks.classList.remove("active");
                     });
                 });
-
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
+            }
+            
+            // SWEETALERT IMPLEMENTATION
+            if (completeButton && completeForm) {
+                completeButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    Swal.fire({
+                        title: 'Confirm Session Completion?',
+                        text: "You are confirming this session took place. This action cannot be undone and will trigger any commission payments.",
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#16a34a', // btn-success color
+                        cancelButtonColor: '#6c757d', // A neutral color
+                        confirmButtonText: 'Yes, Complete It!',
+                        cancelButtonText: 'Cancel'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Visually indicate loading before submission
+                            Swal.fire({
+                                title: 'Processing...',
+                                text: 'Please wait while we mark the session complete and process payments.',
+                                allowOutsideClick: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+                            // Submit the form
+                            completeForm.submit();
+                        }
+                    });
                 });
             }
+
+            document.addEventListener("click", (event) => {
+                if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
+                    hamburger.classList.remove("active");
+                    navLinks.classList.remove("active");
+                }
+            });
         });
 
         function toggleNotifications(event) {
@@ -955,16 +1318,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
+        document.addEventListener('click', function(event) {
+            if (notificationDropdownOpen && !document.getElementById('notificationDropdown').contains(event.target) && !document.querySelector('.notification-bell').contains(event.target)) {
                 document.getElementById('notificationDropdown').classList.remove('show');
                 notificationDropdownOpen = false;
             }
-            if (profileDropdownOpen) {
+            if (profileDropdownOpen && !document.getElementById('profileDropdown').contains(event.target) && !document.querySelector('.profile-icon').contains(event.target)) {
                 document.getElementById('profileDropdown').classList.remove('show');
                 profileDropdownOpen = false;
             }
-        });
+        }, true);
 
         // Periodic notification check
         setInterval(() => {
@@ -974,13 +1337,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 fetch('../api/notifications.php')
                     .then(response => response.json())
                     .then(data => {
-                        const badge = document.querySelector('.notification-badge');
+                        const bell = document.querySelector('.notification-bell');
+                        let badge = document.querySelector('.notification-badge');
+                        
                         if (data.unread_count > 0) {
                             if (badge) {
                                 badge.textContent = data.unread_count;
                             } else {
-                                const bell = document.querySelector('.notification-bell');
-                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                                badge = document.createElement('span');
+                                badge.classList.add('notification-badge');
+                                badge.textContent = data.unread_count;
+                                bell.appendChild(badge);
                             }
                         } else if (badge) {
                             badge.remove();

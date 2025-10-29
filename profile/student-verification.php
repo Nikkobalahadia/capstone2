@@ -12,6 +12,11 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
+// Check if user is a student
+if ($user['role'] !== 'student') {
+    redirect('../dashboard.php');
+}
+
 $unread_notifications = get_unread_count($user['id']);
 
 $error = '';
@@ -77,7 +82,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Verification Documents - Study Buddy</title>
+    <title>Student Verification - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -134,7 +139,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             width: 100%;
         }
 
-        /* Hamburger Menu */
         .hamburger {
             display: none;
             flex-direction: column;
@@ -166,7 +170,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             transform: rotate(-45deg) translate(7px, -7px);
         }
 
-        /* Logo */
         .logo {
             font-size: 1.25rem;
             font-weight: 700;
@@ -179,7 +182,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             white-space: nowrap;
         }
 
-        /* Navigation Links */
         .nav-links {
             display: flex;
             list-style: none;
@@ -204,7 +206,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             color: var(--primary-color);
         }
 
-        /* Notification Bell */
         .notification-bell {
             position: relative;
             display: inline-flex;
@@ -297,7 +298,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             border-top: 1px solid #f0f0f0;
         }
 
-        /* Profile Menu */
         .profile-menu {
             position: relative;
         }
@@ -397,7 +397,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             background: #fee2e2;
         }
 
-        /* Main Content */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -409,7 +408,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             margin-top: 60px;
         }
 
-        /* Card Styles */
         .card {
             background: white;
             border-radius: 12px;
@@ -437,7 +435,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             padding: 1.25rem;
         }
 
-        /* Button Styles */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -472,7 +469,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             background: #e5e5e5;
         }
 
-        /* Form Styles */
         .form-group {
             margin-bottom: 1.25rem;
         }
@@ -500,7 +496,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             border-color: var(--primary-color);
         }
 
-        /* Alert Styles */
         .alert {
             padding: 1rem;
             border-radius: 8px;
@@ -519,7 +514,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             border: 1px solid #bbf7d0;
         }
 
-        /* Grid Styles */
         .grid {
             display: grid;
         }
@@ -528,7 +522,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             grid-template-columns: repeat(3, 1fr);
         }
 
-        /* Text Utilities */
         .text-secondary {
             color: var(--text-secondary);
         }
@@ -561,7 +554,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             margin-top: 1rem;
         }
 
-        /* Table Styles */
         .table-responsive {
             overflow-x: auto;
         }
@@ -581,6 +573,91 @@ $approved_docs = array_filter($verification_docs, function($doc) {
         td {
             padding: 0.75rem;
             border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: #0369a1;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box-content {
+            font-size: 0.9rem;
+            color: #075985;
+            line-height: 1.6;
+        }
+        
+        /* Modal Styles - Custom for this file's non-Bootstrap CSS */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1050;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal.show {
+            display: block;
+        }
+
+        .modal-dialog {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: #fefefe;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 0.3rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+
+        .modal-body {
+            position: relative;
+            flex: 1 1 auto;
+            padding: 0;
+        }
+
+        .modal-footer {
+            padding: 0.75rem;
+            border-top: 1px solid #e9ecef;
+            text-align: right;
         }
 
         /* ===== MOBILE RESPONSIVE ===== */
@@ -683,22 +760,18 @@ $approved_docs = array_filter($verification_docs, function($doc) {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -706,9 +779,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -731,7 +802,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -750,12 +820,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                                 <i class="fas fa-user-circle"></i>
                                 <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
-                                <a href="commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
-                            <?php endif; ?>
                             <a href="settings.php" class="profile-dropdown-item">
                                 <i class="fas fa-sliders-h"></i>
                                 <span>Settings</span>
@@ -778,8 +842,8 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 <a href="index.php" class="text-primary" style="text-decoration: none;">
                     <i class="fas fa-arrow-left"></i> Back to Profile
                 </a>
-                <h1 style="margin: 0.5rem 0; font-size: 1.875rem; font-weight: 700;">Verification Documents</h1>
-                <p class="text-secondary">Upload documents to verify your identity and expertise as a mentor.</p>
+                <h1 style="margin: 0.5rem 0; font-size: 1.875rem; font-weight: 700;">Student Verification</h1>
+                <p class="text-secondary">Verify your student status to access exclusive features and connect with verified mentors.</p>
             </div>
 
             <?php if ($error): ?>
@@ -791,21 +855,30 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             <?php endif; ?>
 
             <div class="grid grid-cols-3" style="gap: 2rem;">
-                <!-- Upload Form -->
                 <div style="grid-column: span 2;">
                     <?php if ($user['is_verified']): ?>
                         <div class="card mb-4" style="border: 2px solid var(--success-color); background: #f0fdf4;">
                             <div class="card-body text-center" style="text-align: center;">
                                 <div style="color: var(--success-color); font-size: 3rem; margin-bottom: 1rem;">✓</div>
-                                <h3 style="color: var(--success-color); margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700;">Verified Mentor</h3>
-                                <p class="text-secondary">Your account has been verified!</p>
+                                <h3 style="color: var(--success-color); margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700;">Verified Student</h3>
+                                <p class="text-secondary">Your student status has been verified!</p>
                             </div>
                         </div>
                     <?php endif; ?>
 
+                    <div class="info-box">
+                        <div class="info-box-title">
+                            <i class="fas fa-info-circle"></i>
+                            Why verify your student status?
+                        </div>
+                        <div class="info-box-content">
+                            Get a verified badge on your profile, access to verified mentors only, priority in matching queue, exclusive student discounts, and enhanced credibility with mentors.
+                        </div>
+                    </div>
+
                     <div class="card mb-4">
                         <div class="card-header">
-                            <h3 class="card-title">Upload Document</h3>
+                            <h3 class="card-title">Upload Verification Document</h3>
                         </div>
                         <div class="card-body">
                             <form method="POST" enctype="multipart/form-data">
@@ -816,12 +889,12 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                                     <label for="document_type" class="form-label">Document Type</label>
                                     <select id="document_type" name="document_type" class="form-select" required>
                                         <option value="">Select Document Type</option>
-                                        <option value="id">Government ID</option>
-                                        <option value="student_id">Student ID</option>
-                                        <option value="diploma">Diploma/Certificate</option>
+                                        <option value="student_id">Student ID Card</option>
+                                        <option value="enrollment_cert">Enrollment Certificate</option>
+                                        <option value="school_id">School/University ID</option>
+                                        <option value="tuition_receipt">Tuition Receipt</option>
+                                        <option value="class_schedule">Class Schedule</option>
                                         <option value="transcript">Academic Transcript</option>
-                                        <option value="professional_cert">Professional Certification</option>
-                                        <option value="expertise_proof">Proof of Expertise</option>
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
@@ -829,14 +902,14 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                                 <div class="form-group">
                                     <label for="description" class="form-label">Description (Optional)</label>
                                     <textarea id="description" name="description" class="form-input" rows="3" 
-                                              placeholder="Provide additional context..."></textarea>
+                                              placeholder="Provide additional details about your document..."></textarea>
                                 </div>
                                 
                                 <div class="form-group">
                                     <label for="document" class="form-label">Upload File</label>
                                     <input type="file" id="document" name="document" class="form-input" 
                                            accept=".jpg,.jpeg,.png,.gif,.pdf" required>
-                                    <small class="text-secondary">JPG, PNG, GIF, PDF (max 5MB)</small>
+                                    <small class="text-secondary">Accepted formats: JPG, PNG, GIF, PDF (Maximum size: 5MB)</small>
                                 </div>
                                 
                                 <button type="submit" class="btn btn-primary">
@@ -845,71 +918,94 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                             </form>
                         </div>
                     </div>
-                </div>
 
-                <!-- Sidebar -->
-                <div>
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h3 class="card-title">Status</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <strong>Account:</strong><br>
-                                <?php if ($user['is_verified']): ?>
-                                    <span style="color: var(--success-color);">✓ Verified</span>
-                                <?php else: ?>
-                                    <span style="color: var(--warning-color);">⚠ Unverified</span>
-                                <?php endif; ?>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <strong>Uploaded:</strong><br>
-                                <span class="text-primary"><?php echo count($verification_docs); ?> documents</span>
-                            </div>
-                            
-                            <div>
-                                <strong>Approved:</strong><br>
-                                <span class="text-success"><?php echo count($approved_docs); ?> documents</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Benefits of Verification -->
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Benefits of Verification</h3>
+                            <h3 class="card-title">Verification Benefits</h3>
                         </div>
                         <div class="card-body">
-                            <ul style="margin-left: 1rem; font-size: 0.875rem;">
-                                <li>Verified badge on your profile</li>
-                                <li>Higher visibility in search results</li>
-                                <li>Increased trust from students</li>
-                                <li>Access to premium mentor features</li>
-                                <li>Priority matching with students</li>
+                            <ul style="margin-left: 1.5rem; line-height: 1.8;">
+                                <li><strong>Verified Badge:</strong> Display your verified student status on your profile</li>
+                                <li><strong>Priority Matching:</strong> Get matched with mentors faster</li>
+                                <li><strong>Access to Verified Mentors:</strong> Connect with verified academic experts</li>
+                                <li><strong>Exclusive Features:</strong> Unlock premium student-only features</li>
+                                <li><strong>Increased Trust:</strong> Build credibility with the Study Buddy community</li>
+                                <li><strong>Special Offers:</strong> Access student discounts and promotions</li>
                             </ul>
                         </div>
                     </div>
                 </div>
+
+                <div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Verification Status</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Account Status:</strong><br>
+                                <?php if ($user['is_verified']): ?>
+                                    <span style="color: var(--success-color); display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                        <i class="fas fa-check-circle"></i> Verified Student
+                                    </span>
+                                <?php else: ?>
+                                    <span style="color: var(--warning-color); display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                        <i class="fas fa-exclamation-triangle"></i> Unverified
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <strong>Documents Uploaded:</strong><br>
+                                <span class="text-primary" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <i class="fas fa-file-alt"></i> <?php echo count($verification_docs); ?> document<?php echo count($verification_docs) !== 1 ? 's' : ''; ?>
+                                </span>
+                            </div>
+                            
+                            <div>
+                                <strong>Approved Documents:</strong><br>
+                                <span class="text-success" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <i class="fas fa-check"></i> <?php echo count($approved_docs); ?> approved
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Acceptable Documents</h3>
+                        </div>
+                        <div class="card-body">
+                            <ul style="font-size: 0.875rem; line-height: 1.8; color: var(--text-secondary);">
+                                <li>Current Student ID Card</li>
+                                <li>Enrollment Certificate</li>
+                                <li>School/University ID</li>
+                                <li>Recent Tuition Receipt</li>
+                                <li>Current Class Schedule</li>
+                                <li>Academic Transcript</li>
+                            </ul>
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.85rem;">
+                                <strong>Note:</strong> Documents must be current and clearly show your name and institution.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- Uploaded Documents -->
             <?php if ($verification_docs): ?>
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h3 class="card-title">Your Documents</h3>
+                        <h3 class="card-title">Your Submitted Documents</h3>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Type</th>
+                                        <th>Document Type</th>
                                         <th>Description</th>
                                         <th>Status</th>
-                                        <th>Date</th>
+                                        <th>Submitted Date</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -919,33 +1015,60 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                                             <td>
                                                 <?php 
                                                 $type_labels = [
-                                                    'id' => 'Gov ID',
                                                     'student_id' => 'Student ID',
-                                                    'diploma' => 'Diploma',
+                                                    'enrollment_cert' => 'Enrollment Cert',
+                                                    'school_id' => 'School ID',
+                                                    'tuition_receipt' => 'Tuition Receipt',
+                                                    'class_schedule' => 'Class Schedule',
                                                     'transcript' => 'Transcript',
-                                                    'professional_cert' => 'Pro Cert',
-                                                    'expertise_proof' => 'Expertise',
                                                     'other' => 'Other'
                                                 ];
-                                                echo $type_labels[$doc['document_type']] ?? ucfirst($doc['document_type']);
+                                                $doc_title = $type_labels[$doc['document_type']] ?? ucfirst($doc['document_type']);
+                                                echo $doc_title;
                                                 ?>
                                             </td>
                                             <td>
-                                                <?php echo $doc['description'] ? htmlspecialchars(substr($doc['description'], 0, 30)) . (strlen($doc['description']) > 30 ? '...' : '') : '-'; ?>
+                                                <?php echo $doc['description'] ? htmlspecialchars(substr($doc['description'], 0, 40)) . (strlen($doc['description']) > 40 ? '...' : '') : '-'; ?>
                                             </td>
                                             <td>
-                                                <span style="background: <?php echo $doc['status'] === 'approved' ? '#dcfce7' : ($doc['status'] === 'rejected' ? '#fecaca' : '#fef3c7'); ?>; color: <?php echo $doc['status'] === 'approved' ? '#166534' : ($doc['status'] === 'rejected' ? '#dc2626' : '#d97706'); ?>; padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 500;">
+                                                <?php
+                                                $status_colors = [
+                                                    'approved' => ['bg' => '#dcfce7', 'text' => '#166534'],
+                                                    'rejected' => ['bg' => '#fee2e2', 'text' => '#dc2626'],
+                                                    'pending' => ['bg' => '#fef3c7', 'text' => '#d97706']
+                                                ];
+                                                $colors = $status_colors[$doc['status']] ?? ['bg' => '#f3f4f6', 'text' => '#6b7280'];
+                                                ?>
+                                                <span style="background: <?php echo $colors['bg']; ?>; color: <?php echo $colors['text']; ?>; padding: 0.25rem 0.75rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem;">
+                                                    <?php if ($doc['status'] === 'approved'): ?>
+                                                        <i class="fas fa-check-circle"></i>
+                                                    <?php elseif ($doc['status'] === 'rejected'): ?>
+                                                        <i class="fas fa-times-circle"></i>
+                                                    <?php else: ?>
+                                                        <i class="fas fa-clock"></i>
+                                                    <?php endif; ?>
                                                     <?php echo ucfirst($doc['status']); ?>
                                                 </span>
                                             </td>
                                             <td><?php echo date('M j, Y', strtotime($doc['created_at'])); ?></td>
                                             <td>
-                                                <a href="../uploads/verification/<?php echo $doc['filename']; ?>" target="_blank" 
+                                                <button type="button" 
+                                                   data-path="../uploads/verification/<?php echo $doc['filename']; ?>"
+                                                   data-title="<?php echo htmlspecialchars($doc_title); ?>"
+                                                   onclick="openDocumentPreview(this)" 
                                                    class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.8rem; text-decoration: none; min-height: auto;">
                                                     <i class="fas fa-eye"></i> View
-                                                </a>
+                                                </button>
                                             </td>
                                         </tr>
+                                        <?php if ($doc['status'] === 'rejected' && !empty($doc['admin_notes'])): ?>
+                                            <tr>
+                                                <td colspan="5" style="background: #fef2f2; padding: 0.75rem;">
+                                                    <strong style="color: #dc2626;"><i class="fas fa-info-circle"></i> Rejection Reason:</strong>
+                                                    <p style="margin: 0.25rem 0 0 0; color: #991b1b;"><?php echo htmlspecialchars($doc['admin_notes']); ?></p>
+                                                </td>
+                                            </tr>
+                                        <?php endif; ?>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -953,13 +1076,114 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     </div>
                 </div>
             <?php endif; ?>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="card-title">Frequently Asked Questions</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div>
+                            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary-color);"></i> How long does verification take?
+                            </h4>
+                            <p style="color: var(--text-secondary); margin: 0; line-height: 1.6;">
+                                Our admin team reviews verification documents within 24-48 hours. You'll receive a notification once your document has been reviewed.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary-color);"></i> What if my document is rejected?
+                            </h4>
+                            <p style="color: var(--text-secondary); margin: 0; line-height: 1.6;">
+                                If your document is rejected, you'll receive feedback explaining why. You can then upload a new document that meets the requirements.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary-color);"></i> Is my information secure?
+                            </h4>
+                            <p style="color: var(--text-secondary); margin: 0; line-height: 1.6;">
+                                Yes! All verification documents are securely stored and only accessible by authorized admin personnel. We take your privacy seriously.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary-color);"></i> Can I upload multiple documents?
+                            </h4>
+                            <p style="color: var(--text-secondary); margin: 0; line-height: 1.6;">
+                                Yes! You can upload multiple documents to increase your chances of verification. Having multiple forms of proof strengthens your application.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
+
+    <div class="modal fade" id="documentPreviewModal" tabindex="-1" aria-labelledby="documentPreviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="documentPreviewModalLabel">Document Preview: <span id="previewModalTitle"></span></h5>
+                    <button type="button" class="btn-close" onclick="closeModal('documentPreviewModal')" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="documentIframe" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('documentPreviewModal')">Close Viewer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
+        // NEW FUNCTION: Handles opening the document preview modal
+        function openDocumentPreview(buttonElement) {
+            const filePath = buttonElement.getAttribute('data-path');
+            const title = buttonElement.getAttribute('data-title');
+            
+            if (!filePath) {
+                console.error('Document file path is missing.');
+                alert('Error: Document file path is missing.');
+                return;
+            }
+            
+            const modal = document.getElementById('documentPreviewModal');
+            const iframe = document.getElementById('documentIframe');
+            
+            // Set the title
+            document.getElementById('previewModalTitle').textContent = title;
+
+            // Set the iframe source to display the document
+            iframe.src = filePath;
+
+            // Show the modal
+            modal.classList.add('show');
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden'; // Prevent scrolling background
+        }
+
+        // NEW FUNCTION: Handles closing the document preview modal
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            document.body.style.overflow = ''; // Restore scrolling
+            // Clear iframe source to stop video/audio/memory use
+            if (modalId === 'documentPreviewModal') {
+                document.getElementById('documentIframe').src = '';
+            }
+        }
+        
         // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
@@ -972,7 +1196,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     navLinks.classList.toggle("active");
                 });
 
-                // Close menu when clicking on links
                 const links = navLinks.querySelectorAll("a");
                 links.forEach((link) => {
                     link.addEventListener("click", () => {
@@ -980,12 +1203,11 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                         navLinks.classList.remove("active");
                     });
                 });
-
-                // Close menu when clicking outside
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
+                
+                // Close modal if clicking outside it
+                document.getElementById('documentPreviewModal').addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal('documentPreviewModal');
                     }
                 });
             }
@@ -1027,7 +1249,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     const list = document.getElementById('notificationList');
                     
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p style="margin-top: 0.5rem;">No notifications</p></div>';
                         return;
                     }
                     
@@ -1035,7 +1257,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                         <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
                              onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
                             <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
+                            <div style="flex: 1;">
                                 <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
                                 <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
                                 <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
@@ -1064,7 +1286,8 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 'match_request': 'fa-handshake',
                 'match_accepted': 'fa-user-check',
                 'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
+                'verification_approved': 'fa-check-circle',
+                'verification_rejected': 'fa-times-circle'
             };
             return icons[type] || 'fa-bell';
         }
@@ -1075,9 +1298,10 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 'session_rejected': '#dc2626',
                 'match_accepted': '#16a34a',
                 'announcement': '#2563eb',
-                'commission_due': '#d97706',
                 'session_scheduled': '#2563eb',
-                'match_request': '#2563eb'
+                'match_request': '#2563eb',
+                'verification_approved': '#16a34a',
+                'verification_rejected': '#dc2626'
             };
             return colors[type] || '#666';
         }
@@ -1098,12 +1322,12 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             return Math.floor(seconds / 604800) + 'w ago';
         }
 
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
+        document.addEventListener('click', function(e) {
+            if (notificationDropdownOpen && e.target.closest('.notification-bell') === null && e.target.closest('.notification-dropdown') === null) {
                 document.getElementById('notificationDropdown').classList.remove('show');
                 notificationDropdownOpen = false;
             }
-            if (profileDropdownOpen) {
+            if (profileDropdownOpen && e.target.closest('.profile-menu') === null && e.target.closest('.profile-dropdown') === null) {
                 document.getElementById('profileDropdown').classList.remove('show');
                 profileDropdownOpen = false;
             }

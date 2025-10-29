@@ -1001,7 +1001,7 @@ if ($user['role'] === 'student') {
                                 <i class="fas fa-user-circle"></i>
                                 <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                                 <a href="../profile/commission-payments.php" class="profile-dropdown-item">
                                     <i class="fas fa-wallet"></i>
                                     <span>Commissions</span>
@@ -1218,6 +1218,48 @@ if ($user['role'] === 'student') {
                             </div>
                         </div>
                     </div>
+
+                    <?php if ($user['role'] === 'student'): ?>
+                        <?php if (!$user['is_verified']): ?>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Student Verification</h3>
+                                    <a href="student-verification.php" class="btn btn-secondary">Manage Documents</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="warning-box">
+                                        <div style="color: var(--warning-box-text); font-size: 1.5rem;">⚠</div>
+                                        <div>
+                                            <div class="font-medium">Verification Pending</div>
+                                            <div class="text-sm text-secondary">
+                                                Upload verification documents to become a verified student.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Student Verification Status</h3>
+                                    <a href="student-verification.php" class="btn btn-secondary">View Documents</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="success-box">
+                                        <div style="color: var(--success-box-text); font-size: 1.5rem;">✓</div>
+                                        <div>
+                                            <div class="font-medium">
+                                                Verified Student
+                                            </div>
+                                            <div class="text-sm text-secondary">
+                                                Your student status has been verified by our admin team.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
 
                     <?php if ($user['role'] === 'mentor'): ?>
                         <?php if (!$user['is_verified']): ?>

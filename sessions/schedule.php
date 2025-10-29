@@ -21,6 +21,19 @@ $preselected_date = isset($_GET['date']) ? $_GET['date'] : '';
 
 $db = getDB();
 
+$can_schedule = true;
+$commission_block_message = '';
+
+if ($user['role'] === 'mentor') {
+    require_once '../config/commission_helper.php';
+    $overdue_info = check_overdue_commissions($user['id'], $db);
+    
+    if ($overdue_info['has_overdue']) {
+        $can_schedule = false;
+        $commission_block_message = "You have {$overdue_info['overdue_count']} overdue commission payment(s) totaling ₱" . number_format($overdue_info['total_overdue'], 2) . ". Please pay your commissions before scheduling new sessions.";
+    }
+}
+
 $prefs_stmt = $db->prepare("SELECT * FROM user_reminder_preferences WHERE user_id = ?");
 $prefs_stmt->execute([$user['id']]);
 $reminder_prefs = $prefs_stmt->fetch();
@@ -83,176 +96,180 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
-        $selected_match_id = (int)$_POST['match_id'];
-        $session_date = $_POST['session_date'];
-        $start_time = $_POST['start_time'];
-        $duration = (int)$_POST['duration'];
-        $location = sanitize_input($_POST['location']);
-        $notes = sanitize_input($_POST['notes']);
-        // === MODIFICATION: Removed $send_reminder line ===
-        $terms_accepted = isset($_POST['terms_accepted']) ? 1 : 0;
-        
-        if (empty($selected_match_id) || empty($session_date) || empty($start_time) || empty($duration)) {
-            $error = 'Please fill in all required fields.';
-        } elseif (!$terms_accepted) {
-            $error = 'You must accept the terms and conditions to schedule a session.';
+        if (!$can_schedule) {
+            $error = $commission_block_message;
         } else {
-            $now = new DateTime();
-            $session_datetime = new DateTime($session_date . ' ' . $start_time);
+            $selected_match_id = (int)$_POST['match_id'];
+            $session_date = $_POST['session_date'];
+            $start_time = $_POST['start_time'];
+            $duration = (int)$_POST['duration'];
+            $location = sanitize_input($_POST['location']);
+            $notes = sanitize_input($_POST['notes']);
+            // === MODIFICATION: Removed $send_reminder line ===
+            $terms_accepted = isset($_POST['terms_accepted']) ? 1 : 0;
             
-            $minimum_time = clone $now;
-            $minimum_time->add(new DateInterval('PT1H'));
-            
-            if ($session_datetime < $now) {
-                $error = 'Session date and time cannot be in the past.';
-            } elseif ($session_datetime < $minimum_time) {
-                $error = 'Sessions must be scheduled at least 1 hour in advance. Please choose a later time.';
+            if (empty($selected_match_id) || empty($session_date) || empty($start_time) || empty($duration)) {
+                $error = 'Please fill in all required fields.';
+            } elseif (!$terms_accepted) {
+                $error = 'You must accept the terms and conditions to schedule a session.';
             } else {
-                $start_datetime = new DateTime($session_date . ' ' . $start_time);
-                $end_datetime = clone $start_datetime;
-                $end_datetime->add(new DateInterval('PT' . $duration . 'M'));
-                $end_time = $end_datetime->format('H:i:s');
+                $now = new DateTime();
+                $session_datetime = new DateTime($session_date . ' ' . $start_time);
                 
-                $match_info_stmt = $db->prepare("
-                    SELECT m.student_id, m.mentor_id, u.hourly_rate
-                    FROM matches m
-                    JOIN users u ON u.id = CASE WHEN m.mentor_id != ? THEN m.mentor_id ELSE m.student_id END
-                    WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
-                ");
-                $match_info_stmt->execute([$user['id'], $selected_match_id, $user['id'], $user['id']]);
-                $match_info = $match_info_stmt->fetch();
+                $minimum_time = clone $now;
+                $minimum_time->add(new DateInterval('PT1H'));
                 
-                if (!$match_info) {
-                    $error = 'Invalid match selection.';
+                if ($session_datetime < $now) {
+                    $error = 'Session date and time cannot be in the past.';
+                } elseif ($session_datetime < $minimum_time) {
+                    $error = 'Sessions must be scheduled at least 1 hour in advance. Please choose a later time.';
                 } else {
-                    $partner_id = ($match_info['student_id'] == $user['id']) 
-                        ? $match_info['mentor_id'] 
-                        : $match_info['student_id'];
-                    $mentor_id = $match_info['mentor_id'];
+                    $start_datetime = new DateTime($session_date . ' ' . $start_time);
+                    $end_datetime = clone $start_datetime;
+                    $end_datetime->add(new DateInterval('PT' . $duration . 'M'));
+                    $end_time = $end_datetime->format('H:i:s');
                     
-                    $hourly_rate = $match_info['hourly_rate'] ?? 0;
-                    $payment_amount = ($hourly_rate * $duration) / 60;
-                    
-                    $conflict_check = $db->prepare("
-                        SELECT COUNT(*) as conflict_count,
-                               GROUP_CONCAT(DISTINCT 
-                                   CASE 
-                                       WHEN m.student_id = ? OR m.mentor_id = ? THEN 'you'
-                                       WHEN m.student_id = ? OR m.mentor_id = ? THEN 'partner'
-                                   END
-                               ) as conflicting_parties
-                        FROM sessions s
-                        JOIN matches m ON s.match_id = m.id
-                        WHERE (m.student_id IN (?, ?) OR m.mentor_id IN (?, ?))
-                        AND s.session_date = ?
-                        AND s.status = 'scheduled'
-                        AND (
-                            (s.start_time < ? AND s.end_time > ?) OR
-                            (s.start_time < ? AND s.end_time > ?) OR
-                            (s.start_time >= ? AND s.end_time <= ?)
-                        )
+                    $match_info_stmt = $db->prepare("
+                        SELECT m.student_id, m.mentor_id, u.hourly_rate
+                        FROM matches m
+                        JOIN users u ON u.id = CASE WHEN m.mentor_id != ? THEN m.mentor_id ELSE m.student_id END
+                        WHERE m.id = ? AND (m.student_id = ? OR m.mentor_id = ?)
                     ");
-                    $conflict_check->execute([
-                        $user['id'], $user['id'],
-                        $partner_id, $partner_id,
-                        $user['id'], $partner_id, $user['id'], $partner_id,
-                        $session_date,
-                        $end_time, $start_time,
-                        $end_time, $start_time,
-                        $start_time, $end_time
-                    ]);
-                    $conflict = $conflict_check->fetch();
+                    $match_info_stmt->execute([$user['id'], $selected_match_id, $user['id'], $user['id']]);
+                    $match_info = $match_info_stmt->fetch();
                     
-                    if ($conflict['conflict_count'] > 0) {
-                        $conflicting_parties = $conflict['conflicting_parties'];
-                        if (strpos($conflicting_parties, 'you') !== false && strpos($conflicting_parties, 'partner') !== false) {
-                            $error = 'Both you and your partner already have sessions scheduled during this time. Please choose a different time.';
-                        } elseif (strpos($conflicting_parties, 'partner') !== false) {
-                            $error = 'Your partner already has a session scheduled during this time. Please choose a different time.';
-                        } else {
-                            $error = 'You already have a session scheduled during this time. Please choose a different time.';
-                        }
+                    if (!$match_info) {
+                        $error = 'Invalid match selection.';
                     } else {
-                        try {
-                            $db->beginTransaction();
-                            
-                            $stmt = $db->prepare("
-                                INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes, terms_accepted, terms_accepted_at, payment_amount) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
-                            ");
-                            $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes, $terms_accepted, $payment_amount]);
-                            $session_id = $db->lastInsertId();
-                            
-                            if ($payment_amount > 0) {
-                                $commission_amount = ($payment_amount * $commission_percentage) / 100;
-                                $commission_stmt = $db->prepare("
-                                    INSERT INTO commission_payments (session_id, mentor_id, session_amount, commission_amount, commission_percentage, payment_status)
-                                    VALUES (?, ?, ?, ?, ?, 'pending')
-                                ");
-                                $commission_stmt->execute([$session_id, $mentor_id, $payment_amount, $commission_amount, $commission_percentage]);
-                            }
-                            
-                            $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
-                            $log_stmt->execute([$user['id'], json_encode(['match_id' => $selected_match_id, 'date' => $session_date]), $_SERVER['REMOTE_ADDR']]);
-                            
-                            $db->commit();
-                            
-                            $email_sent = false;
-                            $email_error = '';
-                            
-                            try {
-                                $partner_stmt = $db->prepare("SELECT u.id, u.email, u.first_name, u.last_name FROM users u WHERE u.id = ?");
-                                $partner_stmt->execute([$partner_id]);
-                                $partner = $partner_stmt->fetch();
-                                
-                                $match_stmt = $db->prepare("SELECT subject FROM matches WHERE id = ?");
-                                $match_stmt->execute([$selected_match_id]);
-                                $match = $match_stmt->fetch();
-                                
-                                $session_details = [
-                                    'subject' => $match['subject'],
-                                    'date' => $session_date,
-                                    'start_time' => $start_time,
-                                    'end_time' => $end_time,
-                                    'location' => $location,
-                                    'notes' => $notes,
-                                    'partner_name' => $partner['first_name'] . ' ' . $partner['last_name']
-                                ];
-                                
-                                $result1 = send_session_notification(
-                                    $user['email'],
-                                    $user['first_name'] . ' ' . $user['last_name'],
-                                    $session_details
-                                );
-                                
-                                $session_details['partner_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                                $result2 = send_session_notification(
-                                    $partner['email'],
-                                    $partner['first_name'] . ' ' . $partner['last_name'],
-                                    $session_details
-                                );
-                                
-                                $email_sent = $result1 && $result2;
-                                
-                                if (SMTP_USERNAME === 'your-email@gmail.com' || empty(SMTP_USERNAME)) {
-                                    $email_error = 'SMTP not configured. Emails are being logged but not sent.';
-                                }
-                            } catch (Exception $e) {
-                                $email_error = 'Failed to send email notifications: ' . $e->getMessage();
-                            }
-                            
-                            if ($email_sent) {
-                                $success = 'Session scheduled successfully! Email notifications sent to both participants.';
-                            } else if (!empty($email_error)) {
-                                $success = 'Session scheduled successfully! Note: ' . $email_error;
+                        $partner_id = ($match_info['student_id'] == $user['id']) 
+                            ? $match_info['mentor_id'] 
+                            : $match_info['student_id'];
+                        $mentor_id = $match_info['mentor_id'];
+                        
+                        $hourly_rate = $match_info['hourly_rate'] ?? 0;
+                        $payment_amount = ($hourly_rate * $duration) / 60;
+                        
+                        $conflict_check = $db->prepare("
+                            SELECT COUNT(*) as conflict_count,
+                                   GROUP_CONCAT(DISTINCT 
+                                       CASE 
+                                           WHEN m.student_id = ? OR m.mentor_id = ? THEN 'you'
+                                           WHEN m.student_id = ? OR m.mentor_id = ? THEN 'partner'
+                                       END
+                                   ) as conflicting_parties
+                            FROM sessions s
+                            JOIN matches m ON s.match_id = m.id
+                            WHERE (m.student_id IN (?, ?) OR m.mentor_id IN (?, ?))
+                            AND s.session_date = ?
+                            AND s.status = 'scheduled'
+                            AND (
+                                (s.start_time < ? AND s.end_time > ?) OR
+                                (s.start_time < ? AND s.end_time > ?) OR
+                                (s.start_time >= ? AND s.end_time <= ?)
+                            )
+                        ");
+                        $conflict_check->execute([
+                            $user['id'], $user['id'],
+                            $partner_id, $partner_id,
+                            $user['id'], $partner_id, $user['id'], $partner_id,
+                            $session_date,
+                            $end_time, $start_time,
+                            $end_time, $start_time,
+                            $start_time, $end_time
+                        ]);
+                        $conflict = $conflict_check->fetch();
+                        
+                        if ($conflict['conflict_count'] > 0) {
+                            $conflicting_parties = $conflict['conflicting_parties'];
+                            if (strpos($conflicting_parties, 'you') !== false && strpos($conflicting_parties, 'partner') !== false) {
+                                $error = 'Both you and your partner already have sessions scheduled during this time. Please choose a different time.';
+                            } elseif (strpos($conflicting_parties, 'partner') !== false) {
+                                $error = 'Your partner already has a session scheduled during this time. Please choose a different time.';
                             } else {
-                                $success = 'Session scheduled successfully!';
+                                $error = 'You already have a session scheduled during this time. Please choose a different time.';
                             }
-                            
-                            header("refresh:3;url=history.php");
-                        } catch (Exception $e) {
-                            $db->rollBack();
-                            $error = 'Failed to schedule session. Please try again.';
+                        } else {
+                            try {
+                                $db->beginTransaction();
+                                
+                                $stmt = $db->prepare("
+                                    INSERT INTO sessions (match_id, session_date, start_time, end_time, location, notes, terms_accepted, terms_accepted_at, payment_amount) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                                ");
+                                $stmt->execute([$selected_match_id, $session_date, $start_time, $end_time, $location, $notes, $terms_accepted, $payment_amount]);
+                                $session_id = $db->lastInsertId();
+                                
+                                if ($payment_amount > 0) {
+                                    $commission_amount = ($payment_amount * $commission_percentage) / 100;
+                                    $commission_stmt = $db->prepare("
+                                        INSERT INTO commission_payments (session_id, mentor_id, session_amount, commission_amount, commission_percentage, payment_status)
+                                        VALUES (?, ?, ?, ?, ?, 'pending')
+                                    ");
+                                    $commission_stmt->execute([$session_id, $mentor_id, $payment_amount, $commission_amount, $commission_percentage]);
+                                }
+                                
+                                $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
+                                $log_stmt->execute([$user['id'], json_encode(['match_id' => $selected_match_id, 'date' => $session_date]), $_SERVER['REMOTE_ADDR']]);
+                                
+                                $db->commit();
+                                
+                                $email_sent = false;
+                                $email_error = '';
+                                
+                                try {
+                                    $partner_stmt = $db->prepare("SELECT u.id, u.email, u.first_name, u.last_name FROM users u WHERE u.id = ?");
+                                    $partner_stmt->execute([$partner_id]);
+                                    $partner = $partner_stmt->fetch();
+                                    
+                                    $match_stmt = $db->prepare("SELECT subject FROM matches WHERE id = ?");
+                                    $match_stmt->execute([$selected_match_id]);
+                                    $match = $match_stmt->fetch();
+                                    
+                                    $session_details = [
+                                        'subject' => $match['subject'],
+                                        'date' => $session_date,
+                                        'start_time' => $start_time,
+                                        'end_time' => $end_time,
+                                        'location' => $location,
+                                        'notes' => $notes,
+                                        'partner_name' => $partner['first_name'] . ' ' . $partner['last_name']
+                                    ];
+                                    
+                                    $result1 = send_session_notification(
+                                        $user['email'],
+                                        $user['first_name'] . ' ' . $user['last_name'],
+                                        $session_details
+                                    );
+                                    
+                                    $session_details['partner_name'] = $user['first_name'] . ' ' . $user['last_name'];
+                                    $result2 = send_session_notification(
+                                        $partner['email'],
+                                        $partner['first_name'] . ' ' . $partner['last_name'],
+                                        $session_details
+                                    );
+                                    
+                                    $email_sent = $result1 && $result2;
+                                    
+                                    if (SMTP_USERNAME === 'your-email@gmail.com' || empty(SMTP_USERNAME)) {
+                                        $email_error = 'SMTP not configured. Emails are being logged but not sent.';
+                                    }
+                                } catch (Exception $e) {
+                                    $email_error = 'Failed to send email notifications: ' . $e->getMessage();
+                                }
+                                
+                                if ($email_sent) {
+                                    $success = 'Session scheduled successfully! Email notifications sent to both participants.';
+                                } else if (!empty($email_error)) {
+                                    $success = 'Session scheduled successfully! Note: ' . $email_error;
+                                } else {
+                                    $success = 'Session scheduled successfully!';
+                                }
+                                
+                                header("refresh:3;url=history.php");
+                            } catch (Exception $e) {
+                                $db->rollBack();
+                                $error = 'Failed to schedule session. Please try again.';
+                            }
                         }
                     }
                 }
@@ -680,6 +697,14 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #d1d5db;
         }
 
+        /* Added disabled button styles */
+        .btn.disabled,
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         .schedule-container {
             display: grid;
             grid-template-columns: 400px 1fr;
@@ -929,6 +954,13 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #d1fae5;
             color: #065f46;
             border: 1px solid #a7f3d0;
+        }
+
+        /* Added warning alert style */
+        .alert-warning {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            color: #92400e;
         }
 
         #time-validation-error {
@@ -1253,7 +1285,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             <a href="../profile/index.php" class="profile-dropdown-item">
                                 <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                             <a href="../profile/commission-payments.php" class="profile-dropdown-item">
                                 <i class="fas fa-wallet"></i> <span>Commissions</span>
                             </a>
@@ -1290,6 +1322,20 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="alert alert-success" style="max-width: 1200px; margin: 0 auto 1.5rem;"><i class="fas fa-check-circle"></i> <?php echo $success; ?></div>
             <?php endif; ?>
 
+            <!-- Added warning alert for overdue commissions -->
+            <?php if (!$can_schedule): ?>
+                <div class="alert alert-warning" style="max-width: 1200px; margin: 0 auto 1.5rem;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <h4 style="margin-bottom: 0.5rem;"><i class="fas fa-lock"></i> Cannot Schedule Sessions</h4>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;"><?php echo $commission_block_message; ?></p>
+                        <a href="../profile/commission-payments.php" class="btn btn-sm" style="margin-top: 0.75rem; background: #dc2626; color: white;">
+                            <i class="fas fa-credit-card"></i> Pay Commissions
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php if ($no_matches): ?>
                 <div class="no-matches-card">
                     <div style="font-size: 4rem; margin-bottom: 1rem;">📚</div>
@@ -1305,10 +1351,10 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="calendar-header">
                             <h3 id="calendarMonth">October 2025</h3>
                             <div class="calendar-nav">
-                                <button onclick="previousMonth()" title="Previous Month">
+                                <button onclick="previousMonth()" title="Previous Month" <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                     <i class="fas fa-chevron-left"></i>
                                 </button>
-                                <button onclick="nextMonth()" title="Next Month">
+                                <button onclick="nextMonth()" title="Next Month" <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                     <i class="fas fa-chevron-right"></i>
                                 </button>
                             </div>
@@ -1333,7 +1379,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="form-group">
                                 <label class="form-label">Study Partner & Subject *</label>
-                                <select name="match_id" class="form-select" required>
+                                <select name="match_id" class="form-select" required <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                     <option value="">Select a study partner</option>
                                     <?php foreach ($matches as $match): ?>
                                         <option value="<?php echo $match['id']; ?>" <?php echo $match_id == $match['id'] ? 'selected' : ''; ?>>
@@ -1346,11 +1392,11 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">Start Time *</label>
-                                    <input type="time" name="start_time" id="start_time" class="form-input" value="14:00" required>
+                                    <input type="time" name="start_time" id="start_time" class="form-input" value="14:00" required <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Duration (minutes) *</label>
-                                    <select name="duration" class="form-select" required>
+                                    <select name="duration" class="form-select" required <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                         <option value="30">30 minutes</option>
                                         <option value="45">45 minutes</option>
                                         <option value="60" selected>1 hour</option>
@@ -1363,17 +1409,17 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="form-group">
                                 <label class="form-label">Location</label>
-                                <input type="text" name="location" class="form-input" placeholder="e.g., Library, Online (Zoom), Coffee Shop">
+                                <input type="text" name="location" class="form-input" placeholder="e.g., Library, Online (Zoom), Coffee Shop" <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label">Session Notes</label>
-                                <textarea name="notes" class="form-textarea" rows="3" placeholder="What topics will you cover? Any specific materials needed?"></textarea>
+                                <textarea name="notes" class="form-textarea" rows="3" placeholder="What topics will you cover? Any specific materials needed?" <?php echo !$can_schedule ? 'disabled' : ''; ?>></textarea>
                             </div>
 
                             <div class="form-group">
                                 <div class="checkbox-group checkbox-group-warning">
-                                    <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required>
+                                    <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                     <label for="terms_accepted">
                                         I agree to the <a href="#" onclick="event.preventDefault(); openModal('termsModal');" style="color: var(--primary-color); text-decoration: underline;">Terms and Conditions</a> including the Commission on Agreement (COA) policy *
                                     </label>
@@ -1389,7 +1435,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <a href="history.php" class="btn btn-secondary">
                                     <i class="fas fa-times"></i> Cancel
                                 </a>
-                                <button type="submit" class="btn">
+                                <button type="submit" class="btn" <?php echo !$can_schedule ? 'disabled' : ''; ?>>
                                     <i class="fas fa-check"></i> Schedule Session
                                 </button>
                             </div>
@@ -1471,6 +1517,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
         let currentDate = new Date();
         const preselectedDate = '<?php echo $preselected_date ?: date('Y-m-d'); ?>';
         const existingSessions = <?php echo json_encode($existing_sessions); ?>;
+        const canSchedule = <?php echo $can_schedule ? 'true' : 'false'; ?>;
         
         if (preselectedDate) {
             currentDate = new Date(preselectedDate);
@@ -1784,7 +1831,7 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isPast) classes += ' past';
                 if (hasSession) classes += ' has-session';
                 
-                html += `<div class="${classes}" onclick="${!isPast ? `selectDate('${dateStr}')` : ''}" 
+                html += `<div class="${classes}" onclick="${!isPast && canSchedule ? `selectDate('${dateStr}')` : ''}" 
                          title="${hasSession ? existingSessions[dateStr] + ' session(s) scheduled' : (isPast ? 'Past date' : '')}">${day}</div>`;
             }
             

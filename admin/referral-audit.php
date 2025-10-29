@@ -461,9 +461,6 @@ function get_sort_direction_for_column($current_col, $sort_by, $sort_direction) 
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
-                <i class="fas fa-user-check me-2"></i> Mentor Verification
-            </a>
                         <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>

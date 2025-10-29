@@ -31,9 +31,16 @@ if ($end_date < $start_date) {
 $status_filter = $_GET['status'] ?? 'all';
 $sort_by = isset($_GET['sort']) && $_GET['sort'] === 'rating' ? 'rating' : 'date'; 
 
-// --- NEW: Limit parameter handling (using 200 as default from original file) ---
+// --- Limit parameter handling ---
 $allowed_limits = [10, 25, 50, 100, 200];
 $limit = isset($_GET['limit']) && in_array((int)$_GET['limit'], $allowed_limits) ? (int)$_GET['limit'] : 200;
+
+// --- Build the base redirect URL with current filters ---
+$redirect_url = 'sessions.php?status=' . urlencode($status_filter) . 
+                '&start_date=' . urlencode($start_date) . 
+                '&end_date=' . urlencode($end_date) . 
+                '&sort=' . urlencode($sort_by) . 
+                '&limit=' . urlencode($limit);
 
 
 $where_conditions = [];
@@ -46,7 +53,6 @@ if ($status_filter !== 'all') {
 }
 
 // Apply date range filter (Always applied, default is 30 days)
-// We use session_date to filter the displayed sessions
 $where_conditions[] = "s.session_date >= ?";
 $params[] = $start_date;
 
@@ -55,12 +61,12 @@ $params[] = $end_date;
 
 $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-// Determine the ORDER BY clause based on the new sort parameter
+// Determine the ORDER BY clause
 $order_clause = $sort_by === 'rating' 
-    ? 'sr.rating DESC, s.session_date DESC, s.start_time DESC' // Top Sessions by Rating (descending)
-    : 's.session_date DESC, s.start_time DESC'; // Latest Sessions by Date
+    ? 'sr.rating DESC, s.session_date DESC, s.start_time DESC' 
+    : 's.session_date DESC, s.start_time DESC'; 
 
-// --- CSV EXPORT LOGIC (Now respects filters and sorting) ---
+// --- CSV EXPORT LOGIC ---
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="sessions_export_' . date('Y-m-d') . '.csv"');
@@ -68,7 +74,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $output = fopen('php://output', 'w');
     fputcsv($output, ['Session ID', 'Student', 'Mentor', 'Subject', 'Date', 'Start Time', 'End Time', 'Status', 'Location', 'Rating', 'Feedback']);
     
-    // Export query does not use LIMIT
     $export_query = "
         SELECT s.id, 
                CONCAT(st.first_name, ' ', st.last_name) as student_name,
@@ -91,7 +96,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     ";
     
     $export_stmt = $db->prepare($export_query);
-    $export_stmt->execute($params); // Execute with the collected parameters
+    $export_stmt->execute($params); 
     
     while ($row = $export_stmt->fetch()) {
         fputcsv($output, [
@@ -113,25 +118,32 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-// Handle session actions
+// --- Handle session actions (POST/Redirect/Get FIX) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $session_id = $_POST['session_id'] ?? 0;
     $action = $_POST['action'];
+    $session_success_message = ''; // Use a temporary variable for the message
     
     if ($action === 'cancel' && $session_id) {
         $stmt = $db->prepare("UPDATE sessions SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$session_id]);
-        $success_message = "Session cancelled successfully.";
+        if ($stmt->execute([$session_id])) {
+            $session_success_message = "Session cancelled successfully.";
+        } else {
+            $session_success_message = "Error: Failed to cancel session.";
+        }
     }
     elseif ($action === 'complete' && $session_id) {
         try {
             $db->beginTransaction();
             
             $stmt = $db->prepare("UPDATE sessions SET status = 'completed', updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$session_id]);
+            if (!$stmt->execute([$session_id])) {
+                 throw new Exception("Database update failed for session status.");
+            }
             
+            // FIX: Changed u.user_type to u.role to fix the SQLSTATE[42S22] error
             $commission_stmt = $db->prepare("
-                SELECT m.mentor_id, u.hourly_rate, u.user_type, s.start_time, s.end_time, s.session_date
+                SELECT m.mentor_id, u.hourly_rate, u.role, s.start_time, s.end_time, s.session_date
                 FROM sessions s
                 JOIN matches m ON s.match_id = m.id
                 JOIN users u ON m.mentor_id = u.id
@@ -140,7 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $commission_stmt->execute([$session_id]);
             $commission_data = $commission_stmt->fetch();
             
-            if ($commission_data && $commission_data['user_type'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
+            // FIX: Changed $commission_data['user_type'] to $commission_data['role']
+            if ($commission_data && $commission_data['role'] === 'mentor' && $commission_data['hourly_rate'] > 0) {
                 // Calculate duration in hours
                 $start = new DateTime($commission_data['session_date'] . ' ' . $commission_data['start_time']);
                 $end = new DateTime($commission_data['session_date'] . ' ' . $commission_data['end_time']);
@@ -152,38 +165,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $commission_amount = $session_amount * 0.10;
                 
                 // Insert commission payment record with correct column names
-                try {
-                    $insert_commission = $db->prepare("
-                        INSERT INTO commission_payments 
-                        (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
-                        VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
-                    ");
-                    $insert_commission->execute([
-                        $commission_data['mentor_id'],
-                        $session_id,
-                        $session_amount,
-                        $commission_amount
-                    ]);
-                    $success_message = "Session marked as completed! Commission payment of ₱" . number_format($commission_amount, 2) . " has been recorded.";
-                } catch (PDOException $e) {
-                    // Log the specific error for debugging
-                    error_log("Commission creation error: " . $e->getMessage());
-                    $success_message = "Session marked as completed, but commission creation failed: " . $e->getMessage();
+                $insert_commission = $db->prepare("
+                    INSERT INTO commission_payments 
+                    (mentor_id, session_id, session_amount, commission_amount, commission_percentage, payment_status, created_at) 
+                    VALUES (?, ?, ?, ?, 10.00, 'pending', NOW())
+                ");
+                if ($insert_commission->execute([
+                    $commission_data['mentor_id'],
+                    $session_id,
+                    $session_amount,
+                    $commission_amount
+                ])) {
+                    $session_success_message = "Session marked as completed! Commission payment of ₱" . number_format($commission_amount, 2) . " has been recorded.";
+                } else {
+                    $session_success_message = "Session marked as completed, but commission creation failed.";
                 }
-            } elseif ($commission_data && $commission_data['user_type'] === 'peer') {
-                $success_message = "Session marked as completed! (No commission for peer tutors)";
+            // FIX: Changed $commission_data['user_type'] to $commission_data['role']
+            } elseif ($commission_data && $commission_data['role'] === 'peer') {
+                $session_success_message = "Session marked as completed! (No commission for peer tutors)";
             } else {
-                $success_message = "Session marked as completed! Note: No commission was created (mentor has no hourly rate set).";
+                $session_success_message = "Session marked as completed! Note: No commission was created (mentor has no hourly rate set or is not a mentor/peer).";
             }
             
             $db->commit();
         } catch (Exception $e) {
             $db->rollBack();
-            $success_message = "Error: " . $e->getMessage();
+            $session_success_message = "Error: " . $e->getMessage();
             error_log("Session completion error: " . $e->getMessage());
         }
     }
+    
+    // REDIRECT AFTER SUCCESSFUL POST ACTION (PRG Pattern)
+    // Pass the message via a GET parameter to display on the next load
+    $final_redirect = $redirect_url . '&success_message=' . urlencode($session_success_message);
+    header("Location: " . $final_redirect);
+    exit;
 }
+
+// Get success message from GET parameter after redirect
+$success_message = $_GET['success_message'] ?? null;
 
 
 // Get all sessions with enhanced details
@@ -378,10 +398,7 @@ $sessions = $stmt->fetchAll();
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="users.php">
                 <i class="fas fa-users me-2"></i> User Management
             </a>
-            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'verifications.php' ? 'active' : ''; ?>" href="verifications.php">
-                <i class="fas fa-user-check me-2"></i> Mentor Verification
-            </a>
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'matches.php' ? 'active' : ''; ?>" href="matches.php">
                 <i class="fas fa-handshake me-2"></i> Matches
             </a>
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'sessions.php' ? 'active' : ''; ?>" href="sessions.php">
@@ -390,17 +407,16 @@ $sessions = $stmt->fetchAll();
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'analytics.php' ? 'active' : ''; ?>" href="analytics.php">
                 <i class="fas fa-chart-bar me-2"></i> Advanced Analytics
             </a>
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'system-health.php' ? 'active' : ''; ?>" href="system-health.php">
                 <i class="fas fa-heartbeat me-2"></i> System Health
             </a>
 
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'financial-overview.php' ? 'active' : ''; ?>" href="financial-overview.php">
                 <i class="fas fa-chart-pie me-2"></i> Financial Overview
             </a>
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
+            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'referral-audit.php' ? 'active' : ''; ?>" href="referral-audit.php">
                 <i class="fas fa-link me-2"></i> Referral Audit
             </a>
-
 
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="settings.php">
                 <i class="fas fa-cog me-2"></i> System Settings
@@ -417,12 +433,12 @@ $sessions = $stmt->fetchAll();
                 </a>
             </div>
 
-            <?php if (isset($success_message)): ?>
+            <?php if (isset($success_message)): // Display the success message after PRG redirect ?>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         Swal.fire({
                             title: 'Success!',
-                            text: '<?php echo $success_message; ?>',
+                            text: '<?php echo htmlspecialchars($success_message); ?>',
                             icon: 'success',
                             confirmButtonColor: '#3085d6'
                         });
@@ -534,11 +550,18 @@ $sessions = $stmt->fetchAll();
                                         </td>
                                         <td>
                                             <?php if ($session['status'] === 'scheduled'): ?>
-                                                <form method="POST" action="" class="d-inline" id="session-form-<?php echo $session['id']; ?>">
+                                                <form method="POST" action="" style="display: inline-block;" id="complete-form-<?php echo $session['id']; ?>">
+                                                    <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                                                    <input type="hidden" name="action" value="complete">
+                                                    <button type="button" class="btn btn-success btn-sm me-1" onclick="confirmComplete(event, <?php echo $session['id']; ?>)" title="Mark as Done">
+                                                        <i class="fas fa-check"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <form method="POST" action="" style="display: inline-block;" id="cancel-form-<?php echo $session['id']; ?>">
                                                     <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
                                                     <input type="hidden" name="action" value="cancel">
-                                                    
-                                                    <button type="submit" class="btn btn-danger btn-sm" onclick="confirmCancel(event, 'session-form-<?php echo $session['id']; ?>'); return false;" title="Cancel Session">
+                                                    <button type="button" class="btn btn-danger btn-sm" onclick="confirmCancel(event, <?php echo $session['id']; ?>)" title="Cancel Session">
                                                         <i class="fas fa-times"></i>
                                                     </button>
                                                 </form>
@@ -599,10 +622,30 @@ $sessions = $stmt->fetchAll();
             });
         }
 
-        // --- SweetAlert Confirmation Function for Sessions ---
-        function confirmCancel(event, formId) {
-            event.preventDefault(); // Stop the form submission
-            const form = document.getElementById(formId);
+        // --- SweetAlert Confirmation Function for Mark as Done ---
+        function confirmComplete(event, sessionId) {
+            event.preventDefault();
+            const form = document.getElementById('complete-form-' + sessionId);
+            
+            Swal.fire({
+                title: 'Mark as Completed?',
+                text: "Are you sure you want to mark this session as completed? This will calculate and record commission payments.",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, mark as done!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+        }
+
+        // --- SweetAlert Confirmation Function for Cancel ---
+        function confirmCancel(event, sessionId) {
+            event.preventDefault();
+            const form = document.getElementById('cancel-form-' + sessionId);
             
             Swal.fire({
                 title: 'Cancel Session?',
@@ -614,7 +657,7 @@ $sessions = $stmt->fetchAll();
                 confirmButtonText: 'Yes, cancel it!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    form.submit(); // Submit the form
+                    form.submit();
                 }
             });
         }

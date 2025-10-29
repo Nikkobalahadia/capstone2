@@ -1,5 +1,4 @@
 <?php
-// Enhanced Matchmaking Algorithm Class with Rule-Based Weighted Criteria Scoring
 class MatchmakingEngine {
     private $db;
     
@@ -41,8 +40,7 @@ class MatchmakingEngine {
                    COALESCE(COUNT(DISTINCT sr.id), 0) as rating_count,
                    COALESCE(COUNT(DISTINCT ual.id), 0) as activity_count,
                    COALESCE(MAX(ual.created_at), '1970-01-01 00:00:00') as last_activity,
-                   (6371 * acos(cos(radians(?)) * cos(radians(u.latitude)) * 
-                    cos(radians(u.longitude) - radians(?)) + 
+                   (6371 * acos(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + 
                     sin(radians(?)) * sin(radians(u.latitude)))) AS distance_km
             FROM users u
             LEFT JOIN user_subjects us ON u.id = us.user_id
@@ -55,8 +53,7 @@ class MatchmakingEngine {
             AND u.is_active = 1
             AND u.matchmaking_enabled = 1
             AND (
-                u.role = 'student' 
-                OR (u.role IN ('mentor', 'peer') AND u.is_verified = 1)
+                u.role IN ('student', 'mentor', 'peer') AND u.is_verified = 1
             )
             AND u.latitude IS NOT NULL 
             AND u.longitude IS NOT NULL
@@ -142,8 +139,7 @@ class MatchmakingEngine {
             AND u.is_active = 1
             AND u.matchmaking_enabled = 1
             AND (
-                u.role = 'student' 
-                OR (u.role IN ('mentor', 'peer') AND u.is_verified = 1)
+                u.role IN ('student', 'mentor', 'peer') AND u.is_verified = 1
             )
             AND u.id NOT IN (
                 SELECT CASE 
@@ -616,8 +612,7 @@ $activity_score = $this->calculateActivityLevelScore(
             AND u.is_active = 1
             AND u.matchmaking_enabled = 1
             AND (
-                u.role = 'student' 
-                OR (u.role = 'peer' AND u.is_verified = 1)
+                u.role IN ('student', 'peer') AND u.is_verified = 1
             )
             AND u.id NOT IN (
                 SELECT CASE 

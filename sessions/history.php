@@ -1076,7 +1076,7 @@ $page_title = "Session History";
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="../profile/index.php" class="profile-dropdown-item"><i class="fas fa-user-circle"></i> <span>View Profile</span></a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                             <a href="../profile/commission-payments.php" class="profile-dropdown-item"><i class="fas fa-wallet"></i> <span>Commissions</span></a>
                             <?php endif; ?>
                             <a href="../profile/settings.php" class="profile-dropdown-item"><i class="fas fa-sliders-h"></i> <span>Settings</span></a>

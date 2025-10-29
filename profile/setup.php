@@ -508,10 +508,7 @@ $total_steps = count($steps);
         <div class="container">
             <nav class="navbar">
                 <a href="../dashboard.php" class="logo">Study Buddy</a>
-                <ul class="nav-links">
-                    <li><a href="../dashboard.php">Dashboard</a></li>
-                    <li><a href="../auth/logout.php" class="btn btn-outline">Logout</a></li>
-                </ul>
+
             </nav>
         </div>
     </header>

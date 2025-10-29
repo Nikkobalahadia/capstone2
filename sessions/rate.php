@@ -920,7 +920,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <i class="fas fa-user-circle"></i>
                                 <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                                 <a href="../profile/commission-payments.php" class="profile-dropdown-item">
                                     <i class="fas fa-wallet"></i>
                                     <span>Commissions</span>

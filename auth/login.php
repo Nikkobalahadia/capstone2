@@ -419,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="header">
         <div class="container navbar">
             <a href="../index.php" class="logo">
-                <i class="fas fa-book"></i> Study Buddy
+                Study Buddy
             </a>
             <nav>
                 <ul class="nav-links">

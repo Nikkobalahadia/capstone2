@@ -1,6 +1,6 @@
 <?php
 require_once '../config/config.php';
-require_once '../config/notification_helper.php'; // ADDED
+require_once '../config/notification_helper.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -12,15 +12,15 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-$unread_notifications = get_unread_count($user['id']); // ADDED
+$unread_notifications = get_unread_count($user['id']);
 
 // Only students can become peers
 if ($user['role'] !== 'student') {
-    // UPDATED: Redirect to dashboard for consistency
     redirect('../dashboard.php');
 }
 
 $error = '';
+// $success will be set to 'upgrade_complete' on successful form submission
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SELECT rc.id, rc.created_by, rc.max_uses, rc.current_uses, u.role, u.is_verified
                 FROM referral_codes rc
                 JOIN users u ON rc.created_by = u.id
-                WHERE rc.code = ? AND rc.type = 'peer_upgrade' AND rc.is_active = 1
+                WHERE rc.code = ? AND rc.is_active = 1
             ");
             $ref_stmt->execute([$referral_code]);
             $code_data = $ref_stmt->fetch();
@@ -60,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $db->beginTransaction();
                     
-                    // 1. Update user role
-                    $update_user_stmt = $db->prepare("UPDATE users SET role = 'peer' WHERE id = ?");
+                    // 1. Update user role AND verify the user
+                    $update_user_stmt = $db->prepare("UPDATE users SET role = 'peer', is_verified = 1 WHERE id = ?");
                     $update_user_stmt->execute([$user['id']]);
                     
                     // 2. Increment code usage
@@ -69,30 +69,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $update_code_stmt->execute([$code_data['id']]);
                     
                     // 3. Log the successful upgrade
-                    $log_stmt = $db->prepare("INSERT INTO referral_code_uses (code_id, used_by_id) VALUES (?, ?)");
-                    $log_stmt->execute([$code_data['id'], $user['id']]);
+                    // The table `referral_code_uses` is missing, so we keep this commented out to prevent a DB error.
+                    // $log_stmt = $db->prepare("INSERT INTO referral_code_uses (code_id, used_by_id) VALUES (?, ?)");
+                    // $log_stmt->execute([$code_data['id'], $user['id']]);
 
                     // 4. Create a notification for the mentor
                     $mentor_id = $code_data['created_by'];
                     $user_name = $user['first_name'] . ' ' . $user['last_name'];
                     $title = "Referral Code Used!";
                     $message = "{$user_name} used your code to become a Peer.";
-                    $link = "profile/index.php?id={$user['id']}"; // Link to the new peer's profile
+                    $link = "profile/index.php?id={$user['id']}";
                     create_notification($mentor_id, 'referral_used', $title, $message, $link);
 
                     $db->commit();
                     
-                    // Log out the user to force role refresh on next login
-                    error_log("[v0] Peer verification SUCCESS - User ID: {$user['id']} upgraded to peer.");
+                    // Log success
+                    error_log("[v0] Peer verification SUCCESS - User ID: {$user['id']} upgraded to peer and verified.");
                     
-                    // Destroy the session and log them out
-                    session_destroy();
-                    
-                    // Redirect to a success page before login
-                    redirect('auth/login.php?status=peer_success');
+                    // 1. Update session data 
+                    $_SESSION['user']['role'] = 'peer'; 
+                    $_SESSION['user']['is_verified'] = 1;
+
+                    // 2. Set the success flag for client-side handling
+                    // This prevents the server-side redirect error and enables the SweetAlert
+                    $success = 'upgrade_complete';
                     
                 } catch (Exception $e) {
                     $db->rollBack();
+                    
                     $error = 'An error occurred during the upgrade. Please try again.';
                     error_log("[v0] Peer verification FAILED (DB Error) - User ID: {$user['id']}, Error: {$e->getMessage()}");
                 }
@@ -102,7 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en"> <head>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -112,6 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
         :root {
             --primary-color: #2563eb;
@@ -119,8 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --text-secondary: #666;
             --border-color: #e5e5e5;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-            
-            /* ADDED: Form colors */
             --bg-input: #ffffff;
             --border-input: #d1d5db;
             --bg-input-focus: #ffffff;
@@ -145,7 +150,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #1a1a1a;
         }
 
-        /* ===== HEADER & NAVIGATION ===== */
         .header {
             background: white;
             border-bottom: 1px solid var(--border-color);
@@ -437,7 +441,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 60px;
         }
 
-        /* ===== Page Header ===== */
         .page-header {
             margin-bottom: 2rem;
         }
@@ -461,7 +464,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--text-secondary);
         }
 
-        /* ===== Card ===== */
         .card {
             background: white;
             border-radius: 12px;
@@ -490,7 +492,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: 1.25rem;
         }
         
-        /* ===== Buttons ===== */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -526,7 +527,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #f5f5f5;
         }
 
-        /* ===== Forms ===== */
         .form-group {
             margin-bottom: 1.5rem;
         }
@@ -577,7 +577,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flex: 1;
         }
         
-        /* ===== Alerts ===== */
         .alert {
             padding: 1rem;
             border-radius: 8px;
@@ -625,7 +624,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--text-secondary);
         }
 
-        /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
             .hamburger {
                 display: flex;
@@ -724,21 +722,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        /* ===== DARK MODE STYLES ===== */
         [data-theme="dark"] {
-            --primary-color: #3b82f6; /* User requested */
+            --primary-color: #3b82f6;
             --text-primary: #e4e4e7;
             --text-secondary: #a1a1aa;
-            --border-color: #374151; /* User requested */
+            --border-color: #374151;
             --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-            
-            /* Semantic colors */
-            --bg-body: #111827;       /* User requested */
-            --bg-card: #1f2937;       /* User requested */
-            --bg-card-header: #374151; /* Matched to border-color for consistency */
-            --bg-hover: #374151;       /* Matched to border-color for consistency */
-            
-            /* Form colors */
+            --bg-body: #111827;
+            --bg-card: #1f2937;
+            --bg-card-header: #374151;
+            --bg-hover: #374151;
             --bg-input: #1f2937;
             --border-input: #374151;
             --bg-input-focus: #111827;
@@ -838,7 +831,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (function() {
             let theme = localStorage.getItem('theme');
             if (!theme) {
-                // No theme saved, use system preference
                 theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
             if (theme === 'dark') {
@@ -960,12 +952,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <span><?php echo $error; ?></span>
                         </div>
                     <?php endif; ?>
-                    <?php if ($success): ?>
+                    
+                    <?php 
+                    // REMOVED: Old $success block to prevent conflicting message
+                    /* if ($success): ?>
                          <div class="alert alert-success">
                              <i class="fas fa-check-circle"></i>
                             <span><?php echo $success; ?></span>
                         </div>
-                    <?php endif; ?>
+                    <?php endif; */ ?>
                     
                     <form action="become-peer.php" method="POST">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
@@ -1005,7 +1000,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
-        // Mobile Menu Toggle
         document.addEventListener("DOMContentLoaded", () => {
             const hamburger = document.querySelector(".hamburger");
             const navLinks = document.querySelector(".nav-links");
@@ -1033,7 +1027,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
             
-            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
             const themeToggleBtn = document.getElementById('theme-toggle-btn');
             const themeToggleIcon = document.getElementById('theme-toggle-icon');
             const themeToggleText = document.getElementById('theme-toggle-text');
@@ -1052,7 +1045,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Set initial state for the button
             let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
             setTheme(currentTheme);
 
@@ -1064,13 +1056,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
             
-            // Listen for system preference changes
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
                 if (!localStorage.getItem('theme')) {
                     setTheme(e.matches ? 'dark' : 'light');
                 }
             });
-            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
+            
+            // --- SweetAlert Success Handler ---
+            const successStatus = '<?php echo $success; ?>';
+            
+            if (successStatus === 'upgrade_complete') {
+                // Determine the destination URL based on your preference
+                const redirectUrl = '../matches/find.php'; 
+                
+                // Ensure Swal is loaded (SweetAlert2)
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Success!',
+                        html: 'You are now a **Peer**! Get started by finding students to match with.',
+                        icon: 'success',
+                        confirmButtonText: 'Go to Matches',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        // Redirect after the user closes the alert
+                        window.location.href = redirectUrl;
+                    });
+                } else {
+                    // Fallback plain alert and redirect if SweetAlert is missing/fails
+                    alert('Success! You are now a Peer. Redirecting...');
+                    window.location.href = redirectUrl;
+                }
+            }
         });
 
         function toggleNotifications(event) {
@@ -1146,7 +1163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'match_request': 'fa-handshake',
                 'match_accepted': 'fa-user-check',
                 'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
+                'commission_due': 'fa-file-invoice-dollar',
+                'referral_used': 'fa-user-plus'
             };
             return icons[type] || 'fa-bell';
         }
@@ -1160,7 +1178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'commission_due': '#d97706',
                 'session_scheduled': '#2563eb',
                 'match_request': '#2563eb',
-                'referral_used': '#16a34a' // ADDED for new notification type
+                'referral_used': '#16a34a'
             };
             return colors[type] || '#666';
         }

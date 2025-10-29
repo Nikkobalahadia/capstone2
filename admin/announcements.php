@@ -34,7 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'create') {
                 $target_audience = $_POST['target_audience'] ?? null;
 
-                if (!isset($role_map[$target_audience])) {
+                // --- FIX FOR 'Invalid target audience selected' ERROR ---
+                // We use array_key_exists() instead of isset() because isset() returns false
+                // when the array value is null (which is the case for 'all' => null).
+                if (!array_key_exists($target_audience, $role_map)) {
                     $error = 'Invalid target audience selected.';
                 } else {
                     $target_role = $role_map[$target_audience];
@@ -53,8 +56,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = sanitize_input($_POST['message']);
                     
                     if ($target_role === null) {
+                        // Target 'all' users
                         $users_stmt = $db->query("SELECT id FROM users WHERE is_active = 1");
                     } else {
+                        // Target specific role
                         $users_stmt = $db->prepare("SELECT id FROM users WHERE role = ? AND is_active = 1");
                         $users_stmt->execute([$target_role]);
                     }
@@ -173,6 +178,8 @@ $stats = $db->query("
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SweetAlert2 CDN for beautiful alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         * {
             margin: 0;
@@ -486,7 +493,7 @@ $stats = $db->query("
                     <div class="col-md-3 col-lg-2">
                         <label class="form-label">Audience</label>
                         <select name="audience" class="form-select">
-                            <option value="all" <?php echo $audience_filter === 'all' ? 'selected' : ''; ?>>All Audiences</option>
+                            <!-- FIX: Removed redundant 'All Users' option -->
                             <option value="all" <?php echo $audience_filter === 'all' ? 'selected' : ''; ?>>All Users</option>
                             <option value="students" <?php echo $audience_filter === 'students' ? 'selected' : ''; ?>>Students</option>
                             <option value="mentors" <?php echo $audience_filter === 'mentors' ? 'selected' : ''; ?>>Mentors</option>
@@ -539,7 +546,8 @@ $stats = $db->query("
                                             <i class="fas fa-<?php echo $announcement['is_active'] ? 'eye-slash' : 'eye'; ?>"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this announcement?');">
+                                    <!-- SweetAlert Delete Button -->
+                                    <form method="POST" class="d-inline" onsubmit="confirmDelete(event, this)">
                                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="announcement_id" value="<?php echo $announcement['id']; ?>">
@@ -674,5 +682,32 @@ $stats = $db->query("
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        /**
+         * Overrides the default form submission to use a SweetAlert confirmation dialog.
+         * If the user confirms, the form is submitted programmatically.
+         * @param {Event} event The form submission event.
+         * @param {HTMLFormElement} form The form element being submitted.
+         */
+        function confirmDelete(event, form) {
+            // Prevent the default browser form submission
+            event.preventDefault(); 
+            
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You won't be able to revert this announcement!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545', // Red/Danger color
+                cancelButtonColor: '#6c757d', // Grey/Secondary color
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // If the user clicks "Yes, delete it!", submit the form.
+                    form.submit();
+                }
+            });
+        }
+    </script>
 </body>
 </html>

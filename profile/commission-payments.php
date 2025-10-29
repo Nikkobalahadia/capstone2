@@ -12,8 +12,8 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-// Only mentors can access this page
-if (!in_array($user['role'], ['mentor'])) {
+// Only mentors and peers can access this page
+if (!in_array($user['role'], ['mentor', 'peer'])) {
     redirect('../dashboard.php');
 }
 
@@ -111,18 +111,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     if ($result && $update_stmt->rowCount() > 0) {
                         $success = 'Payment submitted successfully! Admin will verify your payment shortly.';
                         
+                        // Determine the role for the notification
+                        $user_role_display = ucfirst($user['role']);
+                        
                         // Create notification for admin
                         try {
                             $notif_stmt = $db->prepare("
                                 INSERT INTO notifications (user_id, title, message, type, link, created_at)
-                                SELECT id, 'New Payment Submission', 
-                                       CONCAT(?, ' has submitted a payment for verification'),
+                                SELECT id, 'New Commission Payment Submitted', 
+                                       CONCAT(?, ' (', ?, ') has submitted a payment for verification'),
                                        'commission_payment',
                                        'admin/commission-management.php',
                                        NOW()
                                 FROM users WHERE role = 'admin'
                             ");
-                            $notif_stmt->execute([$user['first_name'] . ' ' . $user['last_name']]);
+                            $notif_stmt->execute([$user['first_name'] . ' ' . $user['last_name'], $user_role_display]); // Pass role to the message
                         } catch (PDOException $e) {
                             // Notification creation failed, but payment update succeeded
                         }
@@ -137,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Get all payments for this mentor
+// Get all payments for this user (mentor/peer)
 $payments_stmt = $db->prepare("
     SELECT 
         cp.*,

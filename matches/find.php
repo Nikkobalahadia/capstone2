@@ -22,7 +22,7 @@ $user_subjects_stmt->execute([$user['id']]);
 $user_subjects = $user_subjects_stmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Mentors and peers must be verified to find matches
-if (($user['role'] === 'mentor' || $user['role'] === 'peer') && !$user['is_verified']) {
+if (($user['role'] === 'mentor' || $user['role'] === 'peer' || $user['role'] === 'student') && !$user['is_verified']) {
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -406,6 +406,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
         if (!empty($final_matches)) {
             $current_match = $final_matches[0];
             $current_match['selected_subjects'] = $current_match['matched_subjects'];
+            $loading = false; // Match found, stop loading
+        } else {
+            // No match found, but we want the 2-second timeout to complete before showing the "No Match" state
+            // Keep $loading = true for the first 2 seconds, then let the JS auto-submit the form
         }
     }
 }
@@ -971,20 +975,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
             text-align: center;
         }
 
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--border-color);
-            border-top: 4px solid var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        /* NEW PULSING ANIMATION STYLES */
+        .pulsing-icon-container {
             margin: 0 auto 1.5rem;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px; /* Base size for icon */
+            height: 80px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .pulsing-icon {
+            font-size: 3rem; /* Icon size */
+            color: var(--primary-color);
+            position: absolute;
+            animation: pulse-search 2s infinite ease-in-out; /* The animation */
         }
+
+        @keyframes pulse-search {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.7;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.95);
+                opacity: 0.7;
+            }
+        }
+        /* END NEW PULSING ANIMATION STYLES */
 
         .loading-text {
             color: var(--text-primary);
@@ -1243,7 +1266,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
             <button class="hamburger" id="hamburger">
@@ -1291,7 +1313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
                             <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
                         <?php else: ?>
-                            <i class="fas fa-user"></i>
+                            <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
                         <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
@@ -1303,7 +1325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                             <a href="../profile/index.php" class="profile-dropdown-item">
                                 <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
-                            <?php if (in_array($user['role'], ['mentor'])): ?>
+                            <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
                             <a href="../profile/commission-payments.php" class="profile-dropdown-item">
                                 <i class="fas fa-wallet"></i> <span>Commissions</span>
                             </a>
@@ -1365,7 +1387,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
 
             <?php if ($loading && !$current_match && !$error): ?>
                 <div class="loading-state">
-                    <div class="loading-spinner"></div>
+                    <div class="pulsing-icon-container">
+                        <i class="fas fa-graduation-cap pulsing-icon"></i>
+                    </div>
                     <div class="loading-text">Finding your perfect match...</div>
                     <div class="loading-subtext">
                         <?php if ($help_mode === 'offering'): ?>
@@ -1384,6 +1408,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                             Looking for mentors/peers who can teach: <strong><?php echo implode(', ', array_slice($user_subjects, 0, 3)); ?><?php echo count($user_subjects) > 3 ? '...' : ''; ?></strong>
                         <?php endif; ?>
                     </div>
+                    <form id="autoContinueForm" method="POST" style="display:none;">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="find_match" value="1">
+                    </form>
                 </div>
 
             <?php elseif ($current_match): ?>
@@ -1481,7 +1509,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
         </div>
     </main>
 
-    <!-- Match Request Modal -->
     <div id="matchModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1716,6 +1743,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                 closeMatchModal();
             }
         });
+
+        // --- NEW: Auto-submit form after 2 seconds if loading is active ---
+        (function autoContinueSearch() {
+            const loadingState = document.querySelector('.loading-state');
+            const autoForm = document.getElementById('autoContinueForm');
+            
+            // Only run the timeout if the loading-state is present
+            if (loadingState && autoForm) {
+                setTimeout(() => {
+                    // Check if a match card is visible (meaning a match was found server-side)
+                    if (!document.querySelector('.match-card')) {
+                         autoForm.submit();
+                    }
+                }, 2000); // 2000 milliseconds = 2 seconds
+            }
+        })();
+        // --- END NEW SCRIPT ---
     </script>
 </body>
 </html>
