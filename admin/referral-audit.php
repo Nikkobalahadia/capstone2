@@ -689,8 +689,8 @@ function get_sort_direction_for_column($current_col, $sort_by, $sort_direction) 
                                                         <strong><?php echo $code['actual_referrals']; ?></strong> / <?php echo $code['max_uses']; ?>
                                                     </div>
                                                     <div class="progress" style="height: 4px;">
-                                                        <div class="progress-bar bg-success" style="width: <?php echo ($code['actual_referrals'] / $code['max_uses']) * 100; ?>%;" 
-                                                             role="progressbar" aria-valuenow="<?php echo ($code['actual_referrals'] / $code['max_uses']) * 100; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                                        <div class="progress-bar bg-success" style="width: <?php echo ($code['current_uses'] / $code['max_uses']) * 100; ?>%;" 
+                                                             role="progressbar" aria-valuenow="<?php echo ($code['current_uses'] / $code['max_uses']) * 100; ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                                     </div>
                                                     <small class="text-muted">Total uses: <?php echo $code['current_uses']; ?></small>
                                                 </td>

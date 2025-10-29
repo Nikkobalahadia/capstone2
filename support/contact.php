@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <h3 class="text-lg font-bold mb-3">Other Ways to Reach Us</h3>
                     <div style="display: flex; flex-direction: column; gap: 1rem;">
                         <div>
-                            <strong>Email:</strong> <a href="mailto:support@studyconnect.com" style="color: var(--primary-color);">support@studyconnect.com</a>
+                            <strong>Email:</strong> <a href="mailto:support@studybuddy.com" style="color: var(--primary-color);">support@studybuddy.com</a>
                         </div>
                         <div>
                             <strong>Response Time:</strong> We typically respond within 24-48 hours

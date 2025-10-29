@@ -37,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'platform_name' => sanitize_input($_POST['platform_name']),
                 'platform_tagline' => sanitize_input($_POST['platform_tagline']),
                 'support_email' => sanitize_input($_POST['support_email']),
+                // This value is still captured and saved even though the input is readonly
+                'platform_contact_phone' => sanitize_input($_POST['platform_contact_phone']), 
                 'maintenance_mode' => isset($_POST['maintenance_mode']) ? '1' : '0',
                 'allow_registrations' => isset($_POST['allow_registrations']) ? '1' : '0',
                 'require_email_verification' => isset($_POST['require_email_verification']) ? '1' : '0',
@@ -44,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'max_matches_per_user' => (int)$_POST['max_matches_per_user'],
                 'session_duration_default' => (int)$_POST['session_duration_default'],
                 'enable_messaging' => isset($_POST['enable_messaging']) ? '1' : '0',
-                'enable_video_sessions' => isset($_POST['enable_video_sessions']) ? '1' : '0',
+                
             ];
             
             foreach ($settings as $key => $value) {
@@ -110,12 +112,6 @@ try {
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             background: white;
             margin-bottom: 20px;
-            transition: all 0.2s;
-        }
-        
-        .card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
         }
         
         .card-header {
@@ -151,6 +147,7 @@ try {
             color: #6b7280;
         }
         
+        /* Form element styles */
         .form-label {
             font-size: 13px;
             font-weight: 600;
@@ -194,11 +191,26 @@ try {
             transform: translateY(-1px);
         }
         
-        @media (max-width: 768px) {
-            .main-content {
-                padding: 16px;
-            }
+        /* Switch styles to improve visibility */
+        .form-switch .form-check-input {
+            width: 3.5em;
+            height: 2em;
+            margin-top: 0.15em;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%236c757d'/%3e%3c/svg%3e");
+            border-color: rgba(0, 0, 0, 0.25);
+            transition: background-position 0.15s ease-in-out;
         }
+
+        .form-switch .form-check-input:checked {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+        }
+        
+        .small.text-muted {
+            font-size: 12px;
+        }
+        
     </style>
 </head>
 <body>
@@ -206,6 +218,7 @@ try {
 
     <div class="main-content">
         <div class="container-fluid">
+            
             <div class="page-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -215,20 +228,15 @@ try {
                         <h1>System Settings</h1>
                         <p class="mb-0">Configure platform settings and features.</p>
                     </div>
-                    </div>
-            </div>
-            <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
+            </div>
+
+            <?php if ($error): ?>
+                <div class="alert alert-danger"><?php echo $error; ?></div>
             <?php endif; ?>
             
             <?php if ($success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle me-2"></i><?php echo $success; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
+                <div class="alert alert-success"><?php echo $success; ?></div>
             <?php endif; ?>
 
             <form method="POST">
@@ -243,19 +251,25 @@ try {
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Platform Name</label>
                                 <input type="text" name="platform_name" class="form-control" 
-                                       value="<?php echo htmlspecialchars($settings['platform_name'] ?? 'Study Mentorship Platform'); ?>" required>
+                                       value="<?php echo htmlspecialchars($settings['platform_name'] ?? 'Study Mentorship Platform'); ?>" readonly>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Platform Tagline</label>
                                 <input type="text" name="platform_tagline" class="form-control" 
-                                       value="<?php echo htmlspecialchars($settings['platform_tagline'] ?? 'Connect, Learn, Succeed Together'); ?>">
+                                       value="<?php echo htmlspecialchars($settings['platform_tagline'] ?? 'Connect, Learn, Succeed Together'); ?>" readonly>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Support Email</label>
                                 <input type="email" name="support_email" class="form-control" 
-                                       value="<?php echo htmlspecialchars($settings['support_email'] ?? 'support@studyplatform.com'); ?>" required>
+                                       value="<?php echo htmlspecialchars($settings['support_email'] ?? 'support@studyplatform.com'); ?>" readonly>
                             </div>
-                        </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Platform Contact Phone</label>
+                                <input type="text" name="platform_contact_phone" class="form-control" 
+                                       value="<?php echo htmlspecialchars($settings['platform_contact_phone'] ?? '(555) 123-4567'); ?>" readonly>
+                                <div class="small text-muted">The main contact number for the platform (Fixed value)</div>
+                            </div>
+                            </div>
                     </div>
                 </div>
 

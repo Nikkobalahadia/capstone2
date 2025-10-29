@@ -1,4 +1,5 @@
 <?php
+// database.php
 // Database configuration for XAMPP
 class Database {
     private $host = 'localhost';
@@ -18,7 +19,10 @@ class Database {
             );
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-            $this->conn->exec("SET time_zone = '+8:00'");
+            
+            // Don't set MySQL timezone - let it use system time
+            // PHP timezone is already set to Asia/Manila in config.php
+            
         } catch(PDOException $exception) {
             echo "Connection error: " . $exception->getMessage();
         }

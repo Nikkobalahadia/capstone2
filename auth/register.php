@@ -182,6 +182,31 @@ $form_data = $_SESSION['registration_data'] ?? [];
     <title>Sign Up - Study Buddy</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .password-input-group {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .password-toggle:hover {
+            color: #4F75FF;
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -206,7 +231,7 @@ $form_data = $_SESSION['registration_data'] ?? [];
                     <div class="alert alert-error"><?php echo $error; ?></div>
                 <?php endif; ?>
                 
-                <form method="POST" action="">
+                <form method="POST" action="" id="register-form">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     
                     <div class="form-group">
@@ -251,15 +276,26 @@ $form_data = $_SESSION['registration_data'] ?? [];
                                value="<?php echo htmlspecialchars($form_data['dob'] ?? $_POST['dob'] ?? ''); ?>">
                         <small class="text-secondary">You must be at least 13 years old to register.</small>
                     </div>
+                    
                     <div class="form-group">
                         <label for="password" class="form-label">Password</label>
-                        <input type="password" id="password" name="password" class="form-input" required minlength="8">
+                        <div class="password-input-group">
+                            <input type="password" id="password" name="password" class="form-input" required minlength="8">
+                            <button type="button" class="password-toggle" data-target="password" aria-label="Show password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <small class="text-secondary">Must be at least 8 characters long</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="confirm_password" class="form-label">Confirm Password</label>
-                        <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
+                        <div class="password-input-group">
+                            <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
+                            <button type="button" class="password-toggle" data-target="confirm_password" aria-label="Show password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <button type="submit" name="register" class="btn btn-primary" style="width: 100%;">Continue</button>
@@ -310,8 +346,8 @@ $form_data = $_SESSION['registration_data'] ?? [];
     </main>
     
     <script>
-        // Auto-focus on OTP input
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on OTP input
             const otpInput = document.getElementById('otp_code');
             if (otpInput) {
                 otpInput.focus();
@@ -319,6 +355,31 @@ $form_data = $_SESSION['registration_data'] ?? [];
                 // Only allow numbers
                 otpInput.addEventListener('input', function(e) {
                     this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
+
+            // NEW: Password Toggle Logic (Copied from login.php and adapted for multiple fields)
+            const toggleButtons = document.querySelectorAll('.password-toggle');
+            
+            if (toggleButtons.length > 0) {
+                toggleButtons.forEach(toggleButton => {
+                    toggleButton.addEventListener('click', function() {
+                        const targetId = this.getAttribute('data-target');
+                        const passwordInput = document.getElementById(targetId);
+                        const icon = this.querySelector('i');
+                        
+                        if (passwordInput.type === 'password') {
+                            passwordInput.type = 'text';
+                            icon.classList.remove('fa-eye');
+                            icon.classList.add('fa-eye-slash');
+                            this.setAttribute('aria-label', 'Hide password');
+                        } else {
+                            passwordInput.type = 'password';
+                            icon.classList.remove('fa-eye-slash');
+                            icon.classList.add('fa-eye');
+                            this.setAttribute('aria-label', 'Show password');
+                        }
+                    });
                 });
             }
         });

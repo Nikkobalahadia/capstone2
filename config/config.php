@@ -1,4 +1,5 @@
 <?php
+// config.php
 // Application configuration
 session_start();
 
@@ -7,13 +8,13 @@ define('BASE_URL', 'http://localhost/study-mentorship-platform/');
 define('UPLOAD_PATH', 'uploads/');
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 
+// Timezone setting - MUST be before any date operations
+date_default_timezone_set('Asia/Manila');
+
 // Include database configuration
 require_once 'database.php';
 
 require_once 'email.php';
-
-// Timezone setting
-date_default_timezone_set('Asia/Manila');
 
 // Error reporting (disable in production)
 error_reporting(E_ALL);
@@ -39,9 +40,6 @@ function is_logged_in() {
     return isset($_SESSION['user_id']);
 }
 
-// ==================================================
-// START: UPDATED FUNCTION
-// ==================================================
 function get_logged_in_user() {
     if (!is_logged_in()) {
         return null;
@@ -75,10 +73,6 @@ function get_logged_in_user() {
     
     return $user; // Return the user if they passed all checks
 }
-// ==================================================
-// END: UPDATED FUNCTION
-// ==================================================
-
 
 function redirect($url) {
     header("Location: " . BASE_URL . $url);
@@ -94,5 +88,11 @@ function generate_csrf_token() {
 
 function verify_csrf_token($token) {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// Helper function to get current Manila time
+function get_manila_time() {
+    $dt = new DateTime('now', new DateTimeZone('Asia/Manila'));
+    return $dt->format('Y-m-d H:i:s');
 }
 ?>

@@ -45,7 +45,7 @@ $page_title = "Our Team";
                             <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">
                                 👨‍💻
                             </div>
-                            <h3 class="font-bold mb-1">Team Member 1</h3>
+                            <h3 class="font-bold mb-1">CATAPANG, IRA KARRELL V.</h3>
                             <p class="text-secondary text-sm mb-2">Lead Developer</p>
                             <p class="text-secondary text-sm">Full-stack development, database design, and system architecture.</p>
                         </div>
@@ -54,7 +54,7 @@ $page_title = "Our Team";
                             <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">
                                 👩‍💻
                             </div>
-                            <h3 class="font-bold mb-1">Team Member 2</h3>
+                            <h3 class="font-bold mb-1">BALAHADIA, NIKKO C.</h3>
                             <p class="text-secondary text-sm mb-2">Frontend Developer</p>
                             <p class="text-secondary text-sm">UI/UX design, responsive layouts, and user experience optimization.</p>
                         </div>
@@ -63,7 +63,7 @@ $page_title = "Our Team";
                             <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">
                                 👨‍💻
                             </div>
-                            <h3 class="font-bold mb-1">Team Member 3</h3>
+                            <h3 class="font-bold mb-1">BALAHADIA, NIKKO C.</h3>
                             <p class="text-secondary text-sm mb-2">Backend Developer</p>
                             <p class="text-secondary text-sm">API development, matching algorithm, and server-side logic.</p>
                         </div>
@@ -72,7 +72,7 @@ $page_title = "Our Team";
                             <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">
                                 👩‍💻
                             </div>
-                            <h3 class="font-bold mb-1">Team Member 4</h3>
+                            <h3 class="font-bold mb-1">DIMAANO, JHASMIN</h3>
                             <p class="text-secondary text-sm mb-2">QA & Documentation</p>
                             <p class="text-secondary text-sm">Testing, quality assurance, and technical documentation.</p>
                         </div>
@@ -86,11 +86,11 @@ $page_title = "Our Team";
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
                         <div>
                             <h4 class="font-bold mb-2">Institution</h4>
-                            <p class="text-secondary">[Your University/College Name]</p>
+                            <p class="text-secondary">BATANGAS STATE UNIVERSITY</p>
                         </div>
                         <div>
                             <h4 class="font-bold mb-2">Program</h4>
-                            <p class="text-secondary">[Your Program Name]</p>
+                            <p class="text-secondary">BSIT</p>
                         </div>
                         <div>
                             <h4 class="font-bold mb-2">Academic Year</h4>

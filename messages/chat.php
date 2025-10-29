@@ -1202,42 +1202,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
         }
         
         function toggleTheme() {
-            // Get current theme, defaulting to 'light' if not set or if the attribute is missing
             const currentTheme = body.getAttribute('data-theme') || 'light';
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             setTheme(newTheme);
         }
         
-        // Load theme on initial page load
         (function loadTheme() {
             const savedTheme = localStorage.getItem('theme');
             const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             
-            let initialTheme = 'light'; // Default to light
+            let initialTheme = 'light';
             
             if (savedTheme) {
                 initialTheme = savedTheme;
             } else if (prefersDark) {
-                // If no saved theme, use system preference
                 initialTheme = 'dark';
             }
             
             setTheme(initialTheme);
         })();
-        // --- End Theme Toggle JS ---
 
-        // START: REQUIRED FIX - Modal helper functions
         function openLinkBlockModal() {
             document.getElementById('linkBlockModal').style.display = 'flex';
         }
         function closeLinkBlockModal() {
             document.getElementById('linkBlockModal').style.display = 'none';
         }
-        // END: REQUIRED FIX
 
         function openReportModal() {
             document.getElementById('reportModal').style.display = 'flex';
-            toggleChatMenu(true); // Close chat menu
+            toggleChatMenu(true);
         }
         function closeReportModal() {
             document.getElementById('reportModal').style.display = 'none';
@@ -1260,11 +1254,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             }
         });
 
+        // FIXED: Remove ' UTC' to prevent 8-hour offset
         function formatMessageTime(dateTime) {
-            const dt = new Date(dateTime + ' UTC'); // Assuming DB time is UTC
-            return dt.toLocaleString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
-                hour: 'numeric', minute: '2-digit', hour12: true
+            // Parse datetime as Manila time (it's already stored in Manila timezone)
+            const dt = new Date(dateTime.replace(' ', 'T'));
+            return dt.toLocaleString('en-US', {
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true
             });
         }
         
@@ -1274,7 +1274,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             
             let attachmentHTML = '';
             if (msg.file_url) {
-                // Ensure file_url is not null or empty
                 if (msg.file_url.match(/\.(jpeg|jpg|gif|png)$/i)) {
                     attachmentHTML = `<div class="message-attachment"><img src="../${msg.file_url}" alt="Attachment" style="max-width: 200px; cursor: pointer;" onclick="window.open('../${msg.file_url}', '_blank')"></div>`;
                 } else {
@@ -1282,7 +1281,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                 }
             }
 
-            // Sanitize message content before rendering
             const messageText = msg.message ? msg.message.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
 
             const messageHTML = `
@@ -1306,7 +1304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             
             let url = `../api/messages.php?match_id=${matchId}`;
             if (!initial && lastMessageTime) {
-                url += `&since=${lastMessageTime}`;
+                url += `&since=${encodeURIComponent(lastMessageTime)}`;
             }
 
             try {
@@ -1354,13 +1352,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             const message = messageInput.value.trim();
             const sendBtn = document.getElementById('sendBtn');
 
-            // START: UPDATED FIX - Detect Google Meet AND Zoom links
             const meetLinkRegex = /(meet\.google\.com\/|zoom\.us\/(j|my)\/)/i;
             if (meetLinkRegex.test(message)) {
-                openLinkBlockModal(); // Show the prompt
-                return; // Stop the message from being sent
+                openLinkBlockModal();
+                return;
             }
-            // END: UPDATED FIX
             
             if (message === '' && !file) {
                 return;
@@ -1379,7 +1375,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             }
 
             try {
-                // Send to the correct endpoint
                 const response = await fetch('../api/messages.php', {
                     method: 'POST',
                     body: formData
@@ -1397,7 +1392,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     messageInput.value = '';
                     clearAttachment();
                 } else {
-                    // Show specific error from backend if available
                     alert('Error: ' + (data.error || 'Failed to send message.'));
                 }
 
@@ -1423,7 +1417,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             if (fileInput.files.length > 0) {
                 file = fileInput.files[0];
                 
-                // 5MB limit
                 if (file.size > 5 * 1024 * 1024) {
                     alert('File is too large. Max size is 5MB.');
                     clearAttachment();
@@ -1443,20 +1436,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
 
         messageForm.addEventListener('submit', handleMessageSend);
 
-        // Initial load
         loadMessages(true);
         
-        // Start polling
         messagePollingInterval = setInterval(() => loadMessages(false), 3000);
         
-        // Reload when tab becomes visible
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 loadMessages(false);
             }
         });
 
-        // --- Global Nav/Profile/Notification JS ---
         let profileDropdownOpen = false;
         let notificationDropdownOpen = false;
 
@@ -1531,7 +1520,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
             }
         });
 
-        // Periodic notification check
         setInterval(() => {
             if (notificationDropdownOpen) {
                 loadNotifications();
