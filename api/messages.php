@@ -186,7 +186,7 @@ if ($match_info) {
         'message',                                    // Type
         'New Message',                                // Title
         'You have a new message from ' . $user['first_name'], // Message body
-        '/messages/chat.php?match_id=' . $match_id  // Link when clicked
+        'study-mentorship-platform/messages/chat.php?match_id=' . $match_id  // Link when clicked
     );
 }
 // --- END NOTIFICATION TRIGGER ---

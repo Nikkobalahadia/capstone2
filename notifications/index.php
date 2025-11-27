@@ -904,7 +904,9 @@ $total_count = $total_stmt->fetch()['count'];
         </div>
     </main>
 
+
     <script>
+        const BASE_URL = '<?php echo BASE_URL; ?>';
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
 
@@ -1028,7 +1030,8 @@ $total_count = $total_stmt->fetch()['count'];
                     list.innerHTML = '';
                     data.notifications.forEach(n => {
                         list.innerHTML += `
-                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="handleDropdownNotificationClick(${n.id}, '${n.link || ''}')">
+                        const fullLink = n.link ? (n.link.startsWith('/') ? BASE_URL + n.link.substring(1) : n.link) : '';
+                            <div class="notification-item-dropdown ${n.is_read == 0 ? 'unread' : ''}" onclick="handleDropdownNotificationClick(${n.id}, '${fullLink}')">
                                 <div style="flex-shrink: 0;"><i class="fas fa-info-circle" style="color: var(--primary-color);"></i></div>
                                 <div>
                                     <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(n.message)}</p>
