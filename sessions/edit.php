@@ -94,7 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // --- END COMMISSION LOGIC ---
 
                     // Create notification for partner
-                    create_notification(
+                    NotificationHelper::create(
+
                         $session['partner_id'],
                         'session_completed',
                         'Session Completed',
@@ -139,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($update_stmt->rowCount() > 0) {
                     // Create notification for partner
-                    create_notification(
+                   NotificationHelper::create(
                         $session['partner_id'],
                         'session_updated',
                         'Session Updated',
@@ -174,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($update_stmt->rowCount() > 0) {
                     // Create notification for partner
-                    create_notification(
+                    NotificationHelper::create(
                         $session['partner_id'],
                         'session_cancelled',
                         'Session Cancelled',
@@ -198,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 // Check if session has already ended (for completion notice)
 $session_ended = strtotime($session['session_date'] . ' ' . $session['end_time']) <= time();

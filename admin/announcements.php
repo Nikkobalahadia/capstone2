@@ -69,16 +69,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $users = $users_stmt->fetchAll();
                     
-                    // Notification Creation Logic
-                    foreach ($users as $target_user) {
-                        create_notification(
-                            $target_user['id'],
-                            'announcement',
-                            $title,
-                            $message,
-                            '/admin/announcements.php'
-                        );
-                    }
+                   // --- NEW NOTIFICATION TRIGGER ---
+// Assuming you fetched user IDs into $target_users array earlier in the file
+foreach ($target_users as $target_user_id) {
+    NotificationHelper::create(
+        $target_user_id,
+        'announcement',
+        $title, // Title from your form
+        $message, // Message from your form
+        '/dashboard.php' // Link to dashboard
+    );
+}
+// ------------------------------
                     
                     $success = 'Announcement created and notifications sent to ' . count($users) . ' users.';
                 }

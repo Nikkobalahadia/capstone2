@@ -9,7 +9,7 @@ if (!is_logged_in()) {
 $user = get_logged_in_user();
 $db = getDB();
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 // Get filter
 $filter = $_GET['filter'] ?? 'all';

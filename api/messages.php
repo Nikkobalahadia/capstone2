@@ -170,6 +170,26 @@ switch ($method) {
             // Add file_url to INSERT query
             $stmt = $db->prepare("INSERT INTO messages (match_id, sender_id, message, file_url) VALUES (?, ?, ?, ?)");
             $stmt->execute([$match_id, $user['id'], $message, $file_url]);
+// --- START NOTIFICATION TRIGGER ---
+// 1. Get the recipient ID
+$m_stmt = $db->prepare("SELECT student_id, mentor_id FROM matches WHERE id = ?");
+$m_stmt->execute([$match_id]);
+$match_info = $m_stmt->fetch(PDO::FETCH_ASSOC);
+
+if ($match_info) {
+    // The receiver is the person in the match who ISN'T the current user
+    $receiver_id = ($match_info['student_id'] == $user['id']) ? $match_info['mentor_id'] : $match_info['student_id'];
+    
+    // 2. Create the notification
+    NotificationHelper::create(
+        $receiver_id,                                 // Who gets it
+        'message',                                    // Type
+        'New Message',                                // Title
+        'You have a new message from ' . $user['first_name'], // Message body
+        '/messages/chat.php?match_id=' . $match_id  // Link when clicked
+    );
+}
+// --- END NOTIFICATION TRIGGER ---
             
             $message_id = $db->lastInsertId();
             

@@ -12,7 +12,7 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 // Only students can become peers
 if ($user['role'] !== 'student') {
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $title = "Referral Code Used!";
                     $message = "{$user_name} used your code to become a Peer.";
                     $link = "profile/index.php?id={$user['id']}";
-                    create_notification($mentor_id, 'referral_used', $title, $message, $link);
+                    NotificationHelper::create($mentor_id, 'referral_used', $title, $message, $link);
 
                     $db->commit();
                     

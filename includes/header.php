@@ -13,6 +13,9 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Responsive CSS -->
     <link rel="stylesheet" href="../assets/css/responsive.css">
+
+    <link rel="stylesheet" href="assets/css/notifications.css">
+<script src="assets/js/notifications.js" defer></script>
     
     <style>
         :root {

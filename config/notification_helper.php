@@ -1,305 +1,82 @@
 <?php
-/**
- * Notification Helper Functions
- * Creates and manages user notifications
- */
+require_once __DIR__ . '/database.php';
 
 /**
- * Create a notification for a user
+ * Notification Helper Class
+ * usage: NotificationHelper::create($userId, 'message', 'New Message', 'Hello world', '/messages/123');
  */
-function create_notification($user_id, $type, $title, $message, $link = null) {
-    try {
+class NotificationHelper {
+    
+    /**
+     * Create a new notification
+     */
+    public static function create($userId, $type, $title, $message, $link = null, $data = []) {
         $db = getDB();
-        
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                user_id INT NOT NULL,
-                type VARCHAR(50) NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                message TEXT,
-                link VARCHAR(255),
-                is_read BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ");
-        
-        $stmt = $db->prepare("
-            INSERT INTO notifications (user_id, type, title, message, link, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        
-        $stmt->execute([$user_id, $type, $title, $message, $link]);
-        
-        return $db->lastInsertId();
-    } catch (PDOException $e) {
-        error_log("Error creating notification: " . $e->getMessage());
-        return false;
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO notifications (user_id, type, title, message, link, data, is_read, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
+            ");
+            
+            $jsonData = !empty($data) ? json_encode($data) : null;
+            
+            return $stmt->execute([
+                $userId, 
+                $type, 
+                $title, 
+                $message, 
+                $link, 
+                $jsonData
+            ]);
+        } catch (PDOException $e) {
+            error_log("Notification Error: " . $e->getMessage());
+            return false;
+        }
     }
-}
 
-/**
- * Get unread notification count for a user
- */
-function get_unread_count($user_id) {
-    try {
+    /**
+     * Get notifications for a user
+     */
+    public static function get($userId, $limit = 20) {
         $db = getDB();
-        
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM notifications 
-            WHERE user_id = ? AND is_read = FALSE
-        ");
-        
-        $stmt->execute([$user_id]);
-        $result = $stmt->fetch();
-        
-        return $result['count'] ?? 0;
-    } catch (PDOException $e) {
-        error_log("Error getting unread count: " . $e->getMessage());
-        return 0;
-    }
-}
-
-/**
- * Get unread messages count
- */
-function get_unread_messages_count($user_id) {
-    try {
-        $db = getDB();
-        
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM messages m
-            WHERE m.match_id IN (
-                SELECT id FROM matches 
-                WHERE student_id = ? OR mentor_id = ?
-            )
-            AND m.sender_id != ?
-            AND m.is_read = FALSE
-        ");
-        
-        $stmt->execute([$user_id, $user_id, $user_id]);
-        $result = $stmt->fetch();
-        
-        return $result['count'] ?? 0;
-    } catch (PDOException $e) {
-        error_log("Error getting unread messages count: " . $e->getMessage());
-        return 0;
-    }
-}
-
-/**
- * Get recent unread messages
- */
-function get_recent_unread_messages($user_id, $limit = 5) {
-    try {
-        $db = getDB();
-        
-        $limit = intval($limit);
-        $stmt = $db->prepare("
-            SELECT m.*, u.username, u.first_name, u.last_name, u.profile_picture
-            FROM messages m
-            JOIN users u ON m.sender_id = u.id
-            WHERE m.match_id IN (
-                SELECT id FROM matches 
-                WHERE student_id = ? OR mentor_id = ?
-            )
-            AND m.sender_id != ?
-            AND m.is_read = FALSE
-            ORDER BY m.created_at DESC
-            LIMIT " . $limit
-        );
-        
-        $stmt->execute([$user_id, $user_id, $user_id]);
-        
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
-        error_log("Error getting unread messages: " . $e->getMessage());
-        return [];
-    }
-}
-
-/**
- * Get recent announcements for a user
- */
-function get_recent_announcements($user_id, $limit = 5) {
-    try {
-        $db = getDB();
-        
-        $limit = intval($limit);
-        $user = get_logged_in_user();
-        
-        $stmt = $db->prepare("
-            SELECT a.*, u.first_name, u.last_name
-            FROM announcements a
-            JOIN users u ON a.created_by = u.id
-            WHERE a.is_active = 1
-            AND (
-                a.target_audience = 'all'
-                OR (a.target_audience = 'students' AND ? = 'student')
-                OR (a.target_audience = 'mentors' AND ? = 'mentor')
-                OR (a.target_audience = 'peers' AND ? = 'peer')
-            )
-            ORDER BY a.created_at DESC
-            LIMIT " . $limit
-        );
-        
-        $user_role = $user['role'] ?? 'student';
-        $stmt->execute([$user_role, $user_role, $user_role]);
-        
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
-        error_log("Error getting announcements: " . $e->getMessage());
-        return [];
-    }
-}
-
-/**
- * Get recent notifications for a user
- */
-function get_recent_notifications($user_id, $limit = 10) {
-    try {
-        $db = getDB();
-        
-        $limit = intval($limit);
         $stmt = $db->prepare("
             SELECT * FROM notifications 
             WHERE user_id = ? 
             ORDER BY created_at DESC 
-            LIMIT " . $limit
-        );
-        
-        $stmt->execute([$user_id]);
-        
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
-        error_log("Error getting notifications: " . $e->getMessage());
-        return [];
-    }
-}
-
-/**
- * Mark notification as read
- */
-function mark_notification_read($notification_id, $user_id) {
-    try {
-        $db = getDB();
-        
-        $stmt = $db->prepare("
-            UPDATE notifications 
-            SET is_read = TRUE 
-            WHERE id = ? AND user_id = ?
+            LIMIT ?
         ");
-        
-        $stmt->execute([$notification_id, $user_id]);
-        
-        return true;
-    } catch (PDOException $e) {
-        error_log("Error marking notification as read: " . $e->getMessage());
-        return false;
+        $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(2, (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-}
 
-/**
- * Mark all notifications as read for a user
- */
-function mark_all_notifications_read($user_id) {
-    try {
+    /**
+     * Get unread count
+     */
+    public static function countUnread($userId) {
         $db = getDB();
-        
-        $stmt = $db->prepare("
-            UPDATE notifications 
-            SET is_read = TRUE 
-            WHERE user_id = ? AND is_read = FALSE
-        ");
-        
-        $stmt->execute([$user_id]);
-        
-        return true;
-    } catch (PDOException $e) {
-        error_log("Error marking all notifications as read: " . $e->getMessage());
-        return false;
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$userId]);
+        return $stmt->fetchColumn();
+    }
+
+    /**
+     * Mark as read
+     */
+    public static function markRead($id, $userId) {
+        $db = getDB();
+        $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+        return $stmt->execute([$id, $userId]);
+    }
+
+    /**
+     * Mark ALL as read
+     */
+    public static function markAllRead($userId) {
+        $db = getDB();
+        $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+        return $stmt->execute([$userId]);
     }
 }
-
-/**
- * Get notification icon based on type
- */
-function get_notification_icon($type) {
-    $icons = [
-        'session_scheduled' => 'fa-calendar-plus',
-        'session_accepted' => 'fa-check-circle',
-        'session_rejected' => 'fa-times-circle',
-        'session_completed' => 'fa-check-double',
-        'session_cancelled' => 'fa-ban',
-        'match_request' => 'fa-handshake',
-        'match_accepted' => 'fa-user-check',
-        'match_rejected' => 'fa-user-times',
-        'announcement' => 'fa-bullhorn',
-        'commission_due' => 'fa-money-bill-wave',
-        'commission_overdue' => 'fa-exclamation-triangle',
-        'message' => 'fa-envelope',
-        'report_resolved' => 'fa-flag-checkered',
-        'account_warning' => 'fa-exclamation-circle',
-        'account_suspended' => 'fa-user-lock',
-    ];
-    
-    return $icons[$type] ?? 'fa-bell';
-}
-
-/**
- * Get notification color based on type
- */
-function get_notification_color($type) {
-    $colors = [
-        'session_scheduled' => 'primary',
-        'session_accepted' => 'success',
-        'session_rejected' => 'danger',
-        'session_completed' => 'success',
-        'session_cancelled' => 'warning',
-        'match_request' => 'info',
-        'match_accepted' => 'success',
-        'match_rejected' => 'danger',
-        'announcement' => 'primary',
-        'commission_due' => 'warning',
-        'commission_overdue' => 'danger',
-        'message' => 'info',
-        'report_resolved' => 'success',
-        'account_warning' => 'warning',
-        'account_suspended' => 'danger',
-    ];
-    
-    return $colors[$type] ?? 'secondary';
-}
-
-/**
- * Convert timestamp to relative time (e.g., "2 hours ago")
- */
-function time_ago($timestamp) {
-    $time = strtotime($timestamp);
-    $diff = time() - $time;
-    
-    if ($diff < 60) {
-        return 'Just now';
-    } elseif ($diff < 3600) {
-        $mins = floor($diff / 60);
-        return $mins . ' minute' . ($mins > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 86400) {
-        $hours = floor($diff / 3600);
-        return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 604800) {
-        $days = floor($diff / 86400);
-        return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 2592000) {
-        $weeks = floor($diff / 604800);
-        return $weeks . ' week' . ($weeks > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 31536000) {
-        $months = floor($diff / 2592000);
-        return $months . ' month' . ($months > 1 ? 's' : '') . ' ago';
-    } else {
-        $years = floor($diff / 31536000);
-        return $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
-    }
-}
+?>

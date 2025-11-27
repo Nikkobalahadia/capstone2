@@ -30,17 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'resolved', admin_notes = ?, resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
                 
-                $result = create_notification(
-                    $report['reporter_id'],
-                    'report_resolved',
-                    'Report Resolved',
-                    'Your report (ID: #' . $report_id . ') has been reviewed and resolved by an administrator. ' . ($admin_notes ? 'Admin notes: ' . $admin_notes : ''),
-                    [
-                        'report_id' => $report_id,
-                        'reason' => $report['reason'],
-                        'admin_notes' => $admin_notes
-                    ]
-                );
+               // --- NEW NOTIFICATION TRIGGER ---
+NotificationHelper::create(
+    $report['reporter_id'],
+    'report_resolved',
+    'Report Updated',
+    'Your report has been reviewed and updated by an admin.',
+    '/support/index.php'
+);
+// ------------------------------
                 
                 error_log("[v0] Report #$report_id resolved notification sent to user {$report['reporter_id']}: $result");
                 
@@ -54,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'reviewed', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
                 
-                $result = create_notification(
+                $result = NotificationHelper::create(
                     $report['reporter_id'],
                     'report_under_review',
                     'Report Under Review',
@@ -77,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'dismissed', admin_notes = ?, resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
                 
-                $result = create_notification(
+                $result = NotificationHelper::create(
                     $report['reporter_id'],
                     'report_dismissed',
                     'Report Dismissed',
@@ -100,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } elseif ($action === 'warn_user' && $report_id && isset($_POST['reported_user_id'])) {
                 $reported_user_id = $_POST['reported_user_id'];
                 
-                $warn_result = create_notification(
+                $warn_result = NotificationHelper::create(
                     $reported_user_id,
                     'account_warning',
                     'Official Warning - Community Guidelines Violation',
@@ -112,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]
                 );
                 
-                $reporter_result = create_notification(
+                $reporter_result = NotificationHelper::create(
                     $report['reporter_id'],
                     'report_resolved',
                     'Report Resolved - User Warned',
@@ -142,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE users SET is_active = 0, suspension_until = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ?");
                 $stmt->execute([$suspension_days, $reported_user_id]);
                 
-                $suspend_result = create_notification(
+                $suspend_result = NotificationHelper::create(
                     $reported_user_id,
                     'account_suspended',
                     'Account Suspended for ' . $suspension_days . ' Days',
@@ -155,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]
                 );
                 
-                $reporter_result = create_notification(
+                $reporter_result = NotificationHelper::create(
                     $report['reporter_id'],
                     'report_resolved',
                     'Report Resolved - User Suspended',
@@ -184,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE users SET is_active = 0, is_banned = 1 WHERE id = ?");
                 $stmt->execute([$reported_user_id]);
                 
-                $ban_result = create_notification(
+                $ban_result = NotificationHelper::create(
                     $reported_user_id,
                     'account_banned',
                     'Account Permanently Banned',
@@ -196,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]
                 );
                 
-                $reporter_result = create_notification(
+                $reporter_result = NotificationHelper::create(
                     $report['reporter_id'],
                     'report_resolved',
                     'Report Resolved - User Permanently Banned',

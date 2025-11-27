@@ -12,7 +12,7 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 $session_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$session_id) {

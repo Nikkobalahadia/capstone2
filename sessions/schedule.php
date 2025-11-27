@@ -13,7 +13,7 @@ if (!$user) {
     redirect('auth/login.php');
 }
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 $error = '';
 $success = '';
 $match_id = isset($_GET['match_id']) ? (int)$_GET['match_id'] : 0;
@@ -210,7 +210,20 @@ if (!$no_matches && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 
                                 $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'session_scheduled', ?, ?)");
                                 $log_stmt->execute([$user['id'], json_encode(['match_id' => $selected_match_id, 'date' => $session_date]), $_SERVER['REMOTE_ADDR']]);
-                                
+                                // --- START NOTIFICATION TRIGGER ---
+// Determine who receives the notification
+// If I am the student, notify the mentor. If I am the mentor, notify the student.
+$receiver_id = ($user['role'] == 'student') ? $mentor_id : $user['id']; 
+
+NotificationHelper::create(
+    $receiver_id,
+    'session_scheduled',
+    'Session Scheduled',
+    "A new session is scheduled for " . $session_date . " at " . $start_time,
+    '/sessions/index.php'
+);
+// --- END NOTIFICATION TRIGGER ---
+
                                 $db->commit();
                                 
                                 $email_sent = false;

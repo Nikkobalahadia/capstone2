@@ -6,7 +6,7 @@ if (!is_logged_in()) redirect('auth/login.php');
 $user = get_logged_in_user();
 if (!$user) redirect('auth/login.php');
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 $db = getDB();
 
 $conversations_query = "

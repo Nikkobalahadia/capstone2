@@ -7,7 +7,7 @@ $user = get_logged_in_user();
 if (!$user) redirect('auth/login.php');
 
 $db = getDB();
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 $sessions_query = "
     SELECT s.*, m.subject,

@@ -1,0 +1,62 @@
+/* Toast Container */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Toast Card */
+.notification-toast {
+    background: white;
+    border-left: 4px solid #007bff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 4px;
+    width: 300px;
+    padding: 12px;
+    animation: slideIn 0.3s ease;
+}
+
+.toast-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.toast-body {
+    font-size: 0.85rem;
+    color: #555;
+    cursor: pointer;
+}
+
+/* Dropdown Styling */
+.notification-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+}
+
+.notification-item:hover {
+    background-color: #f8f9fa;
+}
+
+.notification-item.unread {
+    background-color: #e3f2fd;
+}
+
+.notification-item .time {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 4px;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}

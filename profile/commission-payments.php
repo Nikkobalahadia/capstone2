@@ -17,7 +17,7 @@ if (!in_array($user['role'], ['mentor', 'peer'])) {
     redirect('../dashboard.php');
 }
 
-$unread_notifications = get_unread_count($user['id']);
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 $db = getDB();
 

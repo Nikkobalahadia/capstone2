@@ -139,11 +139,17 @@ class HybridMatchmakingEngine extends MatchmakingEngine {
      * Create real-time notification record
      */
     private function createRealTimeNotification($match_id, $recipient_id, $sender_id, $type) {
-        $stmt = $this->db->prepare("
-            INSERT INTO match_notifications (match_id, recipient_id, sender_id, type, status) 
-            VALUES (?, ?, ?, ?, 'pending')
-        ");
-        return $stmt->execute([$match_id, $recipient_id, $sender_id, $type]);
+        // --- NEW NOTIFICATION CODE ---
+// --- NEW NOTIFICATION TRIGGER ---
+NotificationHelper::create(
+    $mentor_id,
+    'match_request',
+    'New Match Request',
+    'A student has requested to match with you.',
+    '/matches/index.php',
+    ['match_id' => $match_id] // Optional data
+);
+// ------------------------------
     }
     
     /**
