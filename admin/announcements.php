@@ -11,8 +11,8 @@ if (!$user || $user['role'] !== 'admin') {
     redirect('dashboard.php');
 }
 
-// LOGIC COPIED FROM find.php to get the unread count for header display (Notification Retrieval)
-$unread_notifications = get_unread_count($user['id']);
+// --- FIX 1: Use NotificationHelper::countUnread instead of undefined function ---
+$unread_notifications = NotificationHelper::countUnread($user['id']);
 
 $db = getDB();
 $error = '';
@@ -37,9 +37,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'create') {
                 $target_audience = $_POST['target_audience'] ?? null;
 
-                // --- FIX FOR 'Invalid target audience selected' ERROR ---
-                // We use array_key_exists() instead of isset() because isset() returns false
-                // when the array value is null (which is the case for 'all' => null).
                 if (!array_key_exists($target_audience, $role_map)) {
                     $error = 'Invalid target audience selected.';
                 } else {
@@ -67,20 +64,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $users_stmt->execute([$target_role]);
                     }
                     
-                    $users = $users_stmt->fetchAll();
+                    // Fetch users as associative array
+                    $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
                     
-                   // --- NEW NOTIFICATION TRIGGER ---
-// Assuming you fetched user IDs into $target_users array earlier in the file
-foreach ($target_users as $target_user_id) {
-    NotificationHelper::create(
-        $target_user_id,
-        'announcement',
-        $title, // Title from your form
-        $message, // Message from your form
-        '/dashboard.php' // Link to dashboard
-    );
-}
-// ------------------------------
+                    // --- FIX 2: Loop through the $users array correctly ---
+                    // $target_users was undefined. We iterate through $users instead.
+                    foreach ($users as $recipient) {
+                        NotificationHelper::create(
+                            $recipient['id'],
+                            'announcement',
+                            $title, 
+                            $message, 
+                            'dashboard.php' // Link to dashboard
+                        );
+                    }
+                    // ------------------------------
                     
                     $success = 'Announcement created and notifications sent to ' . count($users) . ' users.';
                 }
@@ -95,6 +93,8 @@ foreach ($target_users as $target_user_id) {
                 $success = 'Announcement status updated.';
             }
         } catch (Exception $e) {
+            // Log the actual error for debugging
+            error_log("Announcement Error: " . $e->getMessage());
             $error = 'Failed to perform action. Please try again.';
         }
     }
@@ -186,6 +186,7 @@ $stats = $db->query("
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
+        /* ... existing styles remain unchanged ... */
         * {
             margin: 0;
             padding: 0;
@@ -686,27 +687,18 @@ $stats = $db->query("
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        /**
-         * Overrides the default form submission to use a SweetAlert confirmation dialog.
-         * If the user confirms, the form is submitted programmatically.
-         * @param {Event} event The form submission event.
-         * @param {HTMLFormElement} form The form element being submitted.
-         */
         function confirmDelete(event, form) {
-            // Prevent the default browser form submission
             event.preventDefault(); 
-            
             Swal.fire({
                 title: 'Are you sure?',
                 text: "You won't be able to revert this announcement!",
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#dc3545', // Red/Danger color
-                cancelButtonColor: '#6c757d', // Grey/Secondary color
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // If the user clicks "Yes, delete it!", submit the form.
                     form.submit();
                 }
             });
