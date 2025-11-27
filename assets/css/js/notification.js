@@ -4,7 +4,8 @@ class NotificationSystem {
         this.pollInterval = 5000; // 5 Seconds
         this.soundEnabled = true;
         this.endpoints = {
-            api: '/api/notifications.php'
+            // Use the global BASE_URL variable
+            api: BASE_URL + 'api/notifications.php'
         };
 
         // State
@@ -16,9 +17,12 @@ class NotificationSystem {
         this.badge = document.getElementById('notification-badge');
         this.list = document.getElementById('notification-list');
         this.container = this.createToastContainer();
+        
 
         this.init();
     }
+
+    
 
     init() {
         // Start polling

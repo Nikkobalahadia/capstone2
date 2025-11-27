@@ -15,7 +15,11 @@
     <link rel="stylesheet" href="../assets/css/responsive.css">
 
     <link rel="stylesheet" href="assets/css/notifications.css">
-<script src="assets/js/notifications.js" defer></script>
+    <script>
+    // Define the base URL from PHP so JS can use it
+    const BASE_URL = '<?php echo BASE_URL; ?>';
+</script>
+<script src="<?php echo BASE_URL; ?>assets/js/notification.js" defer></script>
     
     <style>
         :root {

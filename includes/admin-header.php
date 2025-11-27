@@ -121,6 +121,24 @@ if ($user && $user['id']) {
         <div class="collapse navbar-collapse" id="adminNavbar">
             <ul class="navbar-nav ms-auto">
                 
+            <li class="nav-item dropdown">
+    <a class="nav-link" href="#" id="notification-bell" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-bell"></i>
+        <span id="notification-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">
+            0
+        </span>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" id="notification-dropdown" aria-labelledby="notification-bell">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+            <h6 class="m-0">Notifications</h6>
+            <small><a href="#" id="mark-all-read" class="text-decoration-none">Mark all read</a></small>
+        </div>
+        <div id="notification-list" style="max-height: 300px; overflow-y: auto;">
+            </div>
+        <div class="dropdown-divider m-0"></div>
+        <a class="dropdown-item text-center small text-muted py-2" href="<?php echo BASE_URL; ?>notifications/index.php">View All</a>
+    </ul>
+</li>
                 
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
@@ -171,80 +189,7 @@ if ($user && $user['id']) {
 </nav>
 
 <script>
-// Load notifications dynamically
-function loadAdminNotifications() {
-    console.log('[v0] Loading admin notifications...');
-    const apiPath = window.location.origin + '/api/notifications.php';
-    console.log('[v0] API path:', apiPath);
-    
-    fetch(apiPath)
-        .then(response => {
-            console.log('[v0] Response status:', response.status);
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('[v0] Notifications data received:', data);
-            console.log('[v0] Unread count:', data.unread_count);
-            
-            const notificationsList = document.getElementById('notificationsList');
-            const badge = document.getElementById('notificationBadge');
-            
-            if (!badge) {
-                console.error('[v0] Badge element not found!');
-                return;
-            }
-            
-            if (data.unread_count && data.unread_count > 0) {
-                badge.textContent = data.unread_count;
-                badge.style.display = 'inline-flex';
-                console.log('[v0] Badge shown with count:', data.unread_count);
-            } else {
-                badge.style.display = 'none';
-                console.log('[v0] Badge hidden (count is 0)');
-            }
-            
-            if (data.notifications && data.notifications.length > 0) {
-                notificationsList.innerHTML = data.notifications.slice(0, 5).map(notif => {
-                    let icon = '🔔';
-                    if (notif.type === 'message') icon = '💬';
-                    if (notif.type === 'announcement') {
-                        if (notif.announcement_type === 'warning') icon = '⚠️';
-                        else if (notif.announcement_type === 'alert') icon = '🚨';
-                        else icon = 'ℹ️';
-                    }
-                    
-                    return `
-                        <a href="${notif.link || '#'}" class="dropdown-item ${notif.is_read ? '' : 'fw-bold'}">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div style="flex: 1;">
-                                    <div class="small">${icon} ${notif.title || notif.sender_name || 'Notification'}</div>
-                                    <small class="text-muted">${notif.message.substring(0, 50)}${notif.message.length > 50 ? '...' : ''}</small>
-                                </div>
-                                ${!notif.is_read ? '<span class="badge bg-primary rounded-pill ms-2">New</span>' : ''}
-                            </div>
-                            <small class="text-muted">${new Date(notif.created_at).toLocaleString()}</small>
-                        </a>
-                    `;
-                }).join('');
-            } else {
-                notificationsList.innerHTML = '<div class="dropdown-item text-muted text-center py-3"><small>No notifications</small></div>';
-            }
-        })
-        .catch(error => {
-            console.error('[v0] Error loading notifications:', error);
-            console.error('[v0] Error details:', error.message);
-        });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('[v0] Admin header DOM loaded');
-    const badge = document.getElementById('notificationBadge');
-    console.log('[v0] Badge element found:', badge ? 'YES' : 'NO');
-    
-    loadAdminNotifications();
-    setInterval(loadAdminNotifications, 5000);
-});
+    // Define the base URL from PHP so JS can use it
+    const BASE_URL = '<?php echo BASE_URL; ?>';
 </script>
+
