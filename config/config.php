@@ -1,10 +1,13 @@
 <?php
 // config.php
 // Application configuration
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Define constants
 define('BASE_URL', 'http://localhost/study-mentorship-platform/');
+// ... rest of the file remains the same
 define('UPLOAD_PATH', 'uploads/');
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 

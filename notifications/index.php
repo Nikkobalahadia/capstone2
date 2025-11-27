@@ -1,6 +1,63 @@
 <?php
 require_once '../config/config.php';
 require_once '../config/notification_helper.php';
+// ... after require_once lines ...
+
+// Helper function for notification colors (matches your CSS classes)
+function get_notification_color($type) {
+    $colors = [
+        'session_scheduled' => 'blue',
+        'session_accepted' => 'green',
+        'session_rejected' => 'red',
+        'match_request' => 'blue',
+        'match_accepted' => 'green',
+        'announcement' => 'purple', // Using purple for announcements
+        'commission_due' => 'yellow'
+    ];
+    return isset($colors[$type]) ? $colors[$type] : 'gray'; // Default to gray
+}
+
+// Helper function for notification icons
+function get_notification_icon($type) {
+    $icons = [
+        'session_scheduled' => 'fa-calendar-check',
+        'session_accepted' => 'fa-check-circle',
+        'session_rejected' => 'fa-times-circle',
+        'match_request' => 'fa-handshake',
+        'match_accepted' => 'fa-user-check',
+        'announcement' => 'fa-megaphone',
+        'commission_due' => 'fa-file-invoice-dollar'
+    ];
+    return isset($icons[$type]) ? $icons[$type] : 'fa-bell';
+}
+
+// Helper function for "Time Ago"
+function time_ago($datetime) {
+    $time = strtotime($datetime);
+    $diff = time() - $time;
+    
+    if ($diff < 60) {
+        return 'Just now';
+    }
+    
+    $intervals = [
+        31536000 => 'year',
+        2592000 => 'month',
+        604800 => 'week',
+        86400 => 'day',
+        3600 => 'hour',
+        60 => 'minute'
+    ];
+    
+    foreach ($intervals as $secs => $str) {
+        $d = $diff / $secs;
+        if ($d >= 1) {
+            $r = round($d);
+            return $r . ' ' . $str . ($r > 1 ? 's' : '') . ' ago';
+        }
+    }
+}
+// ... rest of your code ...
 
 if (!is_logged_in()) {
     redirect('../auth/login.php');
