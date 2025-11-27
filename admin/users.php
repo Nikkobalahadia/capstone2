@@ -20,7 +20,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $response = ['success' => false, 'message' => ''];
         
-        if (!verify_csrf_token($_POST['csrf_token'])) {
+        // Ensure you have a working implementation of verify_csrf_token()
+        if (!function_exists('verify_csrf_token') || !verify_csrf_token($_POST['csrf_token'])) {
             $response['message'] = 'Invalid security token.';
             echo json_encode($response);
             exit;
@@ -116,20 +117,62 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
                     $response['message'] = 'User deleted successfully.';
                     break;
                     
+                // --- MODIFIED DOCUMENT STATUS HANDLER START ---
                 case 'update_document_status':
                     $document_id = isset($_POST['document_id']) ? (int)$_POST['document_id'] : 0;
                     $status = sanitize_input($_POST['status']);
-                    $rejection_reason = isset($_POST['rejection_reason']) ? sanitize_input($_POST['rejection_reason']) : '';
+                    $rejection_reason = isset($_POST['rejection_reason']) ? sanitize_input($_POST['rejection_reason']) : null;
                     
+                    if (!in_array($status, ['approved', 'rejected'])) {
+                        throw new Exception("Invalid document status.");
+                    }
+                    
+                    // Clear rejection reason if status is approved
+                    if ($status === 'approved') {
+                        $rejection_reason = null;
+                    }
+                    
+                    // Get the user_id associated with the document
+                    $doc_stmt = $db->prepare("SELECT user_id FROM user_verification_documents WHERE id = ?");
+                    $doc_stmt->execute([$document_id]);
+                    $doc_info = $doc_stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$doc_info) {
+                        throw new Exception("Document not found.");
+                    }
+                    $doc_user_id = $doc_info['user_id'];
+                    
+                    // Update the document status
                     $stmt = $db->prepare("UPDATE user_verification_documents SET status = ?, rejection_reason = ?, reviewed_at = NOW() WHERE id = ?");
                     $stmt->execute([$status, $rejection_reason, $document_id]);
                     
+                    // Check if *all* documents for the user are now approved. If so, verify the user.
+                    if ($status === 'approved') {
+                        $pending_count_stmt = $db->prepare("SELECT COUNT(id) FROM user_verification_documents WHERE user_id = ? AND status = 'pending'");
+                        $pending_count_stmt->execute([$doc_user_id]);
+                        $pending_count = $pending_count_stmt->fetchColumn();
+                        
+                        // If no more pending documents, and all are approved (assuming a check for 'rejected' status is done elsewhere or simply that no 'pending' remains)
+                        // A more robust check might be: SELECT COUNT(id) FROM user_verification_documents WHERE user_id = ? AND status != 'approved'
+                        if ($pending_count == 0) {
+                            $verify_user_stmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE id = ? AND is_verified = 0");
+                            $verify_user_stmt->execute([$doc_user_id]);
+                        }
+                    }
+
+                    // Log the action
+                    $log_details = [
+                        'document_id' => $document_id, 
+                        'status' => $status,
+                        'rejected_reason' => $rejection_reason
+                    ];
                     $log_stmt = $db->prepare("INSERT INTO user_activity_logs (user_id, action, details, ip_address) VALUES (?, 'admin_update_document_status', ?, ?)");
-                    $log_stmt->execute([$user['id'], json_encode(['document_id' => $document_id, 'status' => $status]), $_SERVER['REMOTE_ADDR']]);
+                    $log_stmt->execute([$user['id'], json_encode($log_details), $_SERVER['REMOTE_ADDR']]);
                     
                     $response['success'] = true;
                     $response['message'] = 'Document status updated successfully.';
                     break;
+                // --- MODIFIED DOCUMENT STATUS HANDLER END ---
             }
         } catch (Exception $e) {
             $response['message'] = 'Failed to perform action: ' . $e->getMessage();
@@ -659,6 +702,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                         </div>
                                         <p class="mt-3 text-muted">Loading users...</p>
                                     </td>
+                                
                                 </tr>
                             </tbody>
                         </table>
@@ -806,6 +850,17 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         let currentSort = 'created_at';
         let currentDir = 'desc';
         let autoRefreshInterval;
+
+        // --- NEW: Global/accessible constant for rejection reasons ---
+        const REJECTION_REASONS = {
+            'unclear': 'Unclear Image/Text',
+            'expired': 'Expired Document',
+            'mismatched_name': 'Mismatched Name/Information',
+            'invalid_type': 'Invalid Document Type',
+            'forged': 'Forged/Edited Document',
+            'other': 'Other (Check notes/contact user)'
+        };
+        // -----------------------------------------------------------
         
         // Mobile Menu Toggle
         const mobileMenuToggle = document.getElementById('mobileMenuToggle');
@@ -919,13 +974,25 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     month: 'short', day: 'numeric', year: 'numeric' 
                 });
                 
-                // --- MODIFIED BUTTON CODE START ---
-                const reviewDocsButton = `
+                // --- DOCUMENT BUTTON MODIFICATION ---
+                let reviewDocsButton = `
                     <button class="btn btn-sm btn-outline-info" onclick="viewDocuments(${user.id}, '${fullName}')" title="Review Documents">
-                        <i class="fas fa-file-alt me-1"></i>
+                        <i class="fas fa-file-alt me-1"></i> Docs
                     </button>
                 `;
-                // --- MODIFIED BUTTON CODE END ---
+                
+                if (parseInt(user.pending_documents) > 0) {
+                    reviewDocsButton = `
+                        <button class="btn btn-sm btn-info text-white position-relative" onclick="viewDocuments(${user.id}, '${fullName}')" title="Review Documents">
+                            <i class="fas fa-file-alt me-1"></i> Review
+                            <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle">
+                                ${user.pending_documents}
+                            </span>
+                        </button>
+                    `;
+                }
+                
+                // --- END DOCUMENT BUTTON MODIFICATION ---
                 
                 return `
                     <tr>
@@ -989,6 +1056,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             const modal = new bootstrap.Modal(document.getElementById('documentsModal'));
             modal.show();
             
+            // NOTE: This assumes a file named 'get-user-documents.php' exists 
+            // and returns JSON data in the format { success: true, documents: [...] }
             fetch('get-user-documents.php?user_id=' + userId)
                 .then(response => response.json())
                 .then(data => {
@@ -999,7 +1068,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         displayDocuments(data.documents, userId);
                     } else {
                         document.getElementById('documents_content').innerHTML = 
-                            '<div class="alert alert-warning"><i class="fas fa-info-circle me-2"></i>' + data.message + '</div>';
+                            '<div class="alert alert-warning"><i class="fas fa-info-circle me-2"></i>' + (data.message || 'Error fetching documents.') + '</div>';
                     }
                 })
                 .catch(error => {
@@ -1010,6 +1079,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 });
         }
         
+        // --- MODIFIED displayDocuments FUNCTION START ---
         function displayDocuments(documents, userId) {
             if (documents.length === 0) {
                 document.getElementById('documents_content').innerHTML = 
@@ -1033,9 +1103,24 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 const statusColor = doc.status === 'approved' ? 'success' : (doc.status === 'rejected' ? 'danger' : 'warning');
                 const statusIcon = doc.status === 'approved' ? 'check-circle' : (doc.status === 'rejected' ? 'times-circle' : 'clock');
                 
+                // Lookup the human-readable rejection reason
+                const rejectionReasonText = doc.rejection_reason && REJECTION_REASONS[doc.rejection_reason] 
+                    ? REJECTION_REASONS[doc.rejection_reason] 
+                    : doc.rejection_reason;
+
+                // Only show action buttons if status is pending
+                const actionButtons = doc.status === 'pending' ? `
+                    <button class="btn btn-sm btn-success" onclick="updateDocumentStatus(${doc.id}, ${userId}, 'approved')">
+                        <i class="fas fa-check me-1"></i>Approve
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="rejectDocument(${doc.id}, ${userId})">
+                        <i class="fas fa-times me-1"></i>Reject
+                    </button>
+                ` : `<span class="text-muted small fst-italic">Review Complete</span>`;
+                
                 html += `
                     <div class="col-md-6 mb-4">
-                        <div class="card h-100 border">
+                        <div class="card h-100 border shadow-sm">
                             <div class="card-header d-flex justify-content-between align-items-center bg-light">
                                 <strong>${typeLabels[doc.document_type] || doc.document_type}</strong>
                                 <span class="badge bg-${statusColor}">
@@ -1054,12 +1139,18 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 ${doc.description ? `<p class="text-muted small mb-2"><strong>Description:</strong> ${doc.description}</p>` : ''}
                                 <p class="text-muted small mb-2"><strong>Uploaded:</strong> ${new Date(doc.created_at).toLocaleDateString()}</p>
                                 ${doc.reviewed_at ? `<p class="text-muted small mb-2"><strong>Reviewed:</strong> ${new Date(doc.reviewed_at).toLocaleDateString()}</p>` : ''}
-                                ${doc.rejection_reason ? `<div class="alert alert-danger small mb-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>Rejection Reason:</strong> ${doc.rejection_reason}</div>` : ''}
                                 
-                                <div class="action-buttons mt-3">
-                                    <a href="../uploads/verification/${doc.filename}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-external-link-alt me-1"></i>Open
+                                ${rejectionReasonText && doc.status === 'rejected' ? 
+                                    `<div class="alert alert-danger small mb-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>Reason:</strong> ${rejectionReasonText}</div>` 
+                                    : ''}
+                                
+                                <div class="action-buttons mt-3 justify-content-between">
+                                    <a href="../uploads/verification/${doc.filename}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-external-link-alt me-1"></i>View File
                                     </a>
+                                    <div class="d-flex gap-2">
+                                        ${actionButtons}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1070,24 +1161,58 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             html += '</div>';
             document.getElementById('documents_content').innerHTML = html;
         }
+        // --- MODIFIED displayDocuments FUNCTION END ---
         
+        // --- MODIFIED updateDocumentStatus FUNCTION START ---
         function updateDocumentStatus(docId, userId, status) {
+            const isApproved = status === 'approved';
+            
+            // Create a temporary object for Swal, including the default empty option
+            const rejectionOptionsForSwal = {
+                '': '--- Select a Reason ---',
+                ...REJECTION_REASONS
+            };
+
             Swal.fire({
                 title: 'Confirm Action',
-                text: `Are you sure you want to ${status} this document?`,
-                icon: 'question',
+                text: isApproved ? 'Are you sure you want to approve this document? This will help verify the user.' : 'Select a reason for rejecting this document.',
+                icon: isApproved ? 'question' : 'warning',
                 showCancelButton: true,
-                confirmButtonColor: status === 'approved' ? '#28a745' : '#ffc107',
+                confirmButtonColor: isApproved ? '#28a745' : '#dc3545',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, ' + status
+                confirmButtonText: isApproved ? 'Yes, Approve' : 'Yes, Reject',
+                
+                // Use a dropdown for rejection reason
+                ...(isApproved ? {} : {
+                    input: 'select',
+                    inputLabel: 'Rejection Reason (Required)',
+                    inputOptions: rejectionOptionsForSwal,
+                    inputValidator: (value) => {
+                        if (value === '' && !isApproved) {
+                            return 'Please select a rejection reason'
+                        }
+                    }
+                })
             }).then((result) => {
                 if (!result.isConfirmed) return;
                 
+                // result.value is the key (e.g., 'unclear', 'expired', or empty string for approval/unselected)
+                const rejectionReasonKey = isApproved ? '' : result.value;
+                
+                // Only proceed with rejection if a reason is selected (checked by inputValidator)
+                if (!isApproved && rejectionReasonKey === '') return;
+
                 const formData = new FormData();
                 formData.append('action', 'update_document_status');
                 formData.append('document_id', docId);
                 formData.append('status', status);
+                if (rejectionReasonKey) {
+                    // Send the key to the backend to be stored as the rejection_reason
+                    formData.append('rejection_reason', rejectionReasonKey);
+                }
                 formData.append('csrf_token', CSRF_TOKEN);
+                
+                document.getElementById('loadingOverlay').classList.add('show');
                 
                 fetch('users.php?ajax=true', {
                     method: 'POST',
@@ -1095,13 +1220,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 })
                 .then(response => response.json())
                 .then(data => {
+                    document.getElementById('loadingOverlay').classList.remove('show');
                     if (data.success) {
                         Swal.fire({
                             title: 'Success!',
-                            text: 'Document ' + status + ' successfully.',
+                            text: data.message,
                             icon: 'success',
                             confirmButtonColor: '#667eea'
                         }).then(() => {
+                            // Reload documents in the modal and refresh the user list
                             viewDocuments(userId, document.getElementById('doc_user_name').textContent);
                             setTimeout(() => loadUsers(false), 1500);
                         });
@@ -1115,6 +1242,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     }
                 })
                 .catch(error => {
+                    document.getElementById('loadingOverlay').classList.remove('show');
                     Swal.fire({
                         title: 'Error',
                         text: 'Error updating document: ' + error.message,
@@ -1124,73 +1252,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 });
             });
         }
-        
+
+        // Dedicated function for rejectDocument to simplify the call from HTML
         function rejectDocument(docId, userId) {
-            Swal.fire({
-                title: 'Reject Document',
-                input: 'textarea',
-                inputLabel: 'Rejection Reason',
-                inputPlaceholder: 'Please provide a reason for rejection...',
-                inputAttributes: {
-                    'aria-label': 'Rejection reason'
-                },
-                showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, reject',
-                cancelButtonText: 'Cancel',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'Please provide a rejection reason'
-                    }
-                }
-            }).then((result) => {
-                if (!result.isConfirmed) return;
-                
-                const formData = new FormData();
-                formData.append('action', 'update_document_status');
-                formData.append('document_id', docId);
-                formData.append('status', 'rejected');
-                formData.append('rejection_reason', result.value);
-                formData.append('csrf_token', CSRF_TOKEN);
-                
-                fetch('users.php?ajax=true', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            title: 'Rejected!',
-                            text: 'Document rejected successfully.',
-                            icon: 'success',
-                            confirmButtonColor: '#667eea'
-                        }).then(() => {
-                            viewDocuments(userId, document.getElementById('doc_user_name').textContent);
-                            setTimeout(() => loadUsers(false), 1500);
-                        });
-                    } else {
-                        Swal.fire({
-                            title: 'Error',
-                            text: data.message || 'Failed to reject document',
-                            icon: 'error',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    }
-                })
-                .catch(error => {
-                    Swal.fire({
-                        title: 'Error',
-                        text: 'Error rejecting document: ' + error.message,
-                        icon: 'error',
-                        confirmButtonColor: '#dc3545'
-                    });
-                });
-            });
+            // Re-use updateDocumentStatus, which handles the rejection reason prompt
+            updateDocumentStatus(docId, userId, 'rejected');
         }
+        // --- MODIFIED updateDocumentStatus FUNCTION END ---
         
-        // Perform action
+        // Perform action (for non-document actions like verify/activate/delete)
         function performAction(action, userId) {
             document.getElementById('loadingOverlay').classList.add('show');
             

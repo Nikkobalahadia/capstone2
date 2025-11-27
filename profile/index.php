@@ -1163,34 +1163,40 @@ if ($user['role'] === 'student') {
                         </div>
                     <?php endif; ?>
                     
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-clock" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
-                                    My Availability
-                                </h3>
-                                <a href="availability.php" class="btn btn-secondary">Edit Availability</a>
-                            </div>
-                            <div class="card-body">
-                                <?php if (empty($availability)): ?>
-                                    <p class="text-secondary text-center">
-                                        No availability set yet. <a href="availability.php">Set your schedule</a> 
-                                        to help <?php echo $user['role'] === 'peer' ? 'others' : 'students'; ?> know when you're available for sessions.
-                                    </p>
-                                <?php else: ?>
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <?php foreach ($availability as $slot): ?>
-                                            <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: var(--subtle-bg); border-radius: 6px;">
-                                                <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
-                                                <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-clock" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                                My Availability
+                            </h3>
+                            <a href="availability.php" class="btn btn-secondary">Edit Availability</a>
                         </div>
-                    <?php endif; ?>
+                        <div class="card-body">
+                            <?php if (empty($availability)): ?>
+                                <p class="text-secondary text-center">
+                                    No availability set yet. <a href="availability.php">Set your schedule</a> 
+                                    to help 
+                                    <?php if ($user['role'] === 'mentor'): ?>
+                                        students
+                                    <?php elseif ($user['role'] === 'peer'): ?>
+                                        others (students and peers)
+                                    <?php else: // Student role ?>
+                                        mentors and peers
+                                    <?php endif; ?>
+                                    know when you're available for sessions.
+                                </p>
+                            <?php else: ?>
+                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <?php foreach ($availability as $slot): ?>
+                                        <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: var(--subtle-bg); border-radius: 6px;">
+                                            <span class="font-medium"><?php echo ucfirst($slot['day_of_week']); ?></span>
+                                            <span class="text-secondary"><?php echo date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time'])); ?></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
 
                     <div class="card">
                         <div class="card-header">

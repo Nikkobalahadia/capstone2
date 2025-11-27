@@ -3,6 +3,7 @@
 // Or manually trigger via: http://localhost/study-mentorship-platform/cron/send_session_reminders.php
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../config/notification_helper.php';
 require_once __DIR__ . '/../lib/PHPMailer.php';
 
 $db = getDB();
@@ -50,6 +51,18 @@ foreach ($reminders as $reminder) {
         
         // Format session date and time
         $session_datetime = date('l, F j, Y \a\t g:i A', strtotime($reminder['session_date'] . ' ' . $reminder['start_time']));
+        
+        $notification_title = "Study Session Reminder";
+        $notification_message = "You have a study session with {$reminder['partner_name']} for {$reminder['subject']} scheduled in {$reminder_label}";
+        $notification_link = "/sessions/history.php";
+        
+        create_notification(
+            $reminder['user_id'],
+            'session_reminder',
+            $notification_title,
+            $notification_message,
+            $notification_link
+        );
         
         $mailer = new SimplePHPMailer();
         $mailer->setTo($reminder['email']);

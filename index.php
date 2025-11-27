@@ -10,6 +10,39 @@ if (is_logged_in()) {
         redirect('dashboard.php');
     }
 }
+
+// --- Dynamic Stats Fetching ---
+
+// 1. Fetch Active Students (Users with 'student' or 'peer' role)
+$students_count = 0;
+// Assuming 'users' table and 'role' column
+$students_result = db_query("SELECT COUNT(id) AS count FROM users WHERE role IN ('student', 'peer')");
+if ($students_result && $row = db_fetch_assoc($students_result)) {
+    $students_count = (int)$row['count'];
+}
+
+// 2. Fetch Expert Mentors (Users with 'mentor' or 'peer' role)
+$mentors_count = 0;
+// Assuming 'users' table and 'role' column
+$mentors_result = db_query("SELECT COUNT(id) AS count FROM users WHERE role IN ('mentor', 'peer')");
+if ($mentors_result && $row = db_fetch_assoc($mentors_result)) {
+    $mentors_count = (int)$row['count'];
+}
+
+// 3. Fetch Study Sessions (Total completed sessions)
+$sessions_count = 0;
+// Assuming 'sessions' table and a 'status' column (e.g., 'completed')
+$sessions_result = db_query("SELECT COUNT(id) AS count FROM sessions WHERE status = 'completed'");
+if ($sessions_result && $row = db_fetch_assoc($sessions_result)) {
+    $sessions_count = (int)$row['count'];
+}
+
+// 4. Set Success Rate % (This might be a calculated or aspirational number, 
+// but we'll default to the original 98 if no complex calculation is available)
+// A more complex calculation would involve session ratings or passing grades.
+$success_rate = 98; // Default value
+
+// --- End Dynamic Stats Fetching ---
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,7 +62,7 @@ if (is_logged_in()) {
                     <li><a href="#features">Features</a></li>
                     <li><a href="#about">About</a></li>
                     <li><a href="auth/login.php">Login</a></li>
-                    <li><a href="auth/register.php" class="btn btn-primary">Sign Up</a></li>
+                    <li><a href="auth/register.php" class="btn btn-signup-nav">Sign Up</a></li>
                 </ul>
             </nav>
         </div>
@@ -43,7 +76,7 @@ if (is_logged_in()) {
                     <p class="hero-subtitle">Connect with thousands of students and mentors. Share knowledge, accelerate learning, and build meaningful academic relationships.</p>
                     <div class="hero-buttons">
                         <a href="auth/register.php?role=student" class="btn btn-primary">Start Learning</a>
-                        <a href="auth/register.php?role=mentor" class="btn btn-outline">Become a Mentor</a>
+                        <a href="auth/register.php?role=mentor" class="btn btn-primary">Become a Mentor</a>
                     </div>
                 </div>
             </div>
@@ -55,19 +88,19 @@ if (is_logged_in()) {
                 <p class="section-subtitle">Join thousands of learners who have transformed their academic journey through peer-to-peer connections</p>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <span class="stat-number" data-count="15000">0</span>
+                        <span class="stat-number" data-count="<?php echo $students_count; ?>">0</span>
                         <span class="stat-label">Active Students</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-number" data-count="2500">0</span>
+                        <span class="stat-number" data-count="<?php echo $mentors_count; ?>">0</span>
                         <span class="stat-label">Expert Mentors</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-number" data-count="50000">0</span>
+                        <span class="stat-number" data-count="<?php echo $sessions_count; ?>">0</span>
                         <span class="stat-label">Study Sessions</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-number" data-count="98">0</span>
+                        <span class="stat-number" data-count="<?php echo $success_rate; ?>">0</span>
                         <span class="stat-label">Success Rate %</span>
                     </div>
                 </div>
@@ -159,7 +192,7 @@ if (is_logged_in()) {
                     <p class="cta-subtitle">Join thousands of students and mentors who are already experiencing the power of peer learning</p>
                     <div class="hero-buttons">
                         <a href="auth/register.php?role=student" class="btn btn-primary">Get Started Free</a>
-                        <a href="auth/register.php?role=mentor" class="btn btn-outline">Become a Mentor</a>
+                        <a href="auth/register.php?role=mentor" class="btn btn-primary">Become a Mentor</a>
                     </div>
                     <p class="text-sm text-secondary" style="margin-top: 1rem; text-align: center;">
                         Students can upgrade to Peer status later from their profile

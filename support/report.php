@@ -21,12 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $db = getDB();
+            
+            // Only require reported_id for user-specific reports
             $stmt = $db->prepare("
                 INSERT INTO user_reports (reporter_id, reported_id, reason, description, status, created_at)
                 VALUES (?, ?, ?, ?, 'pending', NOW())
             ");
+            
+            $reporter_id = $user ? $user['id'] : null;
             $stmt->execute([
-                $user ? $user['id'] : null,
+                $reporter_id,
                 $reported_user_id,
                 $report_type,
                 $description
@@ -35,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success_message = 'Thank you for your report. Our team will review it and take appropriate action.';
             $report_type = $description = $reported_user_id = '';
         } catch (Exception $e) {
+            error_log('Report submission error: ' . $e->getMessage());
             $error_message = 'An error occurred while submitting your report. Please try again.';
         }
     }
@@ -45,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - Study Buddy</title>
+    <title><?php echo $page_title; ?> - StudyConnect</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -53,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="header">
         <div class="container">
             <nav class="navbar">
-                <a href="../index.php" class="logo">Study Buddy</a>
+                <a href="../index.php" class="logo">StudyConnect</a>
                 <ul class="nav-links">
                     <li><a href="../index.php">Home</a></li>
                     <?php if (is_logged_in()): ?>
@@ -86,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="card">
                 <div class="card-body">
-                    <p class="text-secondary mb-6">Help us improve Study Buddy by reporting issues or sharing your feedback. All reports are reviewed by our team.</p>
+                    <p class="text-secondary mb-6">Help us improve StudyConnect by reporting issues or sharing your feedback. All reports are reviewed by our team.</p>
 
                     <form method="POST" action="">
                         <div class="form-group mb-4">

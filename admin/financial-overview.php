@@ -37,6 +37,16 @@ $commission_stats = $db->prepare("
 $commission_stats->execute([$date_from, $date_to]);
 $stats = $commission_stats->fetch();
 
+// --- FIX: Explicitly handle NULLs from SUM functions to prevent number_format deprecation ---
+$stats['total_session_revenue'] = (float)($stats['total_session_revenue'] ?? 0);
+$stats['total_commission_revenue'] = (float)($stats['total_commission_revenue'] ?? 0);
+$stats['pending_amount'] = (float)($stats['pending_amount'] ?? 0);
+$stats['submitted_amount'] = (float)($stats['submitted_amount'] ?? 0);
+$stats['verified_amount'] = (float)($stats['verified_amount'] ?? 0);
+$stats['rejected_amount'] = (float)($stats['rejected_amount'] ?? 0);
+// -----------------------------------------------------------------------------------------
+
+
 // Monthly revenue trend (Last 12 months)
 $monthly_revenue = $db->query("
     SELECT 
@@ -149,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         
         } elseif ($_POST['action'] === 'suspend_mentor') {
-            $mentor_id = (int)$_POST['mentor_id'];
+            $mentor_id = (int)($_POST['mentor_id'] ?? 0);
             $stmt = $db->prepare("UPDATE users SET account_status = 'suspended' WHERE id = ? AND role = 'mentor'");
             $stmt->execute([$mentor_id]);
             
@@ -160,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
         } elseif ($_POST['action'] === 'unsuspend_mentor') {
-            $mentor_id = (int)$_POST['mentor_id'];
+            $mentor_id = (int)($_POST['mentor_id'] ?? 0);
             $stmt = $db->prepare("UPDATE users SET account_status = 'active' WHERE id = ? AND role = 'mentor'");
             $stmt->execute([$mentor_id]);
 
@@ -244,7 +254,9 @@ $cp_stats = [];
 $cp_amounts = [];
 foreach ($cp_stats_result as $row) {
     $cp_stats[$row['payment_status']] = $row['count'];
-    $cp_amounts[$row['payment_status']] = $row['total'];
+    // --- FIX: Explicitly handle NULLs from SUM functions ---
+    $cp_amounts[$row['payment_status']] = (float)($row['total'] ?? 0);
+    // --------------------------------------------------------
 }
 
 $cp_overdue_query = "
@@ -256,16 +268,22 @@ $cp_overdue_query = "
 ";
 $cp_overdue_result = $db->query($cp_overdue_query)->fetch(PDO::FETCH_ASSOC);
 $cp_total_overdue = $cp_overdue_result['overdue_count'] ?? 0;
-$cp_amount_overdue = $cp_overdue_result['overdue_amount'] ?? 0;
+// --- FIX: Explicitly handle NULLs from SUM functions ---
+$cp_amount_overdue = (float)($cp_overdue_result['overdue_amount'] ?? 0);
+// --------------------------------------------------------
 
 $cp_total_pending = $cp_stats['pending'] ?? 0;
 $cp_total_submitted = $cp_stats['submitted'] ?? 0;
 $cp_total_verified = $cp_stats['verified'] ?? 0;
 $cp_total_rejected = $cp_stats['rejected'] ?? 0;
 
-$cp_amount_pending = $cp_amounts['pending'] ?? 0;
-$cp_amount_submitted = $cp_amounts['submitted'] ?? 0;
-$cp_amount_verified = $cp_amounts['verified'] ?? 0;
+// --- FIX: Ensure amounts passed to number_format in the HTML are floats ---
+$cp_amount_pending = (float)($cp_amounts['pending'] ?? 0);
+$cp_amount_submitted = (float)($cp_amounts['submitted'] ?? 0);
+$cp_amount_verified = (float)($cp_amounts['verified'] ?? 0);
+$cp_amount_rejected = (float)($cp_amounts['rejected'] ?? 0);
+// -------------------------------------------------------------------------
+
 
 // ==================================================================
 // END: LOGIC FOR "COMMISSION PAYMENT" TAB
@@ -697,9 +715,9 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                     <?php endif; ?>
                                                 </td>
                                                 <td><?php echo $mentor['total_sessions']; ?></td>
-                                                <td>₱<?php echo number_format($mentor['total_earned'], 2); ?></td>
-                                                <td class="text-success">₱<?php echo number_format($mentor['verified_commissions'], 2); ?></td>
-                                                <td class="text-warning">₱<?php echo number_format($mentor['pending_commissions'], 2); ?></td>
+                                                <td>₱<?php echo number_format((float)($mentor['total_earned'] ?? 0), 2); ?></td>
+                                                <td class="text-success">₱<?php echo number_format((float)($mentor['verified_commissions'] ?? 0), 2); ?></td>
+                                                <td class="text-warning">₱<?php echo number_format((float)($mentor['pending_commissions'] ?? 0), 2); ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -782,13 +800,16 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                         <div class="card-header py-3 bg-white border-0">
                             <h6 class="m-0 font-weight-bold text-primary">Commission Payments</h6>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-0">
                             <?php if (empty($payments)): ?>
-                                <p class="text-center text-muted py-4">No commission payments found matching the current filters.</p>
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
+                                    <p>No commission payments found matching the current filters.</p>
+                                </div>
                             <?php else: ?>
                                 <div class="table-responsive">
-                                    <table class="table table-hover align-middle table-striped">
-                                        <thead>
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
                                             <tr>
                                                 <th>Mentor</th>
                                                 <th>Student</th>
@@ -804,7 +825,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                             <?php foreach ($payments as $payment): ?>
                                                 <tr <?php echo $payment['is_overdue'] && $payment['payment_status'] !== 'verified' ? 'style="background-color: #fff5f5;"' : ''; ?>>
                                                     <td>
-                                                        <strong><?php echo htmlspecialchars($payment['mentor_name']); ?></strong>
+                                                        <div class="fw-bold"><?php echo htmlspecialchars($payment['mentor_name']); ?></div>
                                                         <div class="small text-muted"><?php echo htmlspecialchars($payment['mentor_email']); ?></div>
                                                         <?php if ($payment['mentor_account_status'] === 'suspended'): ?>
                                                             <span class="badge badge-suspended">Suspended</span>
@@ -821,9 +842,9 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                             <span class="text-muted">N/A</span>
                                                         <?php endif; ?>
                                                     </td>
-                                                    <td>₱<?php echo number_format($payment['session_amount'] ?? 0, 2); ?></td>
+                                                    <td>₱<?php echo number_format((float)($payment['session_amount'] ?? 0), 2); ?></td>
                                                     <td>
-                                                        <strong>₱<?php echo number_format($payment['commission_amount'], 2); ?></strong>
+                                                        <strong>₱<?php echo number_format((float)($payment['commission_amount'] ?? 0), 2); ?></strong>
                                                         <div class="small text-muted"><?php echo $payment['commission_percentage']; ?>%</div>
                                                     </td>
                                                     <td>
@@ -859,33 +880,37 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                                                             <input type="hidden" name="rejection_reason" id="reason-input-<?php echo $payment['id']; ?>">
                                                         </form>
                                                         
-                                                        <div class="btn-group" role="group">
-                                                            <?php if ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted'): ?>
-                                                                <button class="btn btn-success btn-sm" type="button" onclick="confirmVerify(<?php echo $payment['id']; ?>)" title="Verify Payment">
-                                                                    <i class="fas fa-check"></i>
+                                                        <?php if ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted'): ?>
+                                                            <div class="d-flex justify-content-start align-items-center">
+                                                                <button type="button" onclick="confirmVerify(<?php echo $payment['id']; ?>)" 
+                                                                        class="btn btn-outline-success btn-sm me-2" 
+                                                                        style="padding: 0.25rem 0.5rem;"
+                                                                        title="Verify Payment">
+                                                                    <i class="fas fa-check fa-fw"></i>
                                                                 </button>
-                                                                <button class="btn btn-danger btn-sm" type="button" onclick="confirmReject(<?php echo $payment['id']; ?>)" title="Reject Payment">
-                                                                    <i class="fas fa-times"></i>
+                                                                
+                                                                <button type="button" onclick="confirmReject(<?php echo $payment['id']; ?>)" 
+                                                                        class="btn btn-outline-danger btn-sm" 
+                                                                        style="padding: 0.25rem 0.5rem;"
+                                                                        title="Reject Payment">
+                                                                    <i class="fas fa-times fa-fw"></i>
                                                                 </button>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended'): ?>
-                                                                <button class="btn btn-warning btn-sm" type="button" onclick="confirmSuspend(<?php echo $payment['id']; ?>)" title="Suspend Mentor">
-                                                                    <i class="fas fa-ban"></i>
-                                                                </button>
-                                                            <?php elseif ($payment['mentor_account_status'] === 'suspended'): ?>
-                                                                <button class="btn btn-info btn-sm" type="button" onclick="confirmUnsuspend(<?php echo $payment['id']; ?>)" title="Reactivate Mentor">
-                                                                    <i class="fas fa-unlock"></i>
-                                                                </button>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                        
-                                                        <?php 
-                                                            $hasActions = ($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'submitted') ||
-                                                                          (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended') ||
-                                                                          ($payment['mentor_account_status'] === 'suspended');
-                                                        ?>
-                                                        <?php if (!$hasActions): ?>
+                                                            </div>
+                                                        <?php elseif (($payment['payment_status'] === 'pending' || $payment['payment_status'] === 'rejected') && $payment['mentor_account_status'] !== 'suspended'): ?>
+                                                            <button type="button" onclick="confirmSuspend(<?php echo $payment['id']; ?>)" 
+                                                                    class="btn btn-outline-warning btn-sm" 
+                                                                    style="padding: 0.25rem 0.5rem;"
+                                                                    title="Suspend Mentor">
+                                                                <i class="fas fa-ban fa-fw"></i>
+                                                            </button>
+                                                        <?php elseif ($payment['mentor_account_status'] === 'suspended'): ?>
+                                                            <button type="button" onclick="confirmUnsuspend(<?php echo $payment['id']; ?>)" 
+                                                                    class="btn btn-outline-info btn-sm" 
+                                                                    style="padding: 0.25rem 0.5rem;"
+                                                                    title="Reactivate Mentor">
+                                                                <i class="fas fa-unlock fa-fw"></i>
+                                                            </button>
+                                                        <?php else: ?>
                                                             <span class="text-muted small">N/A</span>
                                                         <?php endif; ?>
                                                     </td>
@@ -899,7 +924,8 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                     </div>
 
                 </div>
-            </div> </div>
+            </div>
+        </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -911,7 +937,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             return new bootstrap.Tooltip(tooltipTriggerEl)
         })
 
-        // Mobile Menu Toggle (NEW/UPDATED SECTION)
+        // Mobile Menu Toggle
         const mobileMenuToggle = document.getElementById('mobileMenuToggle');
         const sidebar = document.getElementById('sidebar');
         const mobileOverlay = document.getElementById('mobileOverlay');
@@ -959,19 +985,178 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             document.getElementById('action-input-' + id).value = action;
         }
 
+        // AJAX function to submit actions without page reload
+        async function submitAction(paymentId, action, additionalData = {}) {
+            const formData = new FormData();
+            formData.append('payment_id', paymentId);
+            formData.append('action', action);
+            formData.append('csrf_token', document.querySelector(`#commission-form-${paymentId} input[name="csrf_token"]`).value);
+            
+            // Add mentor_id for suspend/unsuspend actions
+            const mentorIdInput = document.querySelector(`#commission-form-${paymentId} input[name="mentor_id"]`);
+            if (mentorIdInput) {
+                formData.append('mentor_id', mentorIdInput.value);
+            }
+            
+            // Add any additional data (like rejection reason)
+            for (const [key, value] of Object.entries(additionalData)) {
+                formData.append(key, value);
+            }
+            
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Check if server returned a simple success/error status (assuming successful POST means success here)
+                    return { success: true }; 
+                } else {
+                    return { success: false, error: 'Server error' };
+                }
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Update UI after successful action
+        function updatePaymentUI(paymentId, newStatus, additionalInfo = {}) {
+            const row = document.querySelector(`#commission-form-${paymentId}`).closest('tr');
+            const statusCell = row.querySelector('td:nth-child(7)'); // Status column
+            const actionsCell = row.querySelector('td:nth-child(8)'); // Actions column
+            
+            // Update status badge
+            let badgeHTML = '';
+            if (newStatus === 'verified') {
+                badgeHTML = '<span class="badge badge-verified rounded-pill">Verified</span>';
+                actionsCell.innerHTML = '<span class="text-muted small">N/A</span>';
+                // Remove red background if it was overdue
+                row.style.backgroundColor = '';
+                // Update mentor actions if mentor status is currently suspended
+                const mentorCell = row.querySelector('td:first-child');
+                const mentorStatus = mentorCell.querySelector('.badge-suspended');
+                if(mentorStatus) {
+                     // Still show unsuspend button if suspended (logic assumes mentor suspension persists until manually unsuspended)
+                     actionsCell.innerHTML = `
+                        <button type="button" onclick="confirmUnsuspend(${paymentId})" 
+                                class="btn btn-outline-info btn-sm" 
+                                style="padding: 0.25rem 0.5rem;"
+                                title="Reactivate Mentor">
+                            <i class="fas fa-unlock fa-fw"></i>
+                        </button>
+                    `;
+                }
+            } else if (newStatus === 'rejected') {
+                badgeHTML = '<span class="badge badge-rejected rounded-pill">Rejected</span>';
+                if (additionalInfo.rejectionReason) {
+                    badgeHTML += ` <i class="fas fa-info-circle text-danger ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="${additionalInfo.rejectionReason}"></i>`;
+                }
+                actionsCell.innerHTML = `
+                    <button type="button" onclick="confirmSuspend(${paymentId})" 
+                            class="btn btn-outline-warning btn-sm" 
+                            style="padding: 0.25rem 0.5rem;"
+                            title="Suspend Mentor">
+                        <i class="fas fa-ban fa-fw"></i>
+                    </button>
+                `;
+            } else if (newStatus === 'suspended') {
+                // Update mentor status badge in mentor column
+                const mentorCell = row.querySelector('td:first-child');
+                const existingSuspendedBadge = mentorCell.querySelector('.badge-suspended');
+                if (!existingSuspendedBadge) {
+                    mentorCell.querySelector('.small').insertAdjacentHTML('afterend', '<span class="mentor-status-badge">Suspended</span>');
+                }
+                // Update actions to show unsuspend button
+                actionsCell.innerHTML = `
+                    <button type="button" onclick="confirmUnsuspend(${paymentId})" 
+                            class="btn btn-outline-info btn-sm" 
+                            style="padding: 0.25rem 0.5rem;"
+                            title="Reactivate Mentor">
+                        <i class="fas fa-unlock fa-fw"></i>
+                    </button>
+                `;
+            } else if (newStatus === 'unsuspended') {
+                // Remove suspended badge from mentor column
+                const mentorCell = row.querySelector('td:first-child');
+                const suspendedBadge = mentorCell.querySelector('.mentor-status-badge');
+                if (suspendedBadge) {
+                    suspendedBadge.remove();
+                }
+                // Update actions based on payment status (must be pending/submitted/rejected to show verify/reject)
+                const currentPaymentStatusBadge = row.querySelector('td:nth-child(7) .badge');
+                let paymentStatus = currentPaymentStatusBadge ? currentPaymentStatusBadge.textContent.trim().toLowerCase() : 'unknown';
+
+                if (paymentStatus === 'pending' || paymentStatus === 'submitted') {
+                     actionsCell.innerHTML = `
+                        <div class="d-flex justify-content-start align-items-center">
+                            <button type="button" onclick="confirmVerify(${paymentId})" 
+                                    class="btn btn-outline-success btn-sm me-2" 
+                                    style="padding: 0.25rem 0.5rem;"
+                                    title="Verify Payment">
+                                <i class="fas fa-check fa-fw"></i>
+                            </button>
+                            
+                            <button type="button" onclick="confirmReject(${paymentId})" 
+                                    class="btn btn-outline-danger btn-sm" 
+                                    style="padding: 0.25rem 0.5rem;"
+                                    title="Reject Payment">
+                                <i class="fas fa-times fa-fw"></i>
+                            </button>
+                        </div>
+                    `;
+                } else if (paymentStatus === 'rejected') {
+                     actionsCell.innerHTML = `
+                        <button type="button" onclick="confirmSuspend(${paymentId})" 
+                                class="btn btn-outline-warning btn-sm" 
+                                style="padding: 0.25rem 0.5rem;"
+                                title="Suspend Mentor">
+                            <i class="fas fa-ban fa-fw"></i>
+                        </button>
+                    `;
+                } else {
+                    actionsCell.innerHTML = '<span class="text-muted small">N/A</span>';
+                }
+            }
+            
+            if (badgeHTML) {
+                statusCell.innerHTML = badgeHTML;
+                // Reinitialize tooltips
+                var tooltipTriggerList = [].slice.call(statusCell.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+            }
+        }
+        
         function confirmVerify(id) {
             Swal.fire({
                 title: 'Verify Payment?',
-                text: "Are you sure you want to verify this commission payment? This action is usually irreversible.",
+                text: "Are you sure you want to verify this commission payment?",
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#198754',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, verify it!'
+                confirmButtonText: 'Yes, verify it!',
+                showLoaderOnConfirm: true,
+                preConfirm: async () => {
+                    const result = await submitAction(id, 'verify');
+                    if (!result.success) {
+                        Swal.showValidationMessage(`Request failed: ${result.error}`);
+                    }
+                    return result;
+                },
+                allowOutsideClick: () => !Swal.isLoading()
             }).then((result) => {
-                if (result.isConfirmed) {
-                    setAction(id, 'verify');
-                    getForm(id).submit();
+                if (result.isConfirmed && result.value.success) {
+                    updatePaymentUI(id, 'verified');
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Commission payment verified successfully.',
+                        icon: 'success',
+                        confirmButtonColor: '#3085d6',
+                        timer: 2000
+                    });
                 }
             });
         }
@@ -988,31 +1173,60 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
                 cancelButtonColor: '#6c757d',
                 inputValidator: (value) => {
                     if (!value) {
-                        return 'You must provide a reason to reject the payment!'
+                        return 'You must provide a reason to reject the payment!';
                     }
-                }
+                },
+                showLoaderOnConfirm: true,
+                preConfirm: async (reason) => {
+                    const result = await submitAction(id, 'reject', { rejection_reason: reason });
+                    if (!result.success) {
+                        Swal.showValidationMessage(`Request failed: ${result.error}`);
+                    }
+                    return { result, reason };
+                },
+                allowOutsideClick: () => !Swal.isLoading()
             });
             
-            if (reason) {
-                document.getElementById('reason-input-' + id).value = reason;
-                setAction(id, 'reject');
-                getForm(id).submit();
+            if (reason && reason.result.success) {
+                updatePaymentUI(id, 'rejected', { rejectionReason: reason.reason });
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Commission payment rejected.',
+                    icon: 'success',
+                    confirmButtonColor: '#3085d6',
+                    timer: 2000
+                });
             }
         }
 
         function confirmSuspend(id) {
             Swal.fire({
                 title: 'Suspend Mentor?',
-                text: "This will suspend the mentor's account due to non-payment or a severe policy violation. They will not be able to accept new sessions.",
+                text: "This will suspend the mentor's account due to non-payment. They will not be able to accept new sessions.",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ffc107',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, suspend mentor!'
+                confirmButtonText: 'Yes, suspend mentor!',
+                showLoaderOnConfirm: true,
+                preConfirm: async () => {
+                    const result = await submitAction(id, 'suspend_mentor');
+                    if (!result.success) {
+                        Swal.showValidationMessage(`Request failed: ${result.error}`);
+                    }
+                    return result;
+                },
+                allowOutsideClick: () => !Swal.isLoading()
             }).then((result) => {
-                if (result.isConfirmed) {
-                    setAction(id, 'suspend_mentor');
-                    getForm(id).submit();
+                if (result.isConfirmed && result.value.success) {
+                    updatePaymentUI(id, 'suspended');
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Mentor account suspended due to unpaid commissions.',
+                        icon: 'success',
+                        confirmButtonColor: '#3085d6',
+                        timer: 2000
+                    });
                 }
             });
         }
@@ -1020,21 +1234,45 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         function confirmUnsuspend(id) {
             Swal.fire({
                 title: 'Reactivate Mentor?',
-                text: "Are you sure you want to reactivate this mentor's account? Ensure all issues are resolved.",
+                text: "Are you sure you want to reactivate this mentor's account?",
                 icon: 'info',
                 showCancelButton: true,
                 confirmButtonColor: '#0dcaf0',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, reactivate!'
+                confirmButtonText: 'Yes, reactivate!',
+                showLoaderOnConfirm: true,
+                preConfirm: async () => {
+                    const result = await submitAction(id, 'unsuspend_mentor');
+                    if (!result.success) {
+                        Swal.showValidationMessage(`Request failed: ${result.error}`);
+                    }
+                    return result;
+                },
+                allowOutsideClick: () => !Swal.isLoading()
             }).then((result) => {
-                if (result.isConfirmed) {
-                    setAction(id, 'unsuspend_mentor');
-                    getForm(id).submit();
+                if (result.isConfirmed && result.value.success) {
+                    // Get current payment status from the row
+                    const row = document.querySelector(`#commission-form-${id}`).closest('tr');
+                    const statusBadge = row.querySelector('td:nth-child(7) .badge');
+                    let paymentStatus = 'pending';
+                    if (statusBadge) {
+                        const badgeText = statusBadge.textContent.trim().toLowerCase();
+                        if (badgeText.includes('rejected')) paymentStatus = 'rejected';
+                    }
+                    
+                    updatePaymentUI(id, 'unsuspended', { paymentStatus });
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Mentor account reactivated.',
+                        icon: 'success',
+                        confirmButtonColor: '#3085d6',
+                        timer: 2000
+                    });
                 }
             });
         }
 
-        // --- Chart.js scripts from financial-overview.php ---
+        // --- Chart.js scripts ---
         // Daily Revenue Chart
         const dailyRevenueCtx = document.getElementById('dailyRevenueChart').getContext('2d');
         const dailyData = <?php echo json_encode($daily_revenue); ?>;
@@ -1066,7 +1304,7 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { /* Smoother Chart Animation */
+                animation: {
                     duration: 1200,
                     easing: 'easeInOutCubic'
                 },
@@ -1122,8 +1360,8 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
-                cutout: '70%', /* Added: Doughnut hole size */
-                animation: { /* Smoother Chart Animation */
+                cutout: '70%',
+                animation: {
                     duration: 1200,
                     easing: 'easeInOutCubic'
                 },
@@ -1143,16 +1381,13 @@ $cp_amount_verified = $cp_amounts['verified'] ?? 0;
         });
 
         // --- Tab Persistency ---
-        // Keep the current tab active on page reload (e.g., after filtering)
         document.addEventListener('DOMContentLoaded', function() {
-            // Check for filter parameters in the URL to determine the active tab
             const urlParams = new URLSearchParams(window.location.search);
             let activeTabId = 'overview-tab';
 
             if (urlParams.has('cp_status') || urlParams.has('cp_search')) {
                 activeTabId = 'commissions-tab';
             } else if (urlParams.has('date_from') || urlParams.has('date_to')) {
-                // Keep the default overview-tab if only overview filters are present
                 activeTabId = 'overview-tab';
             }
             

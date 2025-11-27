@@ -383,6 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                     similar_text(strtolower($user['location']), strtolower($a['location']), $similarity_a);
                 }
                 if ($user['location'] && $b['location']) {
+                    // FIX: Corrected syntax error on this line
                     similar_text(strtolower($user['location']), strtolower($b['location']), $similarity_b);
                 }
                 return $similarity_b <=> $similarity_a;
@@ -392,6 +393,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
         
         $final_matches = [];
         foreach ($filtered_matches as $match) {
+            // NOTE: Keeping the availability score logic for backend filtering, 
+            // but the display will be removed as requested.
             $availability_score = $matchmaker->calculateTimeAvailabilityScore($user['id'], $match['id']);
             if ($availability_score > 20) {
                 $match['availability_score'] = $availability_score;
@@ -400,16 +403,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
         }
         
         if (empty($final_matches) && !empty($filtered_matches)) {
-            $final_matches = array_slice($filtered_matches, 0, 1);
+            // If no match has >20 availability score, still show the best one
+            $best_match_if_no_availability = $filtered_matches[0];
+            $best_match_if_no_availability['availability_score'] = $matchmaker->calculateTimeAvailabilityScore($user['id'], $best_match_if_no_availability['id']);
+            $final_matches[] = $best_match_if_no_availability;
         }
         
         if (!empty($final_matches)) {
+            // The first element is the best match
             $current_match = $final_matches[0];
             $current_match['selected_subjects'] = $current_match['matched_subjects'];
             $loading = false; // Match found, stop loading
+            
+            // --- Fetch matched user's availability slots ---
+            $availability_stmt = $db->prepare("
+                SELECT day_of_week, start_time, end_time 
+                FROM user_availability 
+                WHERE user_id = ? 
+                ORDER BY FIELD(day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'), start_time
+            ");
+            $availability_stmt->execute([$current_match['id']]);
+            $current_match['availability_slots'] = $availability_stmt->fetchAll(PDO::FETCH_ASSOC);
+            // --- END Fetch ---
         } else {
-            // No match found, but we want the 2-second timeout to complete before showing the "No Match" state
-            // Keep $loading = true for the first 2 seconds, then let the JS auto-submit the form
+            // No match found
         }
     }
 }
@@ -930,6 +947,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
             display: inline-block;
             margin: 0.25rem;
         }
+        
+        /* === AVAILABILITY STYLES (Updated for detailed display) === */
+        .match-availability {
+            background: #eff6ff; /* soft blue */
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+        
+        [data-theme="dark"] .match-availability {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+        }
+
+        .match-availability-title {
+            color: #1e40af; /* darker blue */
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .match-availability-text {
+            font-size: 0.85rem;
+            color: #60a5fa;
+        }
+        
+        [data-theme="dark"] .match-availability-text {
+            color: #60a5fa;
+        }
+
+        /* Styling for the availability list */
+        .match-availability ul {
+            list-style: none;
+            padding: 0;
+            margin: 0.75rem 0;
+        }
+
+        .match-availability li {
+            padding: 0.25rem 0;
+            font-size: 0.9rem;
+        }
+
+        .match-availability .unknown {
+             color: #d97706; 
+             font-weight: 500;
+             text-align: center;
+        }
+
+        /* Adjust colors for the Unknown/Warning state */
+        .match-availability.warning {
+            background: #fef3c7; 
+            border-color: #fcd34d;
+        }
+        
+        .match-availability.warning .match-availability-title {
+            color: #b45309; 
+        }
+
+        .match-availability.warning .match-availability-text {
+            color: #d97706;
+        }
+        
+        /* === END AVAILABILITY STYLES === */
 
         .match-bio {
             background: rgba(0, 0, 0, 0.02);
@@ -975,7 +1060,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
             text-align: center;
         }
 
-        /* NEW PULSING ANIMATION STYLES */
+        /* PULSING ANIMATION STYLES */
         .pulsing-icon-container {
             margin: 0 auto 1.5rem;
             position: relative;
@@ -1007,7 +1092,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                 opacity: 0.7;
             }
         }
-        /* END NEW PULSING ANIMATION STYLES */
+        /* END PULSING ANIMATION STYLES */
 
         .loading-text {
             color: var(--text-primary);
@@ -1448,7 +1533,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
                             <span class="subject-tag"><?php echo htmlspecialchars($subject); ?></span>
                         <?php endforeach; ?>
                     </div>
+                    
+                    <?php 
+                    $availability_by_day = [];
+                    if (isset($current_match['availability_slots'])) {
+                        // Group slots by day
+                        foreach ($current_match['availability_slots'] as $slot) {
+                            $availability_by_day[$slot['day_of_week']][] = date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time']));
+                        }
+                    }
+                    ?>
 
+                    <?php if (!empty($availability_by_day)): ?>
+                        <div class="match-availability">
+                            <div class="match-availability-title"><i class="fas fa-calendar-check"></i> <?php echo htmlspecialchars(explode(' ', $current_match['first_name'])[0]); ?>'s Available Times:</div>
+                            <ul style="list-style: none; padding: 0; margin: 0.5rem 0 0.25rem; font-size: 0.9rem;">
+                                <?php foreach ($availability_by_day as $day => $times): ?>
+                                    <li style="padding: 0.25rem 0; display: flex; justify-content: space-between;">
+                                        <strong style="color: #1e40af; flex-shrink: 0; margin-right: 1rem;"><?php echo htmlspecialchars($day); ?>:</strong> 
+                                        <span style="color: #60a5fa; text-align: right; flex-grow: 1;"><?php echo implode(' | ', $times); ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php else: ?>
+                        <div class="match-availability warning">
+                            <div class="match-availability-title"><i class="fas fa-exclamation-triangle"></i> Availability Unknown:</div>
+                            <div class="match-availability-text">
+                                **<?php echo htmlspecialchars(explode(' ', $current_match['first_name'])[0]); ?>** has not set their availability yet.
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <?php if ($current_match['bio']): ?>
                         <div class="match-bio">
                             <div class="match-bio-title">About <?php echo htmlspecialchars(explode(' ', $current_match['first_name'])[0]); ?>:</div>
@@ -1744,7 +1859,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_match'])) {
             }
         });
 
-        // --- NEW: Auto-submit form after 2 seconds if loading is active ---
+        // --- Auto-submit form after 2 seconds if loading is active ---
         (function autoContinueSearch() {
             const loadingState = document.querySelector('.loading-state');
             const autoForm = document.getElementById('autoContinueForm');

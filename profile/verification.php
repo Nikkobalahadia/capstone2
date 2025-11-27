@@ -17,6 +17,16 @@ $unread_notifications = get_unread_count($user['id']);
 $error = '';
 $success = '';
 
+// Define the map for rejection reasons (must match admin side)
+$rejection_reasons = [
+    'unclear' => 'Unclear Image/Text',
+    'expired' => 'Expired Document',
+    'mismatched_name' => 'Mismatched Name/Information',
+    'invalid_type' => 'Invalid Document Type',
+    'forged' => 'Forged/Edited Document',
+    'other' => 'Other (Contact Support)'
+];
+
 // Handle document upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_document'])) {
     if (!verify_csrf_token($_POST['csrf_token'])) {
@@ -683,22 +693,18 @@ $approved_docs = array_filter($verification_docs, function($doc) {
     </style>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="navbar">
-            <!-- Mobile Hamburger -->
             <button class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
 
-            <!-- Logo -->
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
-            <!-- Desktop Navigation -->
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="../matches/index.php"><i class="fas fa-handshake"></i> Matches</a></li>
@@ -706,9 +712,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
             </ul>
 
-            <!-- Right Icons -->
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <!-- Notifications -->
                 <div style="position: relative;">
                     <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
                         <i class="fas fa-bell"></i>
@@ -731,7 +735,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     </div>
                 </div>
 
-                <!-- Profile Menu -->
                 <div class="profile-menu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
                         <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
@@ -791,7 +794,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
             <?php endif; ?>
 
             <div class="grid grid-cols-3" style="gap: 2rem;">
-                <!-- Upload Form -->
                 <div style="grid-column: span 2;">
                     <?php if ($user['is_verified']): ?>
                         <div class="card mb-4" style="border: 2px solid var(--success-color); background: #f0fdf4;">
@@ -847,7 +849,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                     </div>
                 </div>
 
-                <!-- Sidebar -->
                 <div>
                     <div class="card mb-4">
                         <div class="card-header">
@@ -877,8 +878,7 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 </div>
             </div>
 
-            <!-- Benefits of Verification -->
-                    <div class="card">
+            <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">Benefits of Verification</h3>
                         </div>
@@ -895,7 +895,6 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                 </div>
             </div>
 
-            <!-- Uploaded Documents -->
             <?php if ($verification_docs): ?>
                 <div class="card mt-4">
                     <div class="card-header">
@@ -937,6 +936,14 @@ $approved_docs = array_filter($verification_docs, function($doc) {
                                                 <span style="background: <?php echo $doc['status'] === 'approved' ? '#dcfce7' : ($doc['status'] === 'rejected' ? '#fecaca' : '#fef3c7'); ?>; color: <?php echo $doc['status'] === 'approved' ? '#166534' : ($doc['status'] === 'rejected' ? '#dc2626' : '#d97706'); ?>; padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 500;">
                                                     <?php echo ucfirst($doc['status']); ?>
                                                 </span>
+                                                <?php 
+                                                // Display rejection reason if status is rejected
+                                                if ($doc['status'] === 'rejected' && !empty($doc['rejection_reason'])) {
+                                                    $reason_key = $doc['rejection_reason'];
+                                                    $reason_text = $rejection_reasons[$reason_key] ?? 'Unknown Reason';
+                                                    echo '<div style="font-size: 0.75rem; color: #dc2626; margin-top: 0.25rem; font-weight: 500;">Reason: ' . htmlspecialchars($reason_text) . '</div>';
+                                                }
+                                                ?>
                                             </td>
                                             <td><?php echo date('M j, Y', strtotime($doc['created_at'])); ?></td>
                                             <td>

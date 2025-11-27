@@ -550,21 +550,23 @@ $sessions = $stmt->fetchAll();
                                         </td>
                                         <td>
                                             <?php if ($session['status'] === 'scheduled'): ?>
-                                                <form method="POST" action="" style="display: inline-block;" id="complete-form-<?php echo $session['id']; ?>">
-                                                    <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                                                    <input type="hidden" name="action" value="complete">
-                                                    <button type="button" class="btn btn-success btn-sm me-1" onclick="confirmComplete(event, <?php echo $session['id']; ?>)" title="Mark as Done">
-                                                        <i class="fas fa-check"></i>
-                                                    </button>
-                                                </form>
-                                                
-                                                <form method="POST" action="" style="display: inline-block;" id="cancel-form-<?php echo $session['id']; ?>">
-                                                    <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
-                                                    <input type="hidden" name="action" value="cancel">
-                                                    <button type="button" class="btn btn-danger btn-sm" onclick="confirmCancel(event, <?php echo $session['id']; ?>)" title="Cancel Session">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                </form>
+                                                <div class="d-flex justify-content-start align-items-center">
+                                                    <form method="POST" action="" id="complete-form-<?php echo $session['id']; ?>">
+                                                        <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                                                        <input type="hidden" name="action" value="complete">
+                                                        <button type="button" class="btn btn-outline-success btn-sm me-2" style="padding: 0.25rem 0.5rem;" onclick="confirmComplete(event, <?php echo $session['id']; ?>)" title="Mark as Done">
+                                                            <i class="fas fa-check fa-fw"></i>
+                                                        </button>
+                                                    </form>
+                                                    
+                                                    <form method="POST" action="" id="cancel-form-<?php echo $session['id']; ?>">
+                                                        <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>">
+                                                        <input type="hidden" name="action" value="cancel">
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" style="padding: 0.25rem 0.5rem;" onclick="confirmCancel(event, <?php echo $session['id']; ?>)" title="Cancel Session">
+                                                            <i class="fas fa-times fa-fw"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
                                             <?php else: ?>
                                                 <span class="text-muted small">-</span>
                                             <?php endif; ?>

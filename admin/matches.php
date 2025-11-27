@@ -660,15 +660,22 @@ $stats = $db->query("
                                                     <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
                                                     <input type="hidden" name="action" id="action-input-<?php echo $match['id']; ?>">
                                                     
-                                                    <div class="btn-group btn-group-sm" role="group">
-                                                        <button type="button" onclick="confirmApprove(<?php echo $match['id']; ?>)" class="btn btn-success">
-                                                            <i class="fas fa-check me-1"></i> Approve
+                                                    <div class="d-flex justify-content-start align-items-center">
+                                                        <button type="button" onclick="confirmApprove(<?php echo $match['id']; ?>)" 
+                                                                class="btn btn-outline-success btn-sm me-2" 
+                                                                style="padding: 0.25rem 0.5rem;"
+                                                                title="Approve Match">
+                                                            <i class="fas fa-check fa-fw"></i>
                                                         </button>
-                                                        <button type="button" onclick="confirmReject(<?php echo $match['id']; ?>)" class="btn btn-danger">
-                                                            <i class="fas fa-times me-1"></i> Reject
+                                                        
+                                                        <button type="button" onclick="confirmReject(<?php echo $match['id']; ?>)" 
+                                                                class="btn btn-outline-danger btn-sm" 
+                                                                style="padding: 0.25rem 0.5rem;"
+                                                                title="Reject Match">
+                                                            <i class="fas fa-times fa-fw"></i>
                                                         </button>
                                                     </div>
-                                                </form>
+                                                    </form>
                                                 <?php else: ?>
                                                 <span class="text-muted small">No actions</span>
                                             <?php endif; ?>

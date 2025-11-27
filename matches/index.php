@@ -113,6 +113,32 @@ $stmt = $db->prepare($matches_query);
 $stmt->execute([$user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id'], $user['id']]);
 $matches = $stmt->fetchAll();
 
+// --- START ADDITION: Fetch and embed partner availability data into $matches ---
+foreach ($matches as &$match) {
+    $partner_id = $match['partner_id'];
+    
+    // Fetch matched user's availability slots
+    $availability_stmt = $db->prepare("
+        SELECT day_of_week, start_time, end_time
+        FROM user_availability
+        WHERE user_id = ?
+        ORDER BY FIELD(day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'), start_time
+    ");
+    $availability_stmt->execute([$partner_id]);
+    $availability_slots = $availability_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Group slots by day for easy JSON encoding
+    $availability_by_day = [];
+    foreach ($availability_slots as $slot) {
+        // Format time for display in JS
+        $availability_by_day[$slot['day_of_week']][] = date('g:i A', strtotime($slot['start_time'])) . ' - ' . date('g:i A', strtotime($slot['end_time']));
+    }
+    $match['partner_availability'] = $availability_by_day;
+}
+unset($match); // Break the reference
+// --- END ADDITION ---
+
+
 $pending_matches = array_filter($matches, function($match) { return $match['status'] === 'pending'; });
 $accepted_matches = array_filter($matches, function($match) { return $match['status'] === 'accepted'; });
 $other_matches = array_filter($matches, function($match) { return !in_array($match['status'], ['pending', 'accepted']); });
@@ -245,6 +271,24 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         .nav-links a:hover {
             color: var(--primary-color);
         }
+
+        /* ===== NAVBAR FIX: ACTIVE LINK STYLES ===== */
+        .nav-links .active-nav a {
+            color: var(--primary-color) !important;
+            font-weight: 600;
+            position: relative;
+        }
+        .nav-links .active-nav a::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -5px;
+            width: 100%;
+            height: 3px;
+            background-color: var(--primary-color);
+            border-radius: 2px;
+        }
+        /* ===== END NAVBAR FIX: ACTIVE LINK STYLES ===== */
 
         .notification-bell {
             position: relative;
@@ -508,7 +552,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             background: #15803d;
         }
 
-
         .btn-danger {
             background: #dc2626;
             color: white;
@@ -534,103 +577,121 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             min-height: auto;
         }
 
-        /* ===== MODIFICATION 1: ADDED THIS RULE ===== */
-        .btn.disabled,
-        .btn:disabled {
+        /* ===== MODIFICATION 1: ADDED THIS RULE ===== */ 
+        .btn.disabled, .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             pointer-events: none; /* This prevents clicks and hover effects */
         }
-        /* ===== END OF MODIFICATION 1 ===== */
+        /* ===== END OF MODIFICATION 1 ===== */ 
 
         .alert {
             padding: 1rem;
             border-radius: 8px;
             margin-bottom: 1.5rem;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 0.75rem;
+            font-size: 0.9rem;
+        }
+
+        .alert i {
+            font-size: 1.25rem;
+            flex-shrink: 0;
         }
 
         .alert-error {
-            background: #fee2e2;
+            background: #fef2f2;
+            color: #dc2626;
             border: 1px solid #fecaca;
-            color: #991b1b;
+        }
+
+        .alert-error i {
+            color: #ef4444;
         }
 
         .alert-success {
-            background: #d1fae5;
-            border: 1px solid #a7f3d0;
-            color: #065f46;
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #dcfce7;
         }
 
-        .alert-warning {
-            background: #fef3c7;
-            border: 1px solid #fcd34d;
-            color: #92400e;
+        .alert-success i {
+            color: #22c55e;
         }
 
+        /* ===== CARDS & MATCHES ===== */
         .card {
             background: white;
             border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
             border: 1px solid var(--border-color);
-            margin-bottom: 1.5rem;
             overflow: hidden;
         }
 
         .card-header {
-            padding: 1.25rem;
+            padding: 1rem 1.5rem;
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: #fafafa;
+            background: #f9fafb;
         }
 
         .card-title {
             font-size: 1.1rem;
             font-weight: 600;
             color: var(--text-primary);
-            margin: 0;
         }
 
         .card-body {
-            padding: 1.25rem;
+            padding: 1.5rem;
+        }
+
+        .match-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
         .match-card {
-            padding: 1.25rem;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            margin-bottom: 1rem;
             display: flex;
-            gap: 1.25rem;
-            align-items: flex-start;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.25rem 1.5rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
             background: white;
+            transition: box-shadow 0.2s;
         }
 
-        .match-card.pending {
-            background: #fffbeb; /* CHANGED: */
-            border-color: #fde68a; /* CHANGED: */
+        .match-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
         }
 
-        .match-card.accepted {
-            background: #f0fdf4;
-            border-color: #bbf7d0;
+        .match-details {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 0;
         }
 
         .match-avatar {
             width: 60px;
             height: 60px;
-            border-radius: 10px;
-            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
             font-size: 1.5rem;
-            color: white;
+            flex-shrink: 0;
             overflow: hidden;
+            border: 2px solid var(--primary-color);
         }
 
         .match-avatar img {
@@ -639,75 +700,93 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             object-fit: cover;
         }
 
-        .match-avatar.pending {
-            background: #fbbf24; /* CHANGED: */
-            color: #78350f; /* CHANGED: */
-        }
-
-        .match-avatar.accepted {
-            background: #10b981;
-        }
-
         .match-info {
-            flex: 1;
             min-width: 0;
+            flex: 1;
         }
 
         .match-name {
+            font-size: 1.2rem;
             font-weight: 600;
-            font-size: 1rem;
-            margin-bottom: 0.25rem;
             color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .match-meta {
             font-size: 0.85rem;
             color: var(--text-secondary);
+            margin-top: 0.25rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
+            gap: 0.75rem;
         }
 
-        .match-badge {
-            display: inline-flex;
+        .match-meta span {
+            display: flex;
             align-items: center;
             gap: 0.25rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: #dbeafe;
-            color: #1e40af;
         }
-        
-        /* ADDED: Style for the pending badge */
+
         .match-status-badge {
-            padding: 0.5rem;
-            border-radius: 6px;
-            text-align: center;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-shrink: 0;
         }
-        
-        /* CHANGED: For light yellow */
+
+        .match-status-badge.accepted-badge {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
         .match-status-badge.pending-badge {
-            background: #fef3c7;
+            background: #fef3c7; /* CHANGED: For light yellow */
             color: #92400e;
+        }
+
+        .match-status-badge.rejected-badge, .match-status-badge.cancelled-badge {
+            background: #fee2e2;
+            color: #b91c1c;
         }
 
         .match-actions {
             display: flex;
             gap: 0.5rem;
-            flex-direction: column;
+            flex-direction: row;
             flex-shrink: 0;
         }
 
         .match-actions .btn {
-            width: 130px;
+            width: auto;
         }
 
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            text-align: center;
+            padding: 2rem 0;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        /* ===== MODAL STYLES (Match Details) ===== */
         .modal {
             display: none;
             position: fixed;
@@ -733,6 +812,8 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
         }
 
         .modal-header {
@@ -741,134 +822,204 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            background: linear-gradient(to right, var(--primary-color), #1e40af);
             color: white;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            flex-shrink: 0;
+        }
+
+        .modal-header h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            margin: 0;
         }
 
         .modal-close {
             background: none;
             border: none;
-            color: white;
             font-size: 1.5rem;
+            color: white;
             cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
+            transition: opacity 0.2s;
+        }
+
+        .modal-close:hover {
+            opacity: 0.8;
         }
 
         .modal-body {
             padding: 1.5rem;
+            flex-grow: 1;
         }
 
-        /* ADDED: CSS classes for modal elements */
+        .modal-details-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .modal-partner-info {
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+        }
+
         .modal-avatar {
-            width: 80px; 
-            height: 80px; 
-            border-radius: 10px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            color: white; 
-            font-weight: 600; 
-            font-size: 2rem; 
-            border: 3px solid var(--border-color);
-            overflow: hidden;
-        }
-        .modal-avatar img {
-             width: 100%;
-             height: 100%;
-             object-fit: cover;
-        }
-        .modal-badge {
-            padding: 0.25rem 0.75rem; 
-            border-radius: 12px; 
-            font-size: 0.875rem; 
-            font-weight: 600;
-        }
-        .modal-avatar.accepted, .modal-badge.accepted {
-            background: #10b981; 
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--primary-color);
             color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            flex-shrink: 0;
+            overflow: hidden;
+            border: 3px solid var(--border-color);
         }
-        .modal-avatar.pending, .modal-badge.pending {
-            background: #fbbf24; /* CHANGED: */
-            color: #78350f; /* CHANGED: */
-        }
-        /* END ADDED */
 
+        .modal-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .modal-partner-details {
+            flex-grow: 1;
+        }
+
+        .modal-partner-details h3 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .modal-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .modal-badge.accepted {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .modal-badge.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .modal-badge.rejected, .modal-badge.cancelled {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
 
         .info-row {
             display: flex;
             justify-content: space-between;
             padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px dashed #f0f0f0;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 3rem 2rem;
+        .info-row span:first-child {
             color: var(--text-secondary);
+            font-size: 0.9rem;
         }
 
-        .empty-state i {
-            font-size: 4rem;
-            color: #e5e7eb;
-            margin-bottom: 1.5rem;
-            display: block;
-        }
-
-        .hide-on-small {
-            display: inline;
+        .info-row span:last-child {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.95rem;
         }
         
-        /* ===== MOBILE RESPONSIVE ===== */
-        @media (max-width: 768px) {
-            .hamburger {
-                display: flex;
-            }
+        .info-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
 
+        .info-section h4 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.75rem;
+        }
+
+        .info-section p {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        /* Media Queries */
+        @media (max-width: 768px) {
             .navbar {
                 padding: 0.75rem 0.5rem;
             }
 
-            .logo {
-                font-size: 1.1rem;
-            }
-
-            .nav-links {
-                display: none;
-                position: fixed;
-                top: 60px;
-                left: 0;
-                right: 0;
-                background: white;
-                flex-direction: column;
-                gap: 0;
-                max-height: 0;
-                overflow: hidden;
-                transition: max-height 0.3s ease;
-                box-shadow: var(--shadow-lg);
-                z-index: 999;
-            }
-
-            .nav-links.active {
-                max-height: 500px;
+            .hamburger {
                 display: flex;
             }
 
-            .nav-links a {
-                padding: 1rem;
-                border-bottom: 1px solid var(--border-color);
-                display: block;
-                text-align: left;
+            /* ===== START MOBILE NAVBAR FIX (find.php drop-down style) ===== */
+            .nav-links {
+                position: fixed;
+                top: 60px; /* Below the header */
+                left: 0;
+                width: 100%; /* Full width */
+                height: auto; /* Auto height based on content */
+                max-height: calc(100vh - 60px); /* Max height to fit viewport minus header */
+                background: white;
+                flex-direction: column;
+                padding: 0; 
+                align-items: flex-start;
+                gap: 0; 
+                /* Toggled by JS using display: none/flex, no transform/transition for slide effect */
+                display: none; /* Initially hidden, toggled to flex by JS */
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                z-index: 1005; /* Above content, below modal */
+                overflow-y: auto; 
+                border-top: 1px solid var(--border-color);
             }
+            
+            .nav-links.active {
+                display: flex; /* Show the menu */
+            }
+            
+            .nav-links li {
+                width: 100%;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .nav-links li:last-child {
+                border-bottom: none;
+            }
+            
+            .nav-links li a {
+                padding: 1rem 1.5rem; /* Increased padding for better touch targets */
+                width: 100%;
+                display: block;
+            }
+            /* ===== END MOBILE NAVBAR FIX ===== */
 
-            main {
+            .main {
                 padding: 1rem 0;
             }
 
             .page-header {
                 flex-direction: column;
-                gap: 1rem;
+                align-items: flex-start;
+                margin-bottom: 1.5rem;
             }
 
             .page-header h1 {
@@ -877,7 +1028,13 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
             .match-card {
                 flex-direction: column;
+                align-items: flex-start;
                 padding: 1rem;
+            }
+
+            .match-details {
+                margin-bottom: 1rem;
+                width: 100%;
             }
 
             .match-actions {
@@ -907,166 +1064,153 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             .hide-on-small {
                 display: none;
             }
+            
+            /* ===== NAVBAR FIX: MOBILE ACTIVE LINK STYLES (Keep from previous change) ===== */
+            .nav-links .active-nav a::after {
+                display: none; /* Hide underline on mobile menu */
+            }
+            .nav-links .active-nav {
+                background-color: rgba(37, 99, 235, 0.1); /* Subtle highlight on mobile */
+                border-left: 4px solid var(--primary-color);
+            }
+            /* ===== END NAVBAR FIX: MOBILE ACTIVE LINK STYLES ===== */
         }
 
         @media (max-width: 480px) {
             .logo {
                 font-size: 1rem;
             }
-
             .page-header h1 {
                 font-size: 1.25rem;
             }
-
             .match-card {
                 padding: 0.75rem;
             }
-
             .match-avatar {
                 width: 50px;
                 height: 50px;
                 font-size: 1.25rem;
             }
-
             .btn-sm {
                 padding: 0.375rem 0.5rem;
                 font-size: 0.75rem;
             }
-
             .card-body {
                 padding: 1rem;
             }
-
             .modal-content {
                 width: 95%;
             }
-
             .notification-dropdown {
                 width: calc(100vw - 20px);
                 right: -10px;
             }
         }
-        
+
         /* ===== DARK MODE STYLES ===== */
         /* Applied via [data-theme="dark"] on <html> tag */
-        
         [data-theme="dark"] {
             --primary-color: #3b82f6; /* User requested */
             --text-primary: #e4e4e7;
             --text-secondary: #a1a1aa;
             --border-color: #374151; /* User requested */
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.3);
-
-            /* Semantic colors */
-            --bg-body: #111827;       /* User requested */
-            --bg-card: #1f2937;       /* User requested */
-            --bg-card-header: #3a3a3e; /* Card-header, hover backgrounds */
-            --bg-hover: #3f3f46;
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.5);
+            background: #18181b;
         }
 
         [data-theme="dark"] body {
-            background: var(--bg-body);
+            background: #18181b;
             color: var(--text-primary);
         }
 
         [data-theme="dark"] .header,
         [data-theme="dark"] .card,
+        [data-theme="dark"] .match-card,
         [data-theme="dark"] .modal-content,
-        [data-theme="dark"] .profile-dropdown,
         [data-theme="dark"] .notification-dropdown,
-        [data-theme="dark"] .nav-links {
-            background: var(--bg-card);
-            border-color: var(--border-color);
-        }
-        
-        [data-theme="dark"] .card-header {
-            background: var(--bg-card-header);
+        [data-theme="dark"] .profile-dropdown {
+            background: #27272a;
             border-color: var(--border-color);
         }
 
-        [data-theme="dark"] .profile-dropdown-menu hr,
-        [data-theme="dark"] .info-row,
-        [data-theme="dark"] .nav-links a,
-        [data-theme="dark"] .notification-footer,
-        [data-theme="dark"] .notification-header,
+        [data-theme="dark"] .card-header,
         [data-theme="dark"] .notification-item-dropdown,
-        [data-theme="dark"] .profile-dropdown-header {
-            border-color: var(--border-color);
-        }
-        
-        [data-theme="dark"] .btn-outline {
-            color: var(--text-primary);
-            border-color: var(--border-color);
+        [data-theme="dark"] .profile-dropdown-header,
+        [data-theme="dark"] .profile-dropdown-menu {
+            border-color: #374151;
+            background: #27272a;
         }
 
-        [data-theme="dark"] .btn-outline:hover,
-        [data-theme="dark"] .notification-bell:hover,
-        [data-theme="dark"] .profile-dropdown-item:hover,
-        [data-theme="dark"] .notification-item-dropdown:hover {
-            background: var(--bg-hover);
+        [data-theme="dark"] .nav-links a,
+        [data-theme="dark"] .notification-bell {
+            color: var(--text-secondary);
         }
-        
-        [data-theme="dark"] .profile-dropdown-item:hover {
+
+        [data-theme="dark"] .nav-links a:hover,
+        [data-theme="dark"] .notification-bell:hover {
             color: var(--primary-color);
+            background: #374151;
         }
         
-        [data-theme="dark"] .profile-dropdown-item.logout:hover {
-            background: #3f1212;
+        /* ===== NAVBAR FIX: DARK MODE ACTIVE LINK STYLES ===== */
+        [data-theme="dark"] .nav-links .active-nav a::after {
+            background-color: var(--primary-color);
         }
-        
-        [data-theme="dark"] .notification-item-dropdown.unread {
-            background: #3a3a3e; /* CHANGED: */
+        [data-theme="dark"] .nav-links .active-nav {
+            border-left-color: var(--primary-color);
         }
-        
+        /* Mobile: use a darker background for active state */
+        @media (max-width: 768px) {
+            [data-theme="dark"] .nav-links .active-nav {
+                background-color: rgba(59, 130, 246, 0.15); 
+            }
+        }
+        /* ===== END NAVBAR FIX: DARK MODE ACTIVE LINK STYLES ===== */
+
+        [data-theme="dark"] .profile-dropdown-item:hover {
+            background: #3f3f46;
+        }
+
         [data-theme="dark"] .alert-error {
-            background: #3f1212;
-            border-color: #dc2626;
+            background: #450a0a;
             color: #fca5a5;
+            border-color: #7f1d1d;
         }
-        
+
+        [data-theme="dark"] .alert-error i {
+            color: #f87171;
+        }
+
         [data-theme="dark"] .alert-success {
-            background: #062f1e;
-            border-color: #16a34a;
+            background: #064e3b;
             color: #a7f3d0;
+            border-color: #047857;
         }
 
-        [data-theme="dark"] .alert-warning {
-            background: #451a03;
-            border-color: #d97706;
-            color: #fcd34d;
-        }
-        
-        [data-theme="dark"] .match-card {
-             background: var(--bg-card);
-        }
-        
-        [data-theme="dark"] .match-card.pending {
-            background: var(--bg-card-header); /* CHANGED: */
-            border-color: #fde68a; /* CHANGED: */
-        }
-        
-        [data-theme="dark"] .match-card.accepted {
-            background: #062f1e;
-            border-color: #16a34a;
-        }
-        
-        [data-theme="dark"] .match-avatar.pending {
-            background: #fbbf24; /* CHANGED: */
-            color: #78350f; /* CHANGED: */
+        [data-theme="dark"] .alert-success i {
+            color: #34d399;
         }
 
-        [data-theme="dark"] .match-status-badge.pending-badge {
-            background: #451a03; /* CHANGED: */
-            color: #fef9c3; /* CHANGED: */
+        [data-theme="dark"] .match-status-badge.accepted-badge,
+        [data-theme="dark"] .modal-badge.accepted {
+            background: #065f46;
+            color: #d1fae5;
         }
-        
-        /* ADDED: Dark mode for modal pending */
-        [data-theme="dark"] .modal-avatar.pending, 
+
+        [data-theme="dark"] .match-status-badge.pending-badge,
         [data-theme="dark"] .modal-badge.pending {
             background: #fbbf24; /* CHANGED: */
             color: #78350f; /* CHANGED: */
         }
         
+        [data-theme="dark"] .match-status-badge.rejected-badge,
+        [data-theme="dark"] .match-status-badge.cancelled-badge,
+        [data-theme="dark"] .modal-badge.rejected,
+        [data-theme="dark"] .modal-badge.cancelled {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+
         [data-theme="dark"] .match-badge {
             background: #1e3a8a;
             color: #dbeafe;
@@ -1075,7 +1219,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         [data-theme="dark"] .empty-state i {
             color: var(--border-color);
         }
-        
+
         [data-theme="dark"] .hamburger span {
             background-color: var(--text-primary);
         }
@@ -1087,7 +1231,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         [data-theme="dark"] .modal-header {
             background: var(--primary-color);
         }
-        
+
         [data-theme="dark"] .modal-avatar {
             border-color: var(--border-color);
         }
@@ -1096,49 +1240,58 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
         [data-theme="dark"] #modalBody h3 {
             color: var(--text-primary);
         }
+
         [data-theme="dark"] #modalBody .info-row span:first-child {
             color: var(--text-secondary);
         }
+
         [data-theme="dark"] #modalBody .info-row span:last-child {
             color: var(--text-primary);
         }
+        
         [data-theme="dark"] #modalBody h4 {
             color: var(--text-primary);
         }
+
         [data-theme="dark"] #modalBody p {
             color: var(--text-secondary);
         }
-
+        
         /* Fix for JS-injected inline styles */
         [data-theme="dark"] .notification-list div[style*="color: #999"] {
             color: var(--text-secondary) !important;
         }
+
         [data-theme="dark"] .notification-list div[style*="color: #666"] {
             color: var(--text-secondary) !important;
         }
         
-        [data-theme="dark"] .user-role {
-            color: var(--text-secondary);
+        [data-theme="dark"] .notification-list .notification-item-dropdown.unread {
+            background: #312e81;
+        }
+        
+        [data-theme="dark"] .profile-dropdown-item.logout:hover {
+            background: #450a0a;
+        }
+        
+        [data-theme="dark"] .btn-outline {
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            background: transparent;
+        }
+        
+        [data-theme="dark"] .btn-outline:hover {
+            background: #3f3f46;
+        }
+        
+        [data-theme="dark"] .modal-body .info-section p {
+            color: var(--text-secondary); /* Ensure message text is readable */
         }
         
     </style>
-    
-    <script>
-        (function() {
-            let theme = localStorage.getItem('theme');
-            if (!theme) {
-                // No theme saved, use system preference
-                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            }
-            if (theme === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            } else {
-                document.documentElement.removeAttribute('data-theme');
-            }
-        })();
-    </script>
 </head>
 <body>
+
     <header class="header">
         <div class="navbar">
             <button class="hamburger" id="hamburger">
@@ -1146,21 +1299,22 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <span></span>
                 <span></span>
             </button>
-
             <a href="../dashboard.php" class="logo">
                 <i class="fas fa-book-open"></i> Study Buddy
             </a>
 
             <ul class="nav-links" id="navLinks">
                 <li><a href="../dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="index.php"><i class="fas fa-handshake"></i> Matches</a></li>
+                <li class="active-nav"><a href="index.php"><i class="fas fa-handshake"></i> Matches</a></li>
                 <li><a href="../sessions/index.php"><i class="fas fa-calendar"></i> Sessions</a></li>
                 <li><a href="../messages/index.php"><i class="fas fa-envelope"></i> Messages</a></li>
+                <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+                <?php endif; ?>
             </ul>
-
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="position: relative;">
-                    <button class="notification-bell" onclick="toggleNotifications(event)" title="Notifications">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                
+                <div class="profile-menu" id="notificationMenu">
+                    <button class="notification-bell" id="notificationBell" onclick="toggleNotifications(event)">
                         <i class="fas fa-bell"></i>
                         <?php if ($unread_notifications > 0): ?>
                             <span class="notification-badge"><?php echo $unread_notifications; ?></span>
@@ -1168,57 +1322,49 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     </button>
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-header">
-                            <h4><i class="fas fa-bell"></i> Notifications</h4>
+                            <h4 style="margin: 0; font-weight: 600; color: var(--text-primary);">Notifications</h4>
+                            <a href="../notifications/index.php" style="font-size: 0.85rem; color: var(--primary-color); text-decoration: none;">View All</a>
                         </div>
                         <div class="notification-list" id="notificationList">
-                            <div style="text-align: center; padding: 1.5rem; color: #999;">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
+                            <div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
                         </div>
                         <div class="notification-footer">
-                            <a href="../notifications/index.php" style="font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-arrow-right"></i> View All
-                            </a>
+                            <button onclick="markAllAsRead()" class="btn btn-outline btn-sm" style="width: 100%;">Mark All As Read</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="profile-menu">
+                <div class="profile-menu" id="profileMenu">
                     <button class="profile-icon" onclick="toggleProfileMenu(event)">
-                        <?php if (!empty($user['profile_picture']) && file_exists('../' . $user['profile_picture'])): ?>
-                            <img src="../<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile">
+                        <?php if ($user['profile_picture']): ?>
+                            <img src="<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile Picture">
                         <?php else: ?>
                             <i class="fas fa-user"></i>
                         <?php endif; ?>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-dropdown-header">
-                            <p class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></p>
-                            <p class="user-role"><?php echo ucfirst($user['role']); ?></p>
+                            <div class="user-name"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></div>
+                            <div class="user-role"><?php echo ucfirst(htmlspecialchars($user['role'])); ?></div>
                         </div>
                         <div class="profile-dropdown-menu">
                             <a href="../profile/index.php" class="profile-dropdown-item">
-                                <i class="fas fa-user-circle"></i>
-                                <span>View Profile</span>
+                                <i class="fas fa-user-circle"></i> <span>View Profile</span>
                             </a>
                             <?php if (in_array($user['role'], ['mentor', 'peer'])): ?>
-                                <a href="../profile/commission-payments.php" class="profile-dropdown-item">
-                                    <i class="fas fa-wallet"></i>
-                                    <span>Commissions</span>
-                                </a>
+                            <a href="../profile/commission-payments.php" class="profile-dropdown-item">
+                                <i class="fas fa-wallet"></i> <span>Commissions</span>
+                            </a>
                             <?php endif; ?>
                             <a href="../profile/settings.php" class="profile-dropdown-item">
-                                <i class="fas fa-sliders-h"></i>
-                                <span>Settings</span>
+                                <i class="fas fa-sliders-h"></i> <span>Settings</span>
                             </a>
                             <button class="profile-dropdown-item" id="theme-toggle-btn" style="cursor: pointer;">
-                                <i class="fas fa-moon" id="theme-toggle-icon"></i>
-                                <span id="theme-toggle-text">Dark Mode</span>
+                                <i class="fas fa-moon" id="theme-toggle-icon"></i> <span id="theme-toggle-text">Dark Mode</span>
                             </button>
                             <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid #f0f0f0;">
                             <a href="../auth/logout.php" class="profile-dropdown-item logout">
-                                <i class="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
+                                <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                             </a>
                         </div>
                     </div>
@@ -1234,225 +1380,186 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                     <h1><i class="fas fa-handshake"></i> My Matches</h1>
                     <p class="page-subtitle">Manage your study partnerships and match requests</p>
                 </div>
-                <a href="find.php" 
-                   class="btn btn-primary <?php echo !$can_accept_matches ? 'disabled' : ''; ?>"
-                   <?php if (!$can_accept_matches): ?>
-                       title="<?php echo htmlspecialchars(strip_tags($commission_block_message)); ?>"
-                   <?php endif; ?>>
-                    <i class="fas fa-search"></i> <span class="hide-on-small">Find New Partners</span>
+                <a href="find.php" class="btn btn-primary <?php echo !$can_accept_matches ? 'disabled' : ''; ?>" <?php if (!$can_accept_matches): ?> title="<?php echo htmlspecialchars(strip_tags($commission_block_message)); ?>" <?php endif; ?>>
+                    <i class="fas fa-search"></i> Find New Partner
                 </a>
-                </div>
+            </div>
 
             <?php if ($error): ?>
-                <div class="alert alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span><?php echo $error; ?></span>
-                </div>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <div><?php echo $error; ?></div>
+            </div>
             <?php endif; ?>
-            
+
             <?php if ($success): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <span><?php echo $success; ?></span>
-                </div>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <div><?php echo $success; ?></div>
+            </div>
             <?php endif; ?>
 
             <?php if (!$can_accept_matches): ?>
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <div>
-                        <h4 style="margin-bottom: 0.5rem;"><i class="fas fa-lock"></i> Cannot Accept New Matches</h4>
-                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;"><?php echo $commission_block_message; ?></p>
-                        <a href="../profile/commission-payments.php" class="btn btn-sm" style="margin-top: 0.75rem; background: #dc2626; color: white;">
-                            <i class="fas fa-credit-card"></i> Pay Commissions
-                        </a>
-                    </div>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <p style="margin: 0; font-weight: 500;">Action Blocked:</p>
+                    <p style="margin: 0.25rem 0 0 0;"><?php echo htmlspecialchars($commission_block_message); ?></p>
                 </div>
+            </div>
             <?php endif; ?>
 
             <?php if (!empty($pending_matches)): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-clock" style="color: var(--primary-color);"></i>
-                        <h3 class="card-title">Pending Requests (<?php echo count($pending_matches); ?>)</h3>
-                    </div>
-                    <div class="card-body">
-                        <?php foreach ($pending_matches as $match): ?>
-                            <div class="match-card pending">
-                                <div class="match-avatar pending">
-                                    <?php 
-                                    if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
-                                    } else {
-                                        echo strtoupper(substr($match['partner_name'], 0, 1));
-                                    }
-                                    ?>
-                                </div>
-                                <div class="match-info">
-                                    <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
-                                    <div class="match-meta">
-                                        <span class="match-badge">
-                                            <i class="fas fa-graduation-cap"></i>
-                                            <?php echo ucfirst($match['partner_role']); ?>
-                                        </span>
-                                        <span class="match-badge">
-                                            <i class="fas fa-book"></i>
-                                            <?php echo htmlspecialchars($match['subject']); ?>
-                                        </span>
-                                    </div>
-                                    <?php if ($match['partner_avg_rating']): ?>
-                                        <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.25rem;">
-                                            <i class="fas fa-star" style="color: #fbbf24;"></i>
-                                            <?php echo number_format($match['partner_avg_rating'], 1); ?> (<?php echo $match['partner_rating_count']; ?> reviews)
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <?php 
-                                $is_receiver = ($match['mentor_id'] == $user['id']);
-                                ?>
-                                
-                                <div class="match-actions">
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    
-                                    <?php if ($is_receiver): ?>
-                                        <form method="POST" style="display: inline;">
-                                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                            <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
-                                            <input type="hidden" name="response" value="accepted">
-                                            <button type="submit" class="btn btn-success btn-sm" <?php echo !$can_accept_matches ? 'disabled' : ''; ?>>
-                                                <i class="fas fa-check"></i> Accept
-                                            </button>
-                                        </form>
-                                        
-                                        <form method="POST" style="display: inline;">
-                                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                            <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
-                                            <input type="hidden" name="response" value="rejected">
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Reject this match?')">
-                                                <i class="fas fa-times"></i> Reject
-                                            </button>
-                                        </form>
-                                    <?php else: ?>
-                                        <div class="match-status-badge pending-badge">
-                                            <i class="fas fa-hourglass-half"></i> Pending
-                                        </div>
-                                    <?php endif; ?>
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-hourglass-half" style="color: #f59e0b;"></i>
+                    <h3 class="card-title">Pending Requests (<?php echo count($pending_matches); ?>)</h3>
+                </div>
+                <div class="card-body match-list">
+                    <?php foreach ($pending_matches as $match): ?>
+                    <?php 
+                        $is_receiver = (int)$match['mentor_id'] === $user['id']; 
+                        $status_text = $is_receiver ? 'Action Required' : 'Pending Your Partner';
+                    ?>
+                    <div class="match-card">
+                        <div class="match-details">
+                            <div class="match-avatar">
+                                <?php if ($match['partner_profile_picture']): ?>
+                                    <img src="<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" alt="Profile Picture">
+                                <?php else: ?>
+                                    <i class="fas fa-user"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="match-info">
+                                <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
+                                <div class="match-meta">
+                                    <span><i class="fas fa-tag"></i> <?php echo ucfirst(htmlspecialchars($match['partner_role'])); ?></span>
+                                    <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($match['subject']); ?></span>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
+                        </div>
+                        
+                        <div class="match-status-badge pending-badge" style="flex-shrink: 0; display: block; margin-right: 1rem; min-width: 140px; text-align: center;">
+                            <?php if ($is_receiver): ?>
+                                <i class="fas fa-exclamation-circle"></i> Action Required
+                            <?php else: ?>
+                                <i class="fas fa-hourglass-half"></i> Pending
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="match-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                            <?php if ($is_receiver): ?>
+                                <button type="button" class="btn btn-success btn-sm" onclick="confirmAcceptMatch(<?php echo $match['id']; ?>, '<?php echo generate_csrf_token(); ?>')" <?php echo !$can_accept_matches ? 'disabled' : ''; ?>>
+                                    <i class="fas fa-check"></i> Accept
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="confirmRejectMatch(<?php echo $match['id']; ?>, '<?php echo generate_csrf_token(); ?>')">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                            <?php else: ?>
+                                <?php endif; ?>
+                        </div>
                     </div>
+                    <?php endforeach; ?>
                 </div>
+            </div>
             <?php endif; ?>
 
             <?php if (!empty($accepted_matches)): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-star" style="color: var(--primary-color);"></i>
-                        <h3 class="card-title">Active Partnerships (<?php echo count($accepted_matches); ?>)</h3>
-                    </div>
-                    <div class="card-body">
-                        <?php foreach ($accepted_matches as $match): ?>
-                            <div class="match-card accepted">
-                                <div class="match-avatar accepted">
-                                    <?php 
-                                    if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
-                                    } else {
-                                        echo strtoupper(substr($match['partner_name'], 0, 1));
-                                    }
-                                    ?>
-                                </div>
-                                <div class="match-info">
-                                    <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
-                                    <div class="match-meta">
-                                        <span class="match-badge">
-                                            <i class="fas fa-graduation-cap"></i>
-                                            <?php echo ucfirst($match['partner_role']); ?>
-                                        </span>
-                                        <span class="match-badge">
-                                            <i class="fas fa-book"></i>
-                                            <?php echo htmlspecialchars($match['subject']); ?>
-                                        </span>
-                                    </div>
-                                    <div style="font-size: 0.8rem; color: #16a34a; font-weight: 500;">
-                                        <i class="fas fa-check-circle"></i> Active since <?php echo date('M j, Y', strtotime($match['updated_at'])); ?>
-                                    </div>
-                                </div>
-                                
-                                <div class="match-actions">
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-comment"></i> <span class="hide-on-small">Message</span>
-                                    </a>
-                                    <a href="../sessions/schedule.php?match_id=<?php echo $match['id']; ?>" class="btn btn-outline btn-sm">
-                                        <i class="fas fa-calendar-plus"></i> <span class="hide-on-small">Schedule</span>
-                                    </a>
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-star" style="color: var(--primary-color);"></i>
+                    <h3 class="card-title">Active Partnerships (<?php echo count($accepted_matches); ?>)</h3>
+                </div>
+                <div class="card-body match-list">
+                    <?php foreach ($accepted_matches as $match): ?>
+                    <div class="match-card">
+                        <div class="match-details">
+                            <div class="match-avatar">
+                                <?php if ($match['partner_profile_picture']): ?>
+                                    <img src="<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" alt="Profile Picture">
+                                <?php else: ?>
+                                    <i class="fas fa-user"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="match-info">
+                                <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
+                                <div class="match-meta">
+                                    <span><i class="fas fa-tag"></i> <?php echo ucfirst(htmlspecialchars($match['partner_role'])); ?></span>
+                                    <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($match['subject']); ?></span>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
+                        </div>
+                        <div class="match-actions">
+                            <a href="../messages/chat.php?match_id=<?php echo $match['id']; ?>" class="btn btn-primary btn-sm">
+                                <i class="fas fa-comment"></i> Chat
+                            </a>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                        </div>
                     </div>
+                    <?php endforeach; ?>
                 </div>
+            </div>
             <?php endif; ?>
-
+            
             <?php if (!empty($other_matches)): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-history" style="color: var(--text-secondary);"></i>
-                        <h3 class="card-title">Match History</h3>
-                    </div>
-                    <div class="card-body">
-                        <?php foreach ($other_matches as $match): ?>
-                            <div class="match-card">
-                                <div class="match-avatar" style="background: #94a3b8;">
-                                    <?php 
-                                    if (!empty($match['partner_profile_picture']) && file_exists('../' . $match['partner_profile_picture'])) {
-                                        echo '<img src="../' . htmlspecialchars($match['partner_profile_picture']) . '" alt="' . htmlspecialchars($match['partner_name']) . '">';
-                                    } else {
-                                        echo strtoupper(substr($match['partner_name'], 0, 1));
-                                    }
-                                    ?>
-                                </div>
-                                <div class="match-info">
-                                    <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
-                                    <div class="match-meta">
-                                        <span class="match-badge">
-                                            <i class="fas fa-book"></i>
-                                            <?php echo htmlspecialchars($match['subject']); ?>
-                                        </span>
-                                    </div>
-                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                                        <i class="fas fa-times-circle"></i> <?php echo ucfirst($match['status']); ?> • <?php echo date('M j, Y', strtotime($match['updated_at'])); ?>
-                                    </div>
-                                </div>
-                                <div class="match-actions">
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-history" style="color: #666;"></i>
+                    <h3 class="card-title">Other Matches (Rejected/Cancelled) (<?php echo count($other_matches); ?>)</h3>
+                </div>
+                <div class="card-body match-list">
+                    <?php foreach ($other_matches as $match): ?>
+                    <div class="match-card" style="opacity: 0.8;">
+                        <div class="match-details">
+                            <div class="match-avatar" style="border-color: #999;">
+                                <?php if ($match['partner_profile_picture']): ?>
+                                    <img src="<?php echo htmlspecialchars($match['partner_profile_picture']); ?>" alt="Profile Picture">
+                                <?php else: ?>
+                                    <i class="fas fa-user"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="match-info">
+                                <div class="match-name"><?php echo htmlspecialchars($match['partner_name']); ?></div>
+                                <div class="match-meta">
+                                    <span><i class="fas fa-tag"></i> <?php echo ucfirst(htmlspecialchars($match['partner_role'])); ?></span>
+                                    <span><i class="fas fa-book"></i> <?php echo htmlspecialchars($match['subject']); ?></span>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
+                        </div>
+                        <div class="match-status-badge <?php echo $match['status']; ?>-badge" style="margin-right: 1rem; flex-shrink: 0;">
+                            <span> 
+                                <i class="fas fa-times-circle"></i> <?php echo ucfirst($match['status']); ?>
+                            </span> 
+                        </div>
+                        <div class="match-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="openMatchModal(<?php echo htmlspecialchars(json_encode($match)); ?>)">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                        </div>
                     </div>
+                    <?php endforeach; ?>
                 </div>
+            </div>
             <?php endif; ?>
 
             <?php if (empty($matches)): ?>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <h3>No matches yet</h3>
-                            <p>Start connecting with study partners to see your matches here.</p>
-                            <a href="find.php" class="btn btn-primary" style="margin-top: 1rem;">
-                                <i class="fas fa-search"></i> Find Study Partners
-                            </a>
-                        </div>
+            <div class="card">
+                <div class="card-body">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <h3>No matches yet</h3>
+                        <p>Start connecting with study partners to see your matches here.</p>
+                        <a href="find.php" class="btn btn-primary" style="margin-top: 1rem;">
+                            <i class="fas fa-search"></i> Find Study Partners
+                        </a>
                     </div>
                 </div>
+            </div>
             <?php endif; ?>
         </div>
     </main>
@@ -1464,7 +1571,7 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
                 <button class="modal-close" onclick="closeMatchModal()">&times;</button>
             </div>
             <div class="modal-body" id="modalBody">
-            </div>
+                </div>
         </div>
     </div>
 
@@ -1472,83 +1579,62 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
     <script>
         let notificationDropdownOpen = false;
         let profileDropdownOpen = false;
+        
+        // FIX: Mobile menu toggle to use find.php's drop-down style but keeps body scrolling fix
+        document.getElementById('hamburger').addEventListener('click', function() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('active');
+            this.classList.toggle('active');
 
-        // Mobile Menu Toggle
-        document.addEventListener("DOMContentLoaded", () => {
-            const hamburger = document.querySelector(".hamburger");
-            const navLinks = document.querySelector(".nav-links");
-            
-            if (hamburger) {
-                hamburger.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    hamburger.classList.toggle("active");
-                    navLinks.classList.toggle("active");
-                });
-
-                const links = navLinks.querySelectorAll("a");
-                links.forEach((link) => {
-                    link.addEventListener("click", () => {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    });
-                });
-
-                document.addEventListener("click", (event) => {
-                    if (hamburger && navLinks && !hamburger.contains(event.target) && !navLinks.contains(event.target)) {
-                        hamburger.classList.remove("active");
-                        navLinks.classList.remove("active");
-                    }
-                });
+            // FIX: Prevent background scrolling when mobile menu is open
+            if (navLinks.classList.contains('active')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = 'auto';
             }
-            
-            /* ADDED: ===== THEME TOGGLE LOGIC ===== */
+        });
+
+        // Theme Toggle Logic
+        document.addEventListener('DOMContentLoaded', () => {
             const themeToggleBtn = document.getElementById('theme-toggle-btn');
             const themeToggleIcon = document.getElementById('theme-toggle-icon');
             const themeToggleText = document.getElementById('theme-toggle-text');
-            
-            function setTheme(theme) {
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+
+            if (currentTheme === 'dark') {
+                themeToggleIcon.classList.remove('fa-moon');
+                themeToggleIcon.classList.add('fa-sun');
+                themeToggleText.textContent = 'Light Mode';
+            } else {
+                themeToggleIcon.classList.remove('fa-sun');
+                themeToggleIcon.classList.add('fa-moon');
+                themeToggleText.textContent = 'Dark Mode';
+            }
+
+            themeToggleBtn.addEventListener('click', () => {
+                let theme = document.documentElement.getAttribute('data-theme');
                 if (theme === 'dark') {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    localStorage.setItem('theme', 'dark');
-                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
-                    if(themeToggleText) themeToggleText.textContent = 'Light Mode';
+                    theme = 'light';
+                    themeToggleIcon.classList.remove('fa-sun');
+                    themeToggleIcon.classList.add('fa-moon');
+                    themeToggleText.textContent = 'Dark Mode';
                 } else {
-                    document.documentElement.removeAttribute('data-theme');
-                    localStorage.setItem('theme', 'light');
-                    if(themeToggleIcon) themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
-                    if(themeToggleText) themeToggleText.textContent = 'Dark Mode';
+                    theme = 'dark';
+                    themeToggleIcon.classList.remove('fa-moon');
+                    themeToggleIcon.classList.add('fa-sun');
+                    themeToggleText.textContent = 'Light Mode';
                 }
-            }
-
-            // Set initial state for the button based on the theme set by the <head> script
-            let currentTheme = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
-            setTheme(currentTheme); // This will set the correct initial icon/text
-
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent profile dropdown from closing
-                    let newTheme = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
-                    setTheme(newTheme);
-                });
-            }
-            
-            // Listen for system preference changes
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                // Only update if no theme is manually set in localStorage
-                // A user who clicks the toggle sets localStorage, so this listener will
-                // be ignored, which is the correct behavior.
-                if (!localStorage.getItem('theme')) {
-                    setTheme(e.matches ? 'dark' : 'light');
-                }
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
             });
-            /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
         });
+        /* ADDED: ===== END THEME TOGGLE LOGIC ===== */
 
         function toggleNotifications(event) {
             event.stopPropagation();
             const dropdown = document.getElementById('notificationDropdown');
             notificationDropdownOpen = !notificationDropdownOpen;
-            
             if (notificationDropdownOpen) {
                 dropdown.classList.add('show');
                 document.getElementById('profileDropdown').classList.remove('show');
@@ -1563,7 +1649,6 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
             event.stopPropagation();
             const dropdown = document.getElementById('profileDropdown');
             profileDropdownOpen = !profileDropdownOpen;
-            
             if (profileDropdownOpen) {
                 dropdown.classList.add('show');
                 document.getElementById('notificationDropdown').classList.remove('show');
@@ -1575,191 +1660,340 @@ $other_matches = array_filter($matches, function($match) { return !in_array($mat
 
         function loadNotifications() {
             fetch('../api/notifications.php')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notificationList');
-                    
-                    if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
-                        return;
-                    }
-                    
-                    list.innerHTML = data.notifications.slice(0, 6).map(notif => `
-                        <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" 
-                             onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
-                            <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
-                                <div style="font-size: 0.8rem; color: #666;">${escapeHtml(notif.message)}</div>
-                                <div style="font-size: 0.75rem; color: #999; margin-top: 0.25rem;">${timeAgo(notif.created_at)}</div>
-                            </div>
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById('notificationList');
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;"><i class="fas fa-bell-slash"></i><p>No notifications</p></div>';
+                    return;
+                }
+                list.innerHTML = data.notifications.slice(0, 6).map(notif => `
+                    <div class="notification-item-dropdown ${!notif.is_read ? 'unread' : ''}" onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')">
+                        <i class="fas ${getNotificationIcon(notif.type)}" style="color: ${getNotificationColor(notif.type)};"></i>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem;">${escapeHtml(notif.title)}</div>
+                            <p style="margin: 0; font-size: 0.85rem; color: var(--text-primary);">${escapeHtml(notif.message)}</p>
+                            <small style="color: var(--text-secondary);">${formatMessageTime(notif.created_at)}</small>
                         </div>
-                    `).join('');
-                });
+                    </div>
+                `).join('');
+
+                const badge = document.querySelector('.notification-badge');
+                if (data.unread_count > 0) {
+                    if (badge) {
+                        badge.textContent = data.unread_count;
+                    } else {
+                        const bell = document.querySelector('.notification-bell');
+                        bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                    }
+                } else if (badge) {
+                    badge.remove();
+                }
+            })
+            .catch(error => {
+                console.error('Error loading notifications:', error);
+                document.getElementById('notificationList').innerHTML = '<div style="text-align: center; padding: 1.5rem; color: #999;">Failed to load notifications.</div>';
+            });
+        }
+        
+        function handleNotificationClick(notificationId, link) {
+            // Logic to mark as read and redirect
+            fetch(`../api/notifications.php?mark_read=${notificationId}`, { method: 'POST' })
+                .then(() => {
+                    if (link) {
+                        window.location.href = link;
+                    }
+                    loadNotifications(); // Reload to update badge
+                })
+                .catch(error => console.error('Error marking notification as read:', error));
         }
 
-        function handleNotificationClick(notificationId, link) {
-            fetch('../api/notifications.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'mark_read', notification_id: notificationId})
-            }).then(() => {
-                if (link) window.location.href = link;
-                else loadNotifications();
-            });
+        function markAllAsRead() {
+            fetch('../api/notifications.php?mark_all_read=true', { method: 'POST' })
+                .then(() => {
+                    loadNotifications(); // Reload to update badge
+                })
+                .catch(error => console.error('Error marking all notifications as read:', error));
         }
 
         function getNotificationIcon(type) {
-            const icons = {
-                'session_scheduled': 'fa-calendar-check',
-                'session_accepted': 'fa-check-circle',
-                'session_rejected': 'fa-times-circle',
-                'match_request': 'fa-handshake',
-                'match_accepted': 'fa-user-check',
-                'announcement': 'fa-megaphone',
-                'commission_due': 'fa-file-invoice-dollar'
-            };
-            return icons[type] || 'fa-bell';
+            switch(type) {
+                case 'match_request': return 'fa-handshake';
+                case 'match_accepted': return 'fa-check-circle';
+                case 'new_session': return 'fa-calendar-plus';
+                case 'session_reminder': return 'fa-clock';
+                default: return 'fa-info-circle';
+            }
         }
-
+        
         function getNotificationColor(type) {
-            const colors = {
-                'session_accepted': '#16a34a',
-                'session_rejected': '#dc2626',
-                'match_accepted': '#16a34a',
-                'announcement': '#2563eb',
-                'commission_due': '#d97706',
-                'session_scheduled': '#2563eb',
-                'match_request': '#2563eb'
-            };
-            return colors[type] || '#666';
+             switch(type) {
+                case 'match_request': return '#f59e0b';
+                case 'match_accepted': return '#10b981';
+                case 'new_session': return '#3b82f6';
+                case 'session_reminder': return '#2563eb';
+                default: return '#666';
+            }
         }
 
+        function formatMessageTime(dateTime) {
+            const now = new Date();
+            const date = new Date(dateTime.replace(' ', 'T') + 'Z'); // Treat as UTC
+            const diffInSeconds = Math.floor((now - date) / 1000);
+
+            if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+
+            const options = { month: 'short', day: 'numeric' };
+            return date.toLocaleDateString(undefined, options);
+        }
+        
         function escapeHtml(text) {
-            if (text === null || text === undefined) return ''; // ADDED: Null check
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, (m) => map[m]);
         }
 
-        function timeAgo(dateString) {
-            const date = new Date(dateString);
-            const seconds = Math.floor((new Date() - date) / 1000);
-            if (seconds < 60) return 'Just now';
-            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-            if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
-            return Math.floor(seconds / 604800) + 'w ago';
-        }
-
-        document.addEventListener('click', function() {
-            if (notificationDropdownOpen) {
-                document.getElementById('notificationDropdown').classList.remove('show');
-                notificationDropdownOpen = false;
-            }
-            if (profileDropdownOpen) {
-                document.getElementById('profileDropdown').classList.remove('show');
-                profileDropdownOpen = false;
-            }
-        });
-
-        setInterval(() => {
-            if (notificationDropdownOpen) {
-                loadNotifications();
-            } else {
-                fetch('../api/notifications.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        const badge = document.querySelector('.notification-badge');
-                        if (data.unread_count > 0) {
-                            if (badge) {
-                                badge.textContent = data.unread_count;
-                            } else {
-                                const bell = document.querySelector('.notification-bell');
-                                bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
-                            }
-                        } else if (badge) {
-                            badge.remove();
-                        }
-                    });
-            }
+        // Poll for new notifications every 30 seconds
+        setInterval(function() {
+            fetch('../api/notifications.php?unread_count_only=true')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.querySelector('.notification-badge');
+                if (data.unread_count > 0) {
+                    if (badge) {
+                        badge.textContent = data.unread_count;
+                    } else {
+                        const bell = document.querySelector('.notification-bell');
+                        bell.innerHTML += `<span class="notification-badge">${data.unread_count}</span>`;
+                    }
+                } else if (badge) {
+                    badge.remove();
+                }
+            });
         }, 30000);
+
+        // --- START NEW SWEETALERT FUNCTIONS ---
+        function submitMatchResponse(matchId, csrfToken, response) {
+            // Dynamically create and submit a form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php';
+            
+            const matchIdInput = document.createElement('input');
+            matchIdInput.type = 'hidden';
+            matchIdInput.name = 'match_id';
+            matchIdInput.value = matchId;
+
+            const responseInput = document.createElement('input');
+            responseInput.type = 'hidden';
+            responseInput.name = 'response';
+            responseInput.value = response;
+
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfToken;
+
+            form.appendChild(matchIdInput);
+            form.appendChild(responseInput);
+            form.appendChild(csrfInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function confirmAcceptMatch(matchId, csrfToken) {
+            Swal.fire({
+                title: 'Accept Match?',
+                text: "By accepting, you confirm you want to start this partnership. You can start messaging and scheduling sessions.",
+                icon: 'success',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: '<i class="fas fa-check"></i> Yes, Accept it!',
+                cancelButtonText: '<i class="fas fa-times"></i> Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    submitMatchResponse(matchId, csrfToken, 'accepted');
+                }
+            });
+        }
+
+        function confirmRejectMatch(matchId, csrfToken) {
+            Swal.fire({
+                title: 'Reject Match?',
+                text: "Rejecting this match will permanently decline the request. You can still find other partners later.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: '<i class="fas fa-thumbs-down"></i> Yes, Reject it!',
+                cancelButtonText: '<i class="fas fa-undo"></i> Keep Pending'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    submitMatchResponse(matchId, csrfToken, 'rejected');
+                }
+            });
+        }
+        // --- END NEW SWEETALERT FUNCTIONS ---
 
         function openMatchModal(match) {
             const modal = document.getElementById('matchModal');
             const modalBody = document.getElementById('modalBody');
-            
             let statusBadge = '';
-            let statusClass = ''; // ADDED:
-            if (match.status === 'accepted') {
-                statusClass = 'accepted';
-                statusBadge = `<span class="modal-badge accepted"><i class="fas fa-check-circle"></i> Active</span>`;
-            } else if (match.status === 'pending') {
-                statusClass = 'pending'; // ADDED:
-                statusBadge = `<span class="modal-badge pending"><i class="fas fa-hourglass-half"></i> Pending</span>`; // CHANGED:
+            let statusClass = '';
+
+            if (match.status === 'accepted') { 
+                statusClass = 'accepted'; 
+                statusBadge = `<span class="modal-badge accepted"><i class="fas fa-check-circle"></i> Active</span>`; 
+            } else if (match.status === 'pending') { 
+                statusClass = 'pending'; 
+                statusBadge = `<span class="modal-badge pending"><i class="fas fa-hourglass-half"></i> Pending</span>`; 
+            } else if (match.status === 'rejected') {
+                statusClass = 'rejected';
+                statusBadge = `<span class="modal-badge rejected"><i class="fas fa-times-circle"></i> Rejected</span>`;
+            } else if (match.status === 'cancelled') {
+                statusClass = 'cancelled';
+                statusBadge = `<span class="modal-badge cancelled"><i class="fas fa-ban"></i> Cancelled</span>`;
             }
             
             let profilePicHtml = '';
-            if (match.partner_profile_picture && match.partner_profile_picture !== '') {
-                // ADDED: class to div
-                profilePicHtml = `<div class="modal-avatar ${statusClass}"><img src="../${escapeHtml(match.partner_profile_picture)}" alt="${escapeHtml(match.partner_name)}"></div>`;
+            if (match.partner_profile_picture) {
+                profilePicHtml = `<div class="modal-avatar" style="border-color: var(--primary-color);"><img src="${match.partner_profile_picture}" alt="Profile Picture"></div>`;
             } else {
-                // CHANGED: Replaced inline style with class
-                profilePicHtml = `<div class="modal-avatar ${statusClass}">${escapeHtml(match.partner_name.substring(0, 1).toUpperCase())}</div>`;
+                profilePicHtml = `<div class="modal-avatar" style="border-color: var(--primary-color);"><i class="fas fa-user"></i></div>`;
             }
+
+            const isReceiver = match.mentor_id === <?php echo $user['id']; ?>;
+            const partnerFirstName = match.partner_name.split(' ')[0];
+            const commissionBlockMessage = '<?php echo $can_accept_matches ? '' : htmlspecialchars(strip_tags($commission_block_message)); ?>';
+            const canAcceptMatches = <?php echo $can_accept_matches ? 'true' : 'false'; ?>;
+
+            // --- Displaying availables time from find.php logic ---
+            let availabilityHtml = '';
+            const availability = match.partner_availability;
             
-            modalBody.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
-                    ${profilePicHtml}
-                    <div>
-                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">${escapeHtml(match.partner_name)}</h3>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span style="color: var(--text-secondary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
-                            ${statusBadge}
+            if (Object.keys(availability).length > 0) {
+                let listItems = '';
+                for (const day in availability) {
+                    const times = availability[day].join(' | ');
+                    // Adapted styles from find.php for consistency
+                    listItems += `
+                        <li style="padding: 0.25rem 0; display: flex; justify-content: space-between;">
+                            <strong style="color: #1e40af; flex-shrink: 0; margin-right: 1rem;">${day}:</strong>
+                            <span style="color: #60a5fa; text-align: right; flex-grow: 1;">${times}</span>
+                        </li>
+                    `;
+                }
+                availabilityHtml = `
+                    <div class="match-availability info-section">
+                        <div class="match-availability-title" style="font-weight: 600; font-size: 1rem; color: var(--text-primary); margin-bottom: 0.5rem;">
+                            <i class="fas fa-calendar-check" style="color: var(--primary-color); margin-right: 0.5rem;"></i> ${partnerFirstName}'s Available Times:
                         </div>
+                        <ul style="list-style: none; padding: 0; margin: 0.5rem 0 0.25rem; font-size: 0.9rem;">
+                            ${listItems}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                availabilityHtml = `
+                    <div class="match-availability warning info-section">
+                        <div class="match-availability-title" style="font-weight: 600; font-size: 1rem; color: #f97316; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-triangle" style="color: #f97316; margin-right: 0.5rem;"></i> Availability Unknown:
+                        </div>
+                        <div class="match-availability-text" style="font-size: 0.9rem; color: var(--text-secondary);">
+                            **${partnerFirstName}** has not set their availability yet. Consider messaging them to find a suitable time.
+                        </div>
+                    </div>
+                `;
+            }
+            // --- End Displaying availables time from find.php logic ---
+
+
+            modalBody.innerHTML = `
+                <div class="modal-partner-info">
+                    ${profilePicHtml}
+                    <div class="modal-partner-details">
+                        <h3 style="margin-bottom: 0.25rem;">${match.partner_name}</h3>
+                        ${statusBadge}
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">${match.partner_role}, ${match.partner_location || 'Location Unknown'}</p>
                     </div>
                 </div>
 
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> Information
-                    </h4>
+                <div class="info-section">
                     <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Role</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1))}</span>
+                        <span>Subject</span>
+                        <span>${match.subject}</span>
                     </div>
                     <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Location</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.partner_location || 'Not specified')}</span>
+                        <span>Role</span>
+                        <span>${match.partner_role.charAt(0).toUpperCase() + match.partner_role.slice(1)}</span>
                     </div>
                     <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Subject</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${escapeHtml(match.subject)}</span>
+                        <span>Partner Rating</span>
+                        <span>
+                            ${match.partner_avg_rating ? 
+                                `${parseFloat(match.partner_avg_rating).toFixed(1)} <i class="fas fa-star" style="color: #f59e0b;"></i> (${match.partner_rating_count} reviews)` : 
+                                'N/A'
+                            }
+                        </span>
                     </div>
-                    <div class="info-row">
-                        <span style="color: var(--text-secondary); font-weight: 500;">Match Score</span>
-                        <span style="background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%); color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem;">${match.match_score}%</span>
+                    <div class="info-row" style="border-bottom: none;">
+                        <span>Created On</span>
+                        <span>${new Date(match.created_at).toLocaleDateString()}</span>
                     </div>
                 </div>
 
                 ${match.partner_bio ? `
-                <div style="margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-quote-left" style="color: var(--primary-color);"></i> About ${escapeHtml(match.partner_name.split(' ')[0])}
-                    </h4>
-                    <p style="color: var(--text-secondary); line-height: 1.6; margin: 0;">${escapeHtml(match.partner_bio).replace(/\n/g, '<br>')}</p>
-                </div>
+                    <div class="info-section">
+                        <h4>About ${partnerFirstName}:</h4>
+                        <p>${match.partner_bio}</p>
+                    </div>
+                ` : ''}
+
+                ${match.message ? `
+                    <div class="info-section">
+                        <h4>Initial Message:</h4>
+                        <p style="font-style: italic; color: var(--text-secondary);">${match.message}</p>
+                    </div>
+                ` : ''}
+                
+                ${availabilityHtml} 
+
+                ${match.status === 'pending' && isReceiver ? `
+                    <div class="info-section" style="padding-bottom: 0;">
+                        <h4 style="color: #f59e0b;">Action Required:</h4>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-success" style="width: 100%; flex: 1; min-width: 140px;" 
+                                onclick="confirmAcceptMatch(${match.id}, '<?php echo generate_csrf_token(); ?>')" 
+                                ${!canAcceptMatches ? `disabled title="${commissionBlockMessage}"` : ''}>
+                                <i class="fas fa-check"></i> Accept Match
+                            </button>
+                            <button type="button" class="btn btn-danger" style="width: 100%; flex: 1; min-width: 140px;" 
+                                onclick="confirmRejectMatch(${match.id}, '<?php echo generate_csrf_token(); ?>')">
+                                <i class="fas fa-times"></i> Reject Match
+                            </button>
+                        </div>
+                        ${!canAcceptMatches ? `<p style="color: #dc2626; font-size: 0.85rem; margin-top: 1rem; text-align: center;">${commissionBlockMessage}</p>` : ''}
+                    </div>
                 ` : ''}
 
                 ${match.status === 'accepted' ? `
-                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
-                    <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center; min-width: 140px;">
-                        <i class="fas fa-comment"></i> Message
-                    </a>
-                    <a href="../sessions/schedule.php?match_id=${match.id}" class="btn btn-outline" style="flex: 1; text-align: center; min-width: 140px;">
-                        <i class="fas fa-calendar-plus"></i> Schedule
-                    </a>
-                </div>
+                    <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+                        <a href="../messages/chat.php?match_id=${match.id}" class="btn btn-primary" style="flex: 1; text-align: center; min-width: 140px;">
+                            <i class="fas fa-comment"></i> Message
+                        </a>
+                        <a href="../sessions/schedule.php?match_id=${match.id}" class="btn btn-outline" style="flex: 1; text-align: center; min-width: 140px;">
+                            <i class="fas fa-calendar-plus"></i> Schedule
+                        </a>
+                    </div>
                 ` : ''}
             `;
             

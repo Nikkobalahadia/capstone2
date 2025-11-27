@@ -2,6 +2,93 @@
 require_once '../config/config.php';
 require_once '../includes/subjects_hierarchy.php';
 
+$subjectsHierarchy = getSubjectsHierarchy();
+
+/**
+ * Renders the HTML structure for a subject row with hierarchical dropdowns and an 'Other' option.
+ * @param string $select_name The name attribute for the proficiency select (e.g., 'learning_subjects' or 'teaching_subjects').
+ * @param array $subjectsHierarchy The data structure of all available subjects.
+ * @param array|null $subject Existing subject data for pre-filling.
+ * @return string HTML for the subject row.
+ */
+function render_subject_row(string $select_name, array $subjectsHierarchy, array $subject = null): string {
+    $is_learning = strpos($select_name, 'learning') !== false;
+    $options = $is_learning ? ['beginner', 'intermediate', 'advanced'] : ['intermediate', 'advanced', 'expert'];
+    
+    $existing_main_subject = $subject['main_subject'] ?? '';
+    $existing_subtopic = $subject['subtopic'] ?? '';
+    $existing_proficiency = $subject['proficiency_level'] ?? '';
+
+    // Determine if the existing subtopic is a custom 'Other' one
+    $is_other_subtopic = !empty($existing_subtopic) && 
+                         (empty($existing_main_subject) || 
+                          (!isset($subjectsHierarchy[$existing_main_subject]) || 
+                           !in_array($existing_subtopic, $subjectsHierarchy[$existing_main_subject])));
+
+    $other_subtopic_value = $is_other_subtopic ? $existing_subtopic : '';
+    $selected_subtopic = $is_other_subtopic ? 'Other' : $existing_subtopic;
+    
+    $html = '<div class="subject-row" data-select-name="' . htmlspecialchars($select_name) . '" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">';
+    $html .= '<div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap; flex-direction: column;">';
+    
+    // --- Main Subject Dropdown ---
+    $html .= '<select class="main-subject-select form-select" style="min-width: 200px; margin-bottom: 0.5rem;" required onchange="updateSubtopics(this); updateSubjectCombined(this)">';
+    $html .= '<option value="">Select Main Subject</option>';
+    
+    foreach ($subjectsHierarchy as $mainSubject => $subtopics) {
+        $selected = $existing_main_subject === $mainSubject ? 'selected' : '';
+        $html .= '<option value="' . htmlspecialchars($mainSubject) . '" ' . $selected . '>' . htmlspecialchars($mainSubject) . '</option>';
+    }
+    $html .= '</select>';
+    
+    // --- Subtopic Dropdown ---
+    $html .= '<select class="subtopic-select form-select" style="min-width: 200px; margin-bottom: 0.5rem;" required onchange="handleSubtopicChange(this); updateSubjectCombined(this)">';
+    $html .= '<option value="">Select Subtopic</option>';
+    
+    // Pre-populate subtopics if a main subject is already selected
+    if (!empty($existing_main_subject) && isset($subjectsHierarchy[$existing_main_subject])) {
+        foreach ($subjectsHierarchy[$existing_main_subject] as $subtopic) {
+            $selected = $subtopic === $existing_subtopic ? 'selected' : '';
+            $html .= '<option value="' . htmlspecialchars($subtopic) . '" ' . $selected . '>' . htmlspecialchars($subtopic) . '</option>';
+        }
+        // Inject the 'Other' option into the subtopic list of the pre-selected main subject
+        $selected = $selected_subtopic === 'Other' ? 'selected' : '';
+        $html .= '<option value="Other" ' . $selected . '>Other (Specify below)</option>';
+    }
+
+    $html .= '</select>';
+
+    // --- Conditional 'Other Subtopic' Text Input ---
+    $display_style = $is_other_subtopic ? 'block' : 'none';
+    $html .= '<input type="text" class="other-subtopic-input form-input" style="min-width: 200px; display: ' . $display_style . ';" ';
+    $html .= 'placeholder="Specify other subtopic..." ';
+    $html .= 'value="' . htmlspecialchars($other_subtopic_value) . '" oninput="updateSubjectCombined(this)" ' . ($is_other_subtopic ? 'required' : '') . '>';
+    
+    $html .= '</div>'; // End of subject inputs column
+    
+    // --- Proficiency Select ---
+    $html .= '<select name="' . htmlspecialchars($select_name) . '[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" required onchange="updateSubjectCombined(this)">';
+    $html .= '<option value="">Select Level</option>';
+    
+    foreach ($options as $level) {
+        $selected = $existing_proficiency === $level ? 'selected' : '';
+        // Value format: main_subject|subtopic|proficiency_level
+        $value_parts = [
+            $existing_main_subject,
+            $selected_subtopic === 'Other' ? $other_subtopic_value : $selected_subtopic,
+            $level
+        ];
+        $value = htmlspecialchars(implode('|', $value_parts));
+        $html .= '<option value="' . $value . '" ' . $selected . '>' . ucfirst($level) . '</option>';
+    }
+    
+    $html .= '</select>';
+    $html .= '<button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>';
+    $html .= '</div>'; // End of subject-row
+    
+    return $html;
+}
+
 // --- [NEW] AJAX Action Handler ---
 // This block handles async requests from the JavaScript
 if (isset($_POST['action']) && $_POST['action'] === 'check_referral') {
@@ -57,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Common fields
         $location = sanitize_input($_POST['location']);
         $bio = sanitize_input($_POST['bio']);
-        $subjects = $_POST['subjects'] ?? [];
+        $subjects = []; // Initialize as empty for later assignment/merge
         
         $latitude = !empty($_POST['latitude']) ? (float)$_POST['latitude'] : null;
         $longitude = !empty($_POST['longitude']) ? (float)$_POST['longitude'] : null;
@@ -65,6 +152,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $referral_code = null;
         $referral = null;
+        
+        // Availability now applies to all roles
+        $availability = $_POST['availability'] ?? [];
+        
         if ($role === 'mentor' && !empty($_POST['referral_code'])) {
             $referral_code = sanitize_input($_POST['referral_code']);
             
@@ -86,14 +177,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $course = sanitize_input($_POST['course'] ?? '');
             $learning_goals = sanitize_input($_POST['learning_goals']);
             $preferred_learning_style = sanitize_input($_POST['preferred_learning_style']);
+
+            if ($role === 'student') {
+                $subjects = $_POST['learning_subjects'] ?? [];
+            }
         }
         
         if ($role === 'mentor' || $role === 'peer') {
             $teaching_style = sanitize_input($_POST['teaching_style']);
-            $availability = $_POST['availability'] ?? [];
+            // $availability = $_POST['availability'] ?? []; // REMOVED: Now common
             $hourly_rate = !empty($_POST['hourly_rate']) ? (float)$_POST['hourly_rate'] : null;
 
-            // [NEW] Server-side availability validation
+            // Server-side availability validation (Applies to all roles now)
             foreach ($availability as $avail_data) {
                 $parts = explode('|', $avail_data);
                 if (count($parts) === 3 && !empty($parts[1]) && !empty($parts[2])) {
@@ -103,10 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
+
+            if ($role === 'mentor') {
+                $subjects = $_POST['teaching_subjects'] ?? [];
+            }
         }
-        
-        $learning_subjects = [];
-        $teaching_subjects = [];
         
         if ($role === 'peer') {
             $learning_subjects = $_POST['learning_subjects'] ?? [];
@@ -163,16 +259,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // [NEW] Peer-specific subject validation
                 if (empty($learning_subjects)) {
-                    $errors['learning_subjects'] = 'Please select at least one learning subject.';
+                    $errors['learning_subjects'] = 'Please add at least one learning subject.';
                 }
                 if (empty($teaching_subjects)) {
-                    $errors['teaching_subjects'] = 'Please select at least one teaching subject.';
+                    $errors['teaching_subjects'] = 'Please add at least one teaching subject.';
                 }
             }
             
             // [IMPROVED] General subject check only for non-peers
-            if ($role !== 'peer' && empty($subjects)) {
-                $errors['subjects'] = 'Please select at least one subject.';
+            if (($role === 'student' || $role === 'mentor') && empty($subjects)) {
+                $errors['subjects'] = 'Please add at least one subject.';
             }
             
             if (empty($errors)) {
@@ -217,6 +313,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt = $db->prepare("UPDATE users SET grade_level = ?, strand = ?, course = ?, location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, learning_goals = ?, preferred_learning_style = ? WHERE id = ?");
                             $stmt->execute([$grade_level, $strand, $course, $location, $latitude, $longitude, $location_accuracy, $bio, $learning_goals, $preferred_learning_style, $user['id']]);
                         }
+                        
+                        // [MODIFIED] Availability Saving for Students
+                        if (!empty($availability)) {
+                            // Clear existing availability
+                            $clear_avail = $db->prepare("DELETE FROM user_availability WHERE user_id = ?");
+                            $clear_avail->execute([$user['id']]);
+                            
+                            // Add new availability
+                            $avail_stmt = $db->prepare("INSERT INTO user_availability (user_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)");
+                            foreach ($availability as $avail_data) {
+                                $avail_parts = explode('|', $avail_data);
+                                if (count($avail_parts) === 3) {
+                                    $avail_stmt->execute([$user['id'], $avail_parts[0], $avail_parts[1], $avail_parts[2]]);
+                                }
+                            }
+                        }
+
                     } elseif ($role === 'mentor') {
                         if ($profile_picture_path) {
                             $stmt = $db->prepare("UPDATE users SET location = ?, latitude = ?, longitude = ?, location_accuracy = ?, bio = ?, teaching_style = ?, hourly_rate = ?, profile_picture = ? WHERE id = ?");
@@ -269,21 +382,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $clear_stmt = $db->prepare("DELETE FROM user_subjects WHERE user_id = ?");
                     $clear_stmt->execute([$user['id']]);
                     
-                    // Add new subjects
-                    $subject_stmt = $db->prepare("INSERT INTO user_subjects (user_id, subject_name, proficiency_level, main_subject, subtopic) VALUES (?, ?, ?, ?, ?)");
+                    // Add new subjects - expecting format: main_subject|subtopic|proficiency_level
+                    $subject_stmt = $db->prepare("INSERT INTO user_subjects (user_id, main_subject, subtopic, proficiency_level, subject_name) VALUES (?, ?, ?, ?, ?)");
                     foreach ($subjects as $subject_data) {
                         $subject_parts = explode('|', $subject_data);
+                        
+                        // Expecting 3 parts: main_subject|subtopic|proficiency_level
                         if (count($subject_parts) === 3) {
-                            $main_subject = $subject_parts[0];
-                            $subtopic = $subject_parts[1]; 
+                            $main_subject = sanitize_input($subject_parts[0]);
+                            $subtopic = sanitize_input($subject_parts[1]);
                             $proficiency_level = $subject_parts[2];
                             
-                            $subject_stmt->execute([$user['id'], $subtopic, $proficiency_level, $main_subject, $subtopic]);
-                        } elseif (count($subject_parts) === 2) {
-                            $subject_name = $subject_parts[0];
-                            $proficiency_level = $subject_parts[1];
+                            // Combine main_subject and subtopic for the general subject_name column
+                            $subject_name = $main_subject . (!empty($subtopic) ? ' - ' . $subtopic : '');
                             
-                            $subject_stmt->execute([$user['id'], $subject_name, $proficiency_level, null, null]);
+                            $subject_stmt->execute([$user['id'], $main_subject, $subtopic, $proficiency_level, $subject_name]);
+                        } else {
+                             error_log("Invalid subject data format: " . $subject_data);
                         }
                     }
                     
@@ -330,25 +445,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- [Original PHP data fetching - UNCHANGED] ---
+// --- [Original PHP data fetching - MODIFIED] ---
 // Get existing profile data
 $db = getDB();
-$subjects_stmt = $db->prepare("SELECT subject_name, proficiency_level FROM user_subjects WHERE user_id = ?");
+$subjects_stmt = $db->prepare("SELECT main_subject, subtopic, proficiency_level FROM user_subjects WHERE user_id = ?");
 $subjects_stmt->execute([$user['id']]);
 $existing_subjects = $subjects_stmt->fetchAll();
 
-// Get existing availability for mentors
+// Get existing availability for all roles
 $existing_availability = [];
-if ($user['role'] === 'mentor' || $user['role'] === 'peer') {
+if (in_array($user['role'], ['student', 'mentor', 'peer'])) {
     $avail_stmt = $db->prepare("SELECT day_of_week, start_time, end_time FROM user_availability WHERE user_id = ?");
     $avail_stmt->execute([$user['id']]);
     $existing_availability = $avail_stmt->fetchAll();
 }
 
-$subjectsHierarchy = getSubjectsHierarchy();
-$common_subjects = getMainSubjects();
-
-// --- [Original PHP step logic - UNCHANGED] ---
+// --- [Original PHP step logic - MODIFIED] ---
 $role = $user['role'];
 $steps = [];
 $steps[] = 'Personal Info'; // Step 1
@@ -359,8 +471,10 @@ if ($role === 'student' || $role === 'peer') {
 if ($role === 'mentor' || $role === 'peer') {
     $steps[] = 'Teaching Info'; // Step 2 (Mentor) or 3 (Peer)
 }
-if ($role === 'mentor' || $role === 'peer') {
-    $steps[] = 'Availability'; // Step 3 (Mentor) or 4 (Peer)
+// [MODIFIED] Availability now applies to all roles
+if ($role === 'student' || $role === 'mentor' || $role === 'peer') {
+    // Step 2 (Student only), 3 (Mentor only), 4 (Peer)
+    $steps[] = 'Availability'; 
 }
 if ($role === 'student') {
     $steps[] = 'Learning Subjects'; // Step 3 (Student)
@@ -435,14 +549,6 @@ $total_steps = count($steps);
             width: 50%;
             left: 25%;
         }
-        .wizard-step-title {
-            margin-top: 0.5rem;
-            font-size: 0.875rem;
-            color: #64748b;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-        
         .wizard-step.active::before {
             background-color: var(--primary-color-light);
             color: var(--primary-color);
@@ -592,7 +698,7 @@ $total_steps = count($steps);
                                 <option value="1st Year College" <?php echo ($user['grade_level'] ?? '') === '1st Year College' ? 'selected' : ''; ?>>1st Year College</option>
                                 <option value="2nd Year College" <?php echo ($user['grade_level'] ?? '') === '2nd Year College' ? 'selected' : ''; ?>>2nd Year College</option>
                                 <option value="3rd Year College" <?php echo ($user['grade_level'] ?? '') === '3rd Year College' ? 'selected' : ''; ?>>3rd Year College</option>
-                                <option value="4th Year College" <?php echo ($user['grade_level'] ?? '') === '4th Year College' ? 'selected' : ''; ?>>4th Year College</option>
+                                <option value="4th Year College" <?php echo ($user['grade_level'] ?? '') === '4st Year College' ? 'selected' : ''; ?>>4th Year College</option>
                             </select>
                             <p class="form-error-text" id="error-grade_level"></p>
                             <?php if (isset($errors['grade_level'])): ?>
@@ -677,58 +783,49 @@ $total_steps = count($steps);
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['teaching_style']); ?></p>
                             <?php endif; ?>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="hourly_rate" class="form-label">Hourly Rate (Optional)</label>
-                            <div style="position: relative;">
-                                <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #718096; font-weight: 600;">₱</span>
-                                <input type="number" id="hourly_rate" name="hourly_rate" class="form-input" 
-                                       style="padding-left: 2.5rem;"
-                                       min="0" 
-                                       step="0.01" 
-                                       placeholder="e.g., 150.00"
-                                       value="<?php echo htmlspecialchars($user['hourly_rate'] ?? ''); ?>">
-                            </div>
-                            <p class="text-sm text-secondary mt-1">
-                                Set your hourly rate for tutoring sessions. Leave blank if you're offering free help. 
-                                This will be displayed to students when they find you.
-                            </p>
+                            <input type="number" id="hourly_rate" name="hourly_rate" class="form-input" 
+                                   placeholder="e.g., 200.00" step="0.01" min="0"
+                                   value="<?php echo htmlspecialchars($user['hourly_rate'] ?? ''); ?>">
+                            <p class="text-sm text-secondary mt-1">Enter your rate in your local currency. Leave blank if you offer free or flexible services.</p>
                         </div>
                     </div>
                     <?php endif; ?>
-                    
-                    <?php if ($user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
+
+                    <?php 
+                    // [MODIFIED] Availability step now applies to all roles
+                    if ($user['role'] === 'student' || $user['role'] === 'mentor' || $user['role'] === 'peer'): ?>
                     <div class="wizard-form-step" data-step="<?php echo $step_idx++; ?>">
                         <h3 class="mb-3">Availability</h3>
-                        <p class="text-secondary mb-4">Set your available days and time slots for tutoring sessions.</p>
-
+                        <p class="text-secondary mb-4">When are you generally available for sessions? Specify the days and time ranges.</p>
+                        
                         <div class="form-group">
-                            <label class="form-label">Availability (days & times)</label>
-                            <p class="text-sm text-secondary mb-3">Set your available days and time slots for tutoring sessions. End time must be after start time.</p>
-                            
+                            <label class="form-label">Your Availability Slots</label>
                             <div id="availability-container">
                                 <?php if (!empty($existing_availability)): ?>
                                     <?php foreach ($existing_availability as $avail): ?>
-                                        <div class="availability-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                                            <select class="availability-day form-select" style="flex: 1;" required>
-                                                <option value="">Select Day</option>
-                                                <option value="monday" <?php echo ($avail['day_of_week'] ?? '') === 'monday' ? 'selected' : ''; ?>>Monday</option>
-                                                <option value="tuesday" <?php echo ($avail['day_of_week'] ?? '') === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
-                                                <option value="wednesday" <?php echo ($avail['day_of_week'] ?? '') === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
-                                                <option value="thursday" <?php echo ($avail['day_of_week'] ?? '') === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
-                                                <option value="friday" <?php echo ($avail['day_of_week'] ?? '') === 'friday' ? 'selected' : ''; ?>>Friday</option>
-                                                <option value="saturday" <?php echo ($avail['day_of_week'] ?? '') === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
-                                                <option value="sunday" <?php echo ($avail['day_of_week'] ?? '') === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
-                                            </select>
-                                            <input type="time" class="availability-start form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['start_time']); ?>" required>
-                                            <input type="time" class="availability-end form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['end_time']); ?>" required>
-                                            <input type="hidden" name="availability[]" class="availability-combined" value="<?php echo htmlspecialchars($avail['day_of_week'] . '|' . $avail['start_time'] . '|' . $avail['end_time']); ?>">
-                                            <button type="button" class="btn btn-danger remove-availability-btn" style="padding: 0.5rem;">Remove</button>
-                                        </div>
+                                    <div class="availability-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                                        <select class="availability-day form-select" style="flex: 1;" required onchange="updateAvailabilityCombined(this.closest('.availability-row'))">
+                                            <option value="">Select Day</option>
+                                            <option value="monday" <?php echo ($avail['day_of_week'] ?? '') === 'monday' ? 'selected' : ''; ?>>Monday</option>
+                                            <option value="tuesday" <?php echo ($avail['day_of_week'] ?? '') === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
+                                            <option value="wednesday" <?php echo ($avail['day_of_week'] ?? '') === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
+                                            <option value="thursday" <?php echo ($avail['day_of_week'] ?? '') === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
+                                            <option value="friday" <?php echo ($avail['day_of_week'] ?? '') === 'friday' ? 'selected' : ''; ?>>Friday</option>
+                                            <option value="saturday" <?php echo ($avail['day_of_week'] ?? '') === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
+                                            <option value="sunday" <?php echo ($avail['day_of_week'] ?? '') === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
+                                        </select>
+                                        <input type="time" class="availability-start form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['start_time']); ?>" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
+                                        <input type="time" class="availability-end form-input" style="flex: 1;" value="<?php echo htmlspecialchars($avail['end_time']); ?>" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
+                                        <input type="hidden" name="availability[]" class="availability-combined" value="<?php echo htmlspecialchars($avail['day_of_week'] . '|' . $avail['start_time'] . '|' . $avail['end_time']); ?>">
+                                        <button type="button" class="btn btn-danger remove-availability-btn" style="padding: 0.5rem;">Remove</button>
+                                    </div>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <div class="availability-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                                        <select class="availability-day form-select" style="flex: 1;" required>
+                                        <select class="availability-day form-select" style="flex: 1;" required onchange="updateAvailabilityCombined(this.closest('.availability-row'))">
                                             <option value="">Select Day</option>
                                             <option value="monday">Monday</option>
                                             <option value="tuesday">Tuesday</option>
@@ -738,8 +835,8 @@ $total_steps = count($steps);
                                             <option value="saturday">Saturday</option>
                                             <option value="sunday">Sunday</option>
                                         </select>
-                                        <input type="time" class="availability-start form-input" style="flex: 1;" required>
-                                        <input type="time" class="availability-end form-input" style="flex: 1;" required>
+                                        <input type="time" class="availability-start form-input" style="flex: 1;" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
+                                        <input type="time" class="availability-end form-input" style="flex: 1;" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
                                         <input type="hidden" name="availability[]" class="availability-combined" value="">
                                         <button type="button" class="btn btn-danger remove-availability-btn" style="padding: 0.5rem;">Remove</button>
                                     </div>
@@ -749,211 +846,86 @@ $total_steps = count($steps);
                             <?php if (isset($errors['availability'])): ?>
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['availability']); ?></p>
                             <?php endif; ?>
-                            
-                            <button type="button" class="btn btn-secondary" id="add-availability-btn">Add Time Slot</button>
+                            <button type="button" class="btn btn-secondary" id="add-availability-btn">Add Another Slot</button>
                         </div>
                     </div>
                     <?php endif; ?>
                     
-                    <?php if ($user['role'] === 'student'): ?>
+                    <?php if ($role === 'student'): ?>
                     <div class="wizard-form-step" data-step="<?php echo $step_idx++; ?>">
                         <h3 class="mb-3">Learning Subjects</h3>
-                        <p class="text-secondary mb-4">What subjects do you need help with? Select at least one.</p>
-
                         <div class="form-group">
                             <label class="form-label">Subjects you want to learn</label>
-                            <p class="text-sm text-secondary mb-3">Start by selecting a main subject (e.g., Mathematics). Once you choose, the system will automatically display related subtopics (e.g., Algebra, Calculus, Geometry) for you to refine your expertise or learning preference.</p>
-                            <div class="example-hint" style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid var(--primary-color);">
-                                <strong>👉 Example:</strong><br>
-                                <span style="color: #64748b;">Main Subject Dropdown:</span> <strong>Mathematics</strong><br>
-                                <span style="color: #64748b;">Subtopic Dropdown (auto-loaded):</span> <strong>Algebra, Calculus, Geometry</strong>
-                            </div>
-                        
-                            <div id="subjects-container">
-                                <?php if (!empty($existing_subjects)): ?>
-                                    <?php foreach ($existing_subjects as $subject): ?>
-                                        <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                            <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                                <?php
-                                                // Find main subject for existing subject
-                                                $main_subject_found = '';
-                                                foreach ($subjectsHierarchy as $main => $subtopics) {
-                                                    if (in_array($subject['subject_name'], $subtopics)) {
-                                                        $main_subject_found = $main;
-                                                        break;
-                                                    }
-                                                }
-                                                ?>
-                                                <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                                    <option value="">Select Main Subject</option>
-                                                    <?php foreach (getMainSubjects() as $subj): ?>
-                                                        <option value="<?php echo htmlspecialchars($subj); ?>" <?php echo $main_subject_found === $subj ? 'selected' : ''; ?>><?php echo htmlspecialchars($subj); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" onchange="updateProficiencyLevels(this)">
-                                                    <?php if ($main_subject_found): ?>
-                                                        <option value="">Select Subtopic</option>
-                                                        <?php foreach (getSubtopics($main_subject_found) as $subtopic): ?>
-                                                            <option value="<?php echo htmlspecialchars($subtopic); ?>" <?php echo $subject['subject_name'] === $subtopic ? 'selected' : ''; ?>><?php echo htmlspecialchars($subtopic); ?></option>
-                                                        <?php endforeach; ?>
-                                                    <?php else: ?>
-                                                        <option value="<?php echo htmlspecialchars($subject['subject_name']); ?>" selected><?php echo htmlspecialchars($subject['subject_name']); ?></option>
-                                                    <?php endif; ?>
-                                                </select>
-                                                <select name="subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" required>
-                                                    <option value="<?php echo htmlspecialchars($main_subject_found . '|' . $subject['subject_name'] . '|' . $subject['proficiency_level']); ?>" selected>
-                                                        <?php echo htmlspecialchars($subject['subject_name'] . ' - ' . ucfirst($subject['proficiency_level'])); ?>
-                                                    </option>
-                                                </select>
-                                            </div>
-                                            <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                        <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                            <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                                <option value="">Select Main Subject</option>
-                                                <?php foreach (getMainSubjects() as $subject): ?>
-                                                    <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" disabled>
-                                                <option value="">Select Subtopic First</option>
-                                            </select>
-                                            <select name="subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" disabled required>
-                                                <option value="">Select Level</option>
-                                            </select>
-                                        </div>
-                                        <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                    </div>
+                            <p class="text-sm text-secondary mb-3">Select a main subject, then a subtopic. If your topic is not listed, select **Other** in the subtopic dropdown.</p>
+                            <div id="learning-subjects-container-student">
+                                <?php 
+                                $has_subjects = false;
+                                foreach ($existing_subjects as $subject) {
+                                    if (in_array($subject['proficiency_level'], ['beginner', 'intermediate', 'advanced'])) {
+                                        echo render_subject_row('learning_subjects', $subjectsHierarchy, $subject);
+                                        $has_subjects = true;
+                                    }
+                                }
+                                if (!$has_subjects): ?>
+                                    <?php echo render_subject_row('learning_subjects', $subjectsHierarchy); ?>
                                 <?php endif; ?>
                             </div>
                             <p class="form-error-text" id="error-subjects"></p>
                             <?php if (isset($errors['subjects'])): ?>
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['subjects']); ?></p>
                             <?php endif; ?>
-                            
-                            <button type="button" class="btn btn-secondary" id="add-subject-btn">Add Another Subject</button>
+                            <button type="button" class="btn btn-secondary" id="add-learning-subject-btn-student">Add Another Subject</button>
                         </div>
                     </div>
                     <?php endif; ?>
-                    
-                    <?php if ($user['role'] === 'mentor'): ?>
+
+                    <?php if ($role === 'mentor'): ?>
                     <div class="wizard-form-step" data-step="<?php echo $step_idx++; ?>">
                         <h3 class="mb-3">Teaching Subjects</h3>
-                        <p class="text-secondary mb-4">What subjects can you teach? Select at least one.</p>
-                        
                         <div class="form-group">
                             <label class="form-label">Subjects you can teach</label>
-                            <p class="text-sm text-secondary mb-3">Start by selecting a main subject (e.g., Mathematics). Once you choose, the system will automatically display related subtopics (e.g., Algebra, Calculus, Geometry) for you to refine your expertise or learning preference.</p>
-                            <div class="example-hint" style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid var(--primary-color);">
-                                <strong>👉 Example:</strong><br>
-                                <span style="color: #64748b;">Main Subject Dropdown:</span> <strong>Mathematics</strong><br>
-                                <span style="color: #64748b;">Subtopic Dropdown (auto-loaded):</span> <strong>Algebra, Calculus, Geometry</strong>
-                            </div>
-                            
-                            <div id="subjects-container">
-                                <?php if (!empty($existing_subjects)): ?>
-                                    <?php foreach ($existing_subjects as $subject): ?>
-                                        <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                            <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                                <?php
-                                                // Find main subject for existing subject
-                                                $main_subject_found = '';
-                                                foreach ($subjectsHierarchy as $main => $subtopics) {
-                                                    if (in_array($subject['subject_name'], $subtopics)) {
-                                                        $main_subject_found = $main;
-                                                        break;
-                                                    }
-                                                }
-                                                ?>
-                                                <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                                    <option value="">Select Main Subject</option>
-                                                    <?php foreach (getMainSubjects() as $subj): ?>
-                                                        <option value="<?php echo htmlspecialchars($subj); ?>" <?php echo $main_subject_found === $subj ? 'selected' : ''; ?>><?php echo htmlspecialchars($subj); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" onchange="updateProficiencyLevels(this)">
-                                                    <?php if ($main_subject_found): ?>
-                                                        <option value="">Select Subtopic</option>
-                                                        <?php foreach (getSubtopics($main_subject_found) as $subtopic): ?>
-                                                            <option value="<?php echo htmlspecialchars($subtopic); ?>" <?php echo $subject['subject_name'] === $subtopic ? 'selected' : ''; ?>><?php echo htmlspecialchars($subtopic); ?></option>
-                                                        <?php endforeach; ?>
-                                                    <?php else: ?>
-                                                        <option value="<?php echo htmlspecialchars($subject['subject_name']); ?>" selected><?php echo htmlspecialchars($subject['subject_name']); ?></option>
-                                                    <?php endif; ?>
-                                                </select>
-                                                <select name="subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" required>
-                                                    <option value="<?php echo htmlspecialchars($main_subject_found . '|' . $subject['subject_name'] . '|' . $subject['proficiency_level']); ?>" selected>
-                                                        <?php echo htmlspecialchars($subject['subject_name'] . ' - ' . ucfirst($subject['proficiency_level'])); ?>
-                                                    </option>
-                                                </select>
-                                            </div>
-                                            <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                        <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                            <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                                <option value="">Select Main Subject</option>
-                                                <?php foreach (getMainSubjects() as $subject): ?>
-                                                    <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" disabled>
-                                                <option value="">Select Subtopic First</option>
-                                            </select>
-                                            <select name="subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" disabled required>
-                                                <option value="">Select Level</option>
-                                            </select>
-                                        </div>
-                                        <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                    </div>
+                            <p class="text-sm text-secondary mb-3">Select a main subject, then a subtopic. If your topic is not listed, select **Other** in the subtopic dropdown.</p>
+                            <div id="teaching-subjects-container-mentor">
+                                <?php 
+                                $has_subjects = false;
+                                foreach ($existing_subjects as $subject) {
+                                    if (in_array($subject['proficiency_level'], ['intermediate', 'advanced', 'expert'])) {
+                                        echo render_subject_row('teaching_subjects', $subjectsHierarchy, $subject);
+                                        $has_subjects = true;
+                                    }
+                                }
+                                if (!$has_subjects): ?>
+                                    <?php echo render_subject_row('teaching_subjects', $subjectsHierarchy); ?>
                                 <?php endif; ?>
                             </div>
                             <p class="form-error-text" id="error-subjects"></p>
                             <?php if (isset($errors['subjects'])): ?>
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['subjects']); ?></p>
                             <?php endif; ?>
-                            
-                            <button type="button" class="btn btn-secondary" id="add-subject-btn">Add Another Subject</button>
+                            <button type="button" class="btn btn-secondary" id="add-teaching-subject-btn-mentor">Add Another Subject</button>
                         </div>
                     </div>
                     <?php endif; ?>
-                    
+
                     <?php if ($user['role'] === 'peer'): ?>
                     <div class="wizard-form-step" data-step="<?php echo $step_idx++; ?>">
                         <h3 class="mb-3">Your Subjects</h3>
-                        <p class="text-secondary mb-4">Select the subjects you want to learn and the subjects you can teach. Select at least one for each.</p>
+                        <p class="text-secondary mb-4">Select the subjects you want to learn and the subjects you can teach. Select at least one for each. Use the **Other** option for unlisted topics.</p>
                         
                         <div class="form-group">
                             <label class="form-label">Subjects you want to learn</label>
-                            <p class="text-sm text-secondary mb-3">Start by selecting a main subject (e.g., Mathematics). Once you choose, the system will automatically display related subtopics (e.g., Algebra, Calculus, Geometry) for you to refine your expertise or learning preference.</p>
-                            <div class="example-hint" style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid var(--primary-color);">
-                                <strong>👉 Example:</strong><br>
-                                <span style="color: #64748b;">Main Subject Dropdown:</span> <strong>Mathematics</strong><br>
-                                <span style="color: #64748b;">Subtopic Dropdown (auto-loaded):</span> <strong>Algebra, Calculus, Geometry</strong>
-                            </div>
                             <div id="learning-subjects-container">
-                                <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                    <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                        <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                            <option value="">Select Main Subject</option>
-                                            <?php foreach (getMainSubjects() as $subject): ?>
-                                                <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" disabled>
-                                            <option value="">Select Subtopic First</option>
-                                        </select>
-                                        <select name="learning_subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" disabled required>
-                                            <option value="">Select Level</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                </div>
+                                <?php 
+                                $has_learning_subjects = false;
+                                foreach ($existing_subjects as $subject):
+                                    if (in_array($subject['proficiency_level'], ['beginner', 'intermediate', 'advanced'])):
+                                        echo render_subject_row('learning_subjects', $subjectsHierarchy, $subject);
+                                        $has_learning_subjects = true;
+                                    endif; 
+                                endforeach;
+                                if (!$has_learning_subjects): ?>
+                                    <?php echo render_subject_row('learning_subjects', $subjectsHierarchy); ?>
+                                <?php endif; ?>
                             </div>
                             <p class="form-error-text" id="error-learning_subjects"></p>
                             <?php if (isset($errors['learning_subjects'])): ?>
@@ -962,37 +934,30 @@ $total_steps = count($steps);
                             <button type="button" class="btn btn-secondary" id="add-learning-subject-btn">Add Learning Subject</button>
                         </div>
                         
-                        <div class="form-group">
+                        <div class="form-group mt-4">
                             <label class="form-label">Subjects you can teach</label>
-                            <p class="text-sm text-secondary mb-3">Start by selecting a main subject (e.g., Mathematics). Once you choose, the system will automatically display related subtopics (e.g., Algebra, Calculus, Geometry) for you to refine your expertise or learning preference.</p>
                             <div id="teaching-subjects-container">
-                                <div class="subject-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-                                    <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                                        <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                                            <option value="">Select Main Subject</option>
-                                            <?php foreach (getMainSubjects() as $subject): ?>
-                                                <option value="<?php echo htmlspecialchars($subject); ?>"><?php echo htmlspecialchars($subject); ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" disabled>
-                                            <option value="">Select Subtopic First</option>
-                                        </select>
-                                        <select name="teaching_subjects[]" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" disabled required>
-                                            <option value="">Select Level</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-                                </div>
+                                <?php 
+                                $has_teaching_subjects = false;
+                                foreach ($existing_subjects as $subject):
+                                    if (in_array($subject['proficiency_level'], ['intermediate', 'advanced', 'expert'])):
+                                        echo render_subject_row('teaching_subjects', $subjectsHierarchy, $subject);
+                                        $has_teaching_subjects = true;
+                                    endif;
+                                endforeach;
+                                if (!$has_teaching_subjects): ?>
+                                    <?php echo render_subject_row('teaching_subjects', $subjectsHierarchy); ?>
+                                <?php endif; ?>
                             </div>
                             <p class="form-error-text" id="error-teaching_subjects"></p>
-                             <?php if (isset($errors['teaching_subjects'])): ?>
+                            <?php if (isset($errors['teaching_subjects'])): ?>
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['teaching_subjects']); ?></p>
                             <?php endif; ?>
                             <button type="button" class="btn btn-secondary" id="add-teaching-subject-btn">Add Teaching Subject</button>
                         </div>
                     </div>
                     <?php endif; ?>
-
+                    
                     <div class="wizard-form-step" data-step="<?php echo $step_idx++; ?>">
                         <h3 class="mb-3">Final Details</h3>
                         <p class="text-secondary mb-4">Finally, tell us your location for finding nearby buddies and a short bio about yourself.</p>
@@ -1001,11 +966,9 @@ $total_steps = count($steps);
                             <label for="location" class="form-label">Location</label>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <input type="text" id="location" name="location" class="form-input <?php echo isset($errors['location']) ? 'is-invalid' : ''; ?>" required
-                                       placeholder="Start typing your location..."
-                                       style="flex: 1;"
+                                       placeholder="Start typing your location..." style="flex: 1;"
                                        value="<?php echo htmlspecialchars($user['location'] ?? ''); ?>">
-                                <button type="button" id="detect-location" class="btn btn-secondary" 
-                                        style="white-space: nowrap; padding: 0.75rem 1rem;">
+                                <button type="button" id="detect-location" class="btn btn-secondary" style="white-space: nowrap; padding: 0.75rem 1rem;">
                                     📍 Use My Location
                                 </button>
                             </div>
@@ -1018,11 +981,11 @@ $total_steps = count($steps);
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['location']); ?></p>
                             <?php endif; ?>
                         </div>
-                        
+
                         <div class="form-group">
-                            <label for="bio" class="form-label">Bio</label>
+                            <label for="bio" class="form-label">Bio / About Me</label>
                             <textarea id="bio" name="bio" class="form-input <?php echo isset($errors['bio']) ? 'is-invalid' : ''; ?>" rows="4" required
-                                      placeholder="Tell others about yourself..."><?php echo htmlspecialchars($user['bio'] ?? ''); ?></textarea>
+                                      placeholder="Write a brief introduction about yourself, your interests, and what you're looking for..."><?php echo htmlspecialchars($user['bio'] ?? ''); ?></textarea>
                             <p class="form-error-text" id="error-bio"></p>
                             <?php if (isset($errors['bio'])): ?>
                                 <p class="form-error-text"><?php echo htmlspecialchars($errors['bio']); ?></p>
@@ -1031,47 +994,45 @@ $total_steps = count($steps);
                     </div>
                     
                     <div class="wizard-nav">
-                        <button type="button" class="btn btn-secondary" id="prev-btn" style="display: none;">Previous</button>
-                        <button type="button" class="btn btn-primary" id="next-btn">Next</button>
-                        <button type="submit" class="btn btn-primary" id="submit-btn" style="display: none; width: auto;">Save Profile</button>
+                        <button type="button" class="btn btn-secondary" id="prev-btn" style="display: none;">← Previous</button>
+                        <button type="button" class="btn btn-primary" id="next-btn">Next →</button>
+                        <button type="submit" class="btn btn-success" id="submit-btn" style="display: none;">Finish Setup & Save</button>
                     </div>
                 </form>
+                
             </div>
         </div>
     </main>
-
+    
     <script>
-    // --- [NEW] Helper functions for client-side validation ---
+    // PHP variable injected into JS
+    const subjectsHierarchy = <?php echo json_encode($subjectsHierarchy); ?>;
+
+    /**
+     * Helper function to show errors visually
+     */
     function showError(element, message) {
         element.classList.add('is-invalid');
-        const errorId = 'error-' + element.id;
-        let errorEl = document.getElementById(errorId);
-        if (errorEl) {
-            errorEl.textContent = message;
-        } else {
-            // Fallback for elements without a dedicated error p-tag
-            let newErrorEl = document.createElement('p');
-            newErrorEl.className = 'form-error-text';
-            newErrorEl.textContent = message;
-            element.parentNode.appendChild(newErrorEl);
+        const errorTextEl = document.getElementById(`error-${element.id}`) || element.closest('.form-group').querySelector('.form-error-text');
+        if (errorTextEl) {
+            errorTextEl.textContent = message;
         }
     }
 
+    /**
+     * Helper function to clear errors visually
+     */
     function clearError(element) {
         element.classList.remove('is-invalid');
-        const errorId = 'error-' + element.id;
-        let errorEl = document.getElementById(errorId);
-        if (errorEl) {
-            errorEl.textContent = '';
-        } else {
-             // Fallback
-            let errorMsg = element.parentNode.querySelector('.form-error-text');
-            if (errorMsg) {
-                errorMsg.textContent = '';
-            }
+        const errorTextEl = document.getElementById(`error-${element.id}`) || element.closest('.form-group').querySelector('.form-error-text');
+        if (errorTextEl) {
+            errorTextEl.textContent = '';
         }
     }
-    
+
+    /**
+     * Main validation logic for each step
+     */
     function validateStep(stepNumber) {
         let isValid = true;
         const stepElement = document.querySelector(`.wizard-form-step[data-step="${stepNumber}"]`);
@@ -1080,13 +1041,16 @@ $total_steps = count($steps);
         // Clear all previous errors in this step
         stepElement.querySelectorAll('.form-error-text').forEach(el => el.textContent = '');
         stepElement.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-        
+
         // 1. Check all required fields
         const requiredInputs = stepElement.querySelectorAll('[required]');
         requiredInputs.forEach(input => {
-            if (input.offsetParent === null) return; // Skip hidden elements
-            
-            if (!input.value) {
+            if (input.offsetParent === null && input.tagName !== 'SELECT' && input.classList.contains('other-subtopic-input')) {
+                // Ignore the hidden 'other-subtopic-input' unless it's required by being visible
+                // Its required status is managed by handleSubtopicChange
+                return;
+            }
+            if (!input.value || (input.type === 'select-one' && input.value === "")) {
                 isValid = false;
                 showError(input, 'This field is required.');
             } else {
@@ -1095,7 +1059,7 @@ $total_steps = count($steps);
         });
 
         // 2. Check for specific step logic
-        
+
         // Availability Step
         if (stepElement.querySelector('#availability-container')) {
             const availabilityRows = stepElement.querySelectorAll('.availability-row');
@@ -1104,7 +1068,7 @@ $total_steps = count($steps);
                 const start = row.querySelector('.availability-start');
                 const end = row.querySelector('.availability-end');
                 
-                if (start.value && end.value && start.value >= end.value) {
+                if (start.value && end.value && start.value >= end.value) { 
                     isValid = false;
                     timeError = true;
                     showError(end, 'End time must be after start time.');
@@ -1114,81 +1078,93 @@ $total_steps = count($steps);
                 document.getElementById('error-availability').textContent = 'Please fix time errors.';
             }
         }
-        
-        // Subject Steps
-        if (stepElement.querySelector('#subjects-container') && 
-            stepElement.querySelectorAll('.subject-row').length === 0) {
-            isValid = false;
-            document.getElementById('error-subjects').textContent = 'Please add at least one subject.';
-        }
-        
-        // Peer Subject Step
-        if (stepElement.querySelector('#learning-subjects-container')) {
-            if (stepElement.querySelectorAll('#learning-subjects-container .subject-row').length === 0) {
-                isValid = false;
-                document.getElementById('error-learning_subjects').textContent = 'Please add at least one learning subject.';
-            }
-            if (stepElement.querySelectorAll('#teaching-subjects-container .subject-row').length === 0) {
-                isValid = false;
-                document.getElementById('error-teaching_subjects').textContent = 'Please add at least one teaching subject.';
-            }
-        }
 
+        // Subject Steps (Student/Mentor/Peer)
+        const subjectContainers = stepElement.querySelectorAll('[id$="-subjects-container"], [id$="-subjects-container-student"], [id$="-subjects-container-mentor"]');
+        subjectContainers.forEach(container => {
+            const rows = container.querySelectorAll('.subject-row');
+            if (rows.length === 0) {
+                isValid = false;
+                // Determine the correct error message ID
+                let errorId = 'error-subjects'; 
+                if (container.id.includes('learning')) {
+                    errorId = 'error-learning_subjects';
+                } else if (container.id.includes('teaching')) {
+                    errorId = 'error-teaching_subjects';
+                }
+                document.getElementById(errorId).textContent = 'Please add at least one subject.';
+            } else {
+                // Check if all subject parts are filled within existing rows
+                rows.forEach(row => {
+                    const mainSelect = row.querySelector('.main-subject-select');
+                    const subSelect = row.querySelector('.subtopic-select');
+                    const levelSelect = row.querySelector('.proficiency-select');
+                    const otherInput = row.querySelector('.other-subtopic-input');
+
+                    if (!mainSelect.value) { isValid = false; showError(mainSelect, 'Required.'); }
+                    if (!subSelect.value) { isValid = false; showError(subSelect, 'Required.'); }
+                    if (!levelSelect.value) { isValid = false; showError(levelSelect, 'Required.'); }
+                    
+                    // Specific check for 'Other' subtopic field
+                    if (subSelect.value === 'Other' && !otherInput.value) {
+                         isValid = false;
+                         showError(otherInput, 'Please specify the subtopic.');
+                    }
+                });
+            }
+        });
+        
         return isValid;
     }
-    
+
     // --- [NEW] AJAX Referral Code Check ---
     function checkReferralCode() {
         const codeInput = document.getElementById('referral_code');
         const code = codeInput.value;
         const statusDiv = document.getElementById('referral-status');
         const checkBtn = document.getElementById('check-referral-btn');
+
+        clearError(codeInput);
+        statusDiv.textContent = '';
+        checkBtn.disabled = true;
+        checkBtn.textContent = 'Checking...';
         
         if (!code) {
-            statusDiv.textContent = 'Please enter a code to check.';
+            statusDiv.textContent = 'Please enter a code.';
             statusDiv.style.color = '#dc2626';
+            checkBtn.disabled = false;
+            checkBtn.textContent = 'Check';
             return;
         }
 
-        checkBtn.disabled = true;
-        checkBtn.textContent = 'Checking...';
-        statusDiv.textContent = 'Checking...';
-        statusDiv.style.color = '#64748b';
-
-        const formData = new FormData();
-        formData.append('action', 'check_referral');
-        formData.append('code', code);
-
-        fetch(window.location.href, { // Post to the same page
+        fetch('', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=check_referral&code=${encodeURIComponent(code)}`
         })
         .then(response => response.json())
         .then(data => {
-            statusDiv.textContent = data.message;
             if (data.valid) {
-                statusDiv.style.color = '#10b981'; // green-600
-                codeInput.classList.remove('is-invalid');
-                codeInput.classList.add('is-valid'); // You can add a .is-valid style if you want
+                statusDiv.textContent = data.message;
+                statusDiv.style.color = '#10b981'; // green-500
             } else {
+                statusDiv.textContent = data.message;
                 statusDiv.style.color = '#dc2626'; // red-600
-                codeInput.classList.add('is-invalid');
-                codeInput.classList.remove('is-valid');
+                showError(codeInput, ''); // Highlight input on error
             }
         })
         .catch(error => {
-            statusDiv.textContent = 'An error occurred. Please try again.';
+            statusDiv.textContent = 'An error occurred while checking the code.';
             statusDiv.style.color = '#dc2626';
+            console.error('Referral check error:', error);
         })
         .finally(() => {
             checkBtn.disabled = false;
             checkBtn.textContent = 'Check';
         });
     }
-
-
-    // --- [Original, but placed inside DOMContentLoaded] ---
-    const subjectsHierarchy = <?php echo getSubjectsHierarchyJSON(); ?>;
 
     document.addEventListener('DOMContentLoaded', function() {
         let currentStep = 1;
@@ -1198,7 +1174,6 @@ $total_steps = count($steps);
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
         const submitBtn = document.getElementById('submit-btn');
-        const form = document.getElementById('setup-form');
         const formContainer = document.querySelector('.form-container');
 
         function showStep(stepNumber) {
@@ -1209,7 +1184,6 @@ $total_steps = count($steps);
                     step.classList.remove('active');
                 }
             });
-            
             stepIndicators.forEach(indicator => {
                 const indicatorStep = parseInt(indicator.dataset.step);
                 if (indicatorStep === stepNumber) {
@@ -1244,9 +1218,8 @@ $total_steps = count($steps);
             window.scrollTo(0, formContainer.offsetTop);
         }
 
-        // --- [IMPROVED] Button Listeners ---
+        // --- Button Listeners ---
         nextBtn.addEventListener('click', function() {
-            // [NEW] Validate before proceeding
             if (validateStep(currentStep)) {
                 if (currentStep < totalSteps) {
                     currentStep++;
@@ -1263,112 +1236,234 @@ $total_steps = count($steps);
         });
 
         submitBtn.addEventListener('click', function(e) {
-            // [NEW] Validate final step before submitting
             if (!validateStep(currentStep)) {
                 e.preventDefault();
                 alert('Please fix the errors on this page before submitting.');
             }
         });
         
-        // --- [NEW] Consolidated Event Listeners ---
+        // --- General Event Listeners ---
         document.addEventListener('click', function(e) {
-            // Add Availability
             if (e.target.id === 'add-availability-btn') {
                 addAvailability();
-            }
-            // Remove Availability
-            if (e.target.classList.contains('remove-availability-btn')) {
+            } else if (e.target.classList.contains('remove-availability-btn')) {
                 removeAvailability(e.target);
-            }
-            // Add Subject (Student/Mentor)
-            if (e.target.id === 'add-subject-btn') {
-                addSubject('general');
-            }
-            // Add Learning Subject (Peer)
-            if (e.target.id === 'add-learning-subject-btn') {
-                addSubject('learning');
-            }
-            // Add Teaching Subject (Peer)
-            if (e.target.id === 'add-teaching-subject-btn') {
-                addSubject('teaching');
-            }
-            // Remove Subject
-            if (e.target.classList.contains('remove-subject-btn')) {
-                removeSubject(e.target);
-            }
-            // Check Referral Code
-            if (e.target.id === 'check-referral-btn') {
-                checkReferralCode();
-            }
-            // Detect Location
-            if (e.target.id === 'detect-location') {
+            } else if (e.target.id === 'check-referral-btn') {
+                 checkReferralCode();
+            } else if (e.target.id === 'detect-location') {
                 detectLocation(e.target);
             }
+            
+            // Subject buttons
+            if (e.target.id === 'add-learning-subject-btn-student' || 
+                e.target.id === 'add-learning-subject-btn') {
+                addSubject('learning_subjects'); 
+            } else if (e.target.id === 'add-teaching-subject-btn-mentor' || 
+                       e.target.id === 'add-teaching-subject-btn') {
+                addSubject('teaching_subjects'); 
+            } else if (e.target.classList.contains('remove-subject-btn')) {
+                removeSubject(e.target);
+            } 
         });
 
-        // --- [NEW] Delegated Change Listeners ---
         document.addEventListener('change', function(e) {
-            // Subject dropdowns
-            if (e.target.classList.contains('main-subject-select')) {
-                updateSubtopics(e.target);
-            } else if (e.target.classList.contains('subtopic-select')) {
-                updateProficiencyLevels(e.target);
-            }
-            // Availability dropdowns/inputs
-            else if (e.target.classList.contains('availability-day') || 
+            if (e.target.id === 'grade_level') {
+                handleGradeLevelChange(e.target);
+            } else if (e.target.classList.contains('availability-day') || 
                      e.target.classList.contains('availability-start') || 
                      e.target.classList.contains('availability-end')) {
-                const row = e.target.closest('.availability-row');
-                if (row) {
-                    updateAvailabilityCombined(row);
-                }
-            }
-            // Grade level dependency
-            else if (e.target.id === 'grade_level') {
-                handleGradeLevelChange(e.target);
-            }
-            // Profile pic preview
-            else if (e.target.id === 'profile_picture') {
+                updateAvailabilityCombined(e.target.closest('.availability-row'));
+            } else if (e.target.id === 'profile_picture') {
                 handleProfilePicChange(e);
             }
         });
 
+
         // --- Initializers ---
-        
-        // Initial setup
         showStep(currentStep);
-        
-        // Trigger grade level handler on load
         const gradeLevelSelect = document.getElementById('grade_level');
         if (gradeLevelSelect && gradeLevelSelect.value) {
             handleGradeLevelChange(gradeLevelSelect);
         }
         
-        // Attach listeners to any pre-existing availability rows
-        const availabilityRows = document.querySelectorAll('.availability-row');
-        availabilityRows.forEach(row => {
-            // Listeners are now delegated, but we need to set initial combined value if not set
-            if (!row.querySelector('.availability-combined').value) {
-                updateAvailabilityCombined(row);
+        // Re-run population for existing subjects on load
+        document.querySelectorAll('.main-subject-select').forEach(select => {
+            if (select.value) {
+                updateSubtopics(select, false); // Populate, but don't clear existing selection
             }
         });
     });
+
+    // --- Subject Logic Functions ---
+
+    /**
+     * Updates the subtopic dropdown when the main subject changes.
+     * @param {HTMLSelectElement} mainSelect - The main subject select element.
+     * @param {boolean} clearSubtopic - Whether to clear the subtopic selection (true on manual change).
+     */
+    function updateSubtopics(mainSelect, clearSubtopic = true) {
+        const subjectRow = mainSelect.closest('.subject-row');
+        const subtopicSelect = subjectRow.querySelector('.subtopic-select');
+        const otherInput = subjectRow.querySelector('.other-subtopic-input');
+        const mainSubject = mainSelect.value;
+        
+        subtopicSelect.innerHTML = '<option value="">Select Subtopic</option>';
+        clearError(subtopicSelect);
+        clearError(otherInput);
+
+        if (mainSubject && subjectsHierarchy[mainSubject]) {
+            const subtopics = subjectsHierarchy[mainSubject];
+            subtopics.forEach(subtopic => {
+                const option = document.createElement('option');
+                option.value = subtopic;
+                option.textContent = subtopic;
+                subtopicSelect.appendChild(option);
+            });
+            
+            // Inject the 'Other' option
+            const otherOption = document.createElement('option');
+            otherOption.value = 'Other';
+            otherOption.textContent = 'Other (Specify below)';
+            subtopicSelect.appendChild(otherOption);
+        }
+
+        if (clearSubtopic) {
+            subtopicSelect.value = '';
+            otherInput.value = '';
+            otherInput.style.display = 'none';
+            otherInput.removeAttribute('required');
+        }
+    }
+
+    /**
+     * Handles the change in the subtopic dropdown, showing the 'Other' input if selected.
+     * @param {HTMLSelectElement} subtopicSelect - The subtopic select element.
+     */
+    function handleSubtopicChange(subtopicSelect) {
+        const subjectRow = subtopicSelect.closest('.subject-row');
+        const otherInput = subjectRow.querySelector('.other-subtopic-input');
+        
+        if (subtopicSelect.value === 'Other') {
+            otherInput.style.display = 'block';
+            otherInput.setAttribute('required', 'required');
+            otherInput.focus();
+        } else {
+            otherInput.style.display = 'none';
+            otherInput.value = '';
+            otherInput.removeAttribute('required');
+            clearError(otherInput);
+        }
+    }
+
+    /**
+     * Updates the hidden value of the proficiency select based on the dropdowns/text input.
+     * Triggered by all subject-related inputs.
+     */
+    function updateSubjectCombined(changedElement) {
+        const subjectRow = changedElement.closest('.subject-row');
+        const mainSelect = subjectRow.querySelector('.main-subject-select');
+        const subSelect = subjectRow.querySelector('.subtopic-select');
+        const otherInput = subjectRow.querySelector('.other-subtopic-input');
+        const proficiencySelect = subjectRow.querySelector('.proficiency-select');
+        
+        const mainSubject = mainSelect.value.trim();
+        let subtopic = '';
+
+        if (subSelect.value === 'Other') {
+            subtopic = otherInput.value.trim();
+        } else {
+            subtopic = subSelect.value.trim();
+        }
+
+        // Update all proficiency options with the new subject combination
+        for (let i = 0; i < proficiencySelect.options.length; i++) {
+            const option = proficiencySelect.options[i];
+            if (option.value) {
+                 // Get the proficiency level from the current option value (last part)
+                 const parts = option.value.split('|');
+                 const currentLevel = parts[parts.length - 1];
+                 
+                 // New value: mainSubject|subtopic|currentLevel
+                 option.value = `${mainSubject}|${subtopic}|${currentLevel}`;
+            }
+        }
+        
+        // Ensure the currently selected option is updated
+        if (proficiencySelect.value) {
+             const selectedLevel = proficiencySelect.value.split('|').pop();
+             if (mainSubject && (subtopic || subtopic === '') && selectedLevel) {
+                 proficiencySelect.value = `${mainSubject}|${subtopic}|${selectedLevel}`;
+             } else {
+                 // Invalid combination, reset or mark as incomplete
+                 proficiencySelect.value = '';
+             }
+        }
+    }
     
+    /**
+     * Adds a new subject row to the specified container.
+     * @param {string} selectName - The name attribute for the proficiency select.
+     */
+    function addSubject(selectName) {
+        let container;
+        if (selectName === 'learning_subjects') {
+            container = document.getElementById('learning-subjects-container-student') || document.getElementById('learning-subjects-container');
+        } else if (selectName === 'teaching_subjects') {
+            container = document.getElementById('teaching-subjects-container-mentor') || document.getElementById('teaching-subjects-container');
+        } else {
+            console.error("Unknown subject select name:", selectName);
+            return; 
+        }
+
+        // PHP function call to get the HTML structure
+        fetch('<?php echo BASE_URL; ?>includes/get_subject_row.php?select_name=' + selectName) 
+            .then(response => response.text())
+            .then(html => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html.trim();
+
+                // Remove the initial empty row if it exists (only if the one row is completely empty)
+                if (container.children.length === 1) {
+                    const firstRow = container.firstElementChild;
+                    const mainSelect = firstRow.querySelector('.main-subject-select');
+                    const levelSelect = firstRow.querySelector('.proficiency-select');
+                    if (mainSelect && !mainSelect.value && levelSelect && !levelSelect.value) {
+                         firstRow.remove();
+                    }
+                }
+                
+                // Append the new row
+                if (tempDiv.firstChild) {
+                    container.appendChild(tempDiv.firstChild);
+                    // For a better UX, focus the newly added input element
+                    const newSelect = container.lastElementChild.querySelector('.main-subject-select');
+                    setTimeout(() => newSelect.focus(), 100);
+                }
+            })
+            .catch(error => console.error('Error fetching subject row:', error));
+    }
     
-    // --- [REFACTORED] Form Logic Functions ---
+    function removeSubject(button) {
+        const subjectRow = button.closest('.subject-row');
+        const container = subjectRow.parentElement;
+        
+        subjectRow.remove();
+    }
+    
+    // --- Other Logic Functions ---
 
     function handleGradeLevelChange(selectElement) {
         const gradeLevel = selectElement.value;
         const strandField = document.getElementById('strand');
         const courseField = document.getElementById('course');
-        
+
         const disableField = (field) => {
             field.disabled = true;
             field.value = '';
             field.style.backgroundColor = '#f1f5f9';
             field.style.cursor = 'not-allowed';
         };
-        
+
         const enableField = (field) => {
             field.disabled = false;
             field.style.backgroundColor = '';
@@ -1406,190 +1501,79 @@ $total_steps = count($steps);
 
     function detectLocation(button) {
         const statusDiv = document.getElementById('location-status');
-        
         if (!navigator.geolocation) {
             statusDiv.textContent = 'Geolocation is not supported by this browser.';
             statusDiv.style.display = 'block';
             statusDiv.style.color = '#dc2626';
             return;
         }
-        
+
         button.disabled = true;
         button.textContent = '📍 Getting location...';
         statusDiv.style.display = 'block';
         statusDiv.textContent = 'Getting your location...';
-        statusDiv.style.color = '#3b82f6';
-        
+        statusDiv.style.color = '#64748b';
+
         navigator.geolocation.getCurrentPosition(
-            function(position) {
+            (position) => {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
-                const accuracy = position.coords.accuracy;
-                
+                const accuracy = Math.round(position.coords.accuracy);
+
                 document.getElementById('latitude').value = lat;
                 document.getElementById('longitude').value = lng;
                 document.getElementById('location_accuracy').value = accuracy;
-                
+
                 reverseGeocode(lat, lng);
-                
+
                 button.disabled = false;
-                button.textContent = '✓ Location detected';
-                button.style.backgroundColor = '#10b981';
-                button.style.color = 'white';
-                statusDiv.textContent = `Location detected with ${Math.round(accuracy)}m accuracy`;
+                button.textContent = '📍 Location Found';
+                statusDiv.textContent = `Coordinates captured. Accuracy: ~${accuracy}m. Attempting reverse geocode...`;
                 statusDiv.style.color = '#10b981';
             },
-            function(error) {
-                let errorMessage = 'Unable to get your location. ';
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMessage += 'Please allow location access and try again.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMessage += 'Location information is unavailable.';
-                        break;
-                    case error.TIMEOUT:
-                        errorMessage += 'Location request timed out.';
-                        break;
-                    default:
-                        errorMessage += 'An unknown error occurred.';
-                        break;
+            (error) => {
+                let errorMessage = 'Could not get your location.';
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMessage = 'Location access denied. Please enable it in your browser settings.';
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    errorMessage = 'Location information is unavailable.';
                 }
                 
                 button.disabled = false;
                 button.textContent = '📍 Try Again';
                 statusDiv.textContent = errorMessage;
                 statusDiv.style.color = '#dc2626';
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            }, 
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
         );
     }
-    
+
     function reverseGeocode(lat, lng) {
         fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-            .then(response => response.json())
-            .then(data => {
-                let locationText = '';
-                if (data.city && data.principalSubdivision) {
-                    locationText = `${data.city}, ${data.principalSubdivision}`;
-                } else if (data.principalSubdivision) {
-                    locationText = data.principalSubdivision;
-                } else {
-                    locationText = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-                }
-                document.getElementById('location').value = locationText;
-                clearError(document.getElementById('location')); // Clear validation error
-                const statusDiv = document.getElementById('location-status');
-                statusDiv.textContent = `Location set to: ${locationText}`;
-            })
-            .catch(error => {
-                // Don't show error to user, coordinates are still captured
-            });
-    }
-
-    function addSubject(type = 'general') {
-        let container, selectName, isLearning;
-        
-        if (type === 'learning') {
-            container = document.getElementById('learning-subjects-container');
-            selectName = 'learning_subjects[]';
-            isLearning = true;
-        } else if (type === 'teaching') {
-            container = document.getElementById('teaching-subjects-container');
-            selectName = 'teaching_subjects[]';
-            isLearning = false;
-        } else {
-            container = document.getElementById('subjects-container');
-            selectName = 'subjects[]';
-            isLearning = <?php echo $user['role'] === 'student' ? 'true' : 'false'; ?>;
-        }
-        
-        const subjectRow = document.createElement('div');
-        subjectRow.className = 'subject-row';
-        subjectRow.style.cssText = 'display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;';
-        
-        let mainSubjectOptions = '<option value="">Select Main Subject</option>';
-        Object.keys(subjectsHierarchy).forEach(subject => {
-            mainSubjectOptions += `<option value="${subject}">${subject}</option>`;
-        });
-        
-        subjectRow.innerHTML = `
-            <div style="display: flex; gap: 0.5rem; flex: 2; flex-wrap: wrap;">
-                <select class="main-subject-select form-select" style="flex: 1; min-width: 150px;" required>
-                    ${mainSubjectOptions}
-                </select>
-                <select class="subtopic-select form-select" style="flex: 1; min-width: 150px;" disabled>
-                    <option value="">Select Subtopic First</option>
-                </select>
-                <select name="${selectName}" class="proficiency-select form-select" style="flex: 1; min-width: 120px;" data-is-learning="${isLearning}" disabled required>
-                    <option value="">Select Level</option>
-                </select>
-            </div>
-            <button type="button" class="btn btn-danger remove-subject-btn" style="padding: 0.5rem;">Remove</button>
-        `;
-        
-        container.appendChild(subjectRow);
-    }
-    
-    function updateSubtopics(mainSubjectSelect) {
-        const subjectRow = mainSubjectSelect.closest('.subject-row');
-        const subtopicSelect = subjectRow.querySelector('.subtopic-select');
-        const proficiencySelect = subjectRow.querySelector('.proficiency-select');
-        const mainSubject = mainSubjectSelect.value;
-        
-        subtopicSelect.innerHTML = '<option value="">Select Subtopic</option>';
-        proficiencySelect.innerHTML = '<option value="">Select Level</option>';
-        subtopicSelect.disabled = !mainSubject;
-        proficiencySelect.disabled = true;
-        
-        if (mainSubject && subjectsHierarchy[mainSubject]) {
-            subjectsHierarchy[mainSubject].forEach(subtopic => {
-                subtopicSelect.innerHTML += `<option value="${subtopic}">${subtopic}</option>`;
-            });
-            subtopicSelect.disabled = false;
-        }
-        clearError(mainSubjectSelect);
-        clearError(subtopicSelect);
-        clearError(proficiencySelect);
-    }
-    
-    function updateProficiencyLevels(subtopicSelect) {
-        const subjectRow = subtopicSelect.closest('.subject-row');
-        const proficiencySelect = subjectRow.querySelector('.proficiency-select');
-        const mainSubjectSelect = subjectRow.querySelector('.main-subject-select');
-        const subtopic = subtopicSelect.value;
-        const mainSubject = mainSubjectSelect.value;
-        
-        proficiencySelect.innerHTML = '<option value="">Select Level</option>';
-        
-        if (subtopic && mainSubject) {
-            // Check if this is a learning or teaching dropdown
-            const isLearning = proficiencySelect.dataset.isLearning === 'true';
-            
-            if (isLearning) {
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|beginner">${subtopic} - Beginner</option>`;
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|intermediate">${subtopic} - Intermediate</option>`;
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|advanced">${subtopic} - Advanced</option>`;
-            } else { // Mentor or Peer teaching
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|intermediate">${subtopic} - Intermediate</option>`;
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|advanced">${subtopic} - Advanced</option>`;
-                proficiencySelect.innerHTML += `<option value="${mainSubject}|${subtopic}|expert">${subtopic} - Expert</option>`;
+        .then(response => response.json())
+        .then(data => {
+            let locationText = '';
+            if (data.city && data.principalSubdivision) {
+                locationText = `${data.city}, ${data.principalSubdivision}`;
+            } else if (data.principalSubdivision) {
+                locationText = data.principalSubdivision;
+            } else {
+                locationText = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
             }
+
+            document.getElementById('location').value = locationText;
+            clearError(document.getElementById('location')); 
             
-            proficiencySelect.disabled = false;
-        }
-        clearError(subtopicSelect);
-        clearError(proficiencySelect);
-    }
-    
-    function removeSubject(button) {
-        const subjectRow = button.closest('.subject-row');
-        const container = subjectRow.parentElement;
-        
-        // Only remove if it's not the last one
-        if (container.querySelectorAll('.subject-row').length > 1) {
-            subjectRow.remove();
-        }
+            const statusDiv = document.getElementById('location-status');
+            statusDiv.textContent = `Location set to: ${locationText}`;
+        })
+        .catch(error => {
+            // Don't show error to user, coordinates are still captured
+        });
     }
 
     function addAvailability() {
@@ -1599,7 +1583,7 @@ $total_steps = count($steps);
         availabilityRow.style.cssText = 'display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;';
         
         availabilityRow.innerHTML = `
-            <select class="availability-day form-select" style="flex: 1;" required>
+            <select class="availability-day form-select" style="flex: 1;" required onchange="updateAvailabilityCombined(this.closest('.availability-row'))">
                 <option value="">Select Day</option>
                 <option value="monday">Monday</option>
                 <option value="tuesday">Tuesday</option>
@@ -1609,8 +1593,8 @@ $total_steps = count($steps);
                 <option value="saturday">Saturday</option>
                 <option value="sunday">Sunday</option>
             </select>
-            <input type="time" class="availability-start form-input" style="flex: 1;" required>
-            <input type="time" class="availability-end form-input" style="flex: 1;" required>
+            <input type="time" class="availability-start form-input" style="flex: 1;" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
+            <input type="time" class="availability-end form-input" style="flex: 1;" required oninput="updateAvailabilityCombined(this.closest('.availability-row'))">
             <input type="hidden" name="availability[]" class="availability-combined" value="">
             <button type="button" class="btn btn-danger remove-availability-btn" style="padding: 0.5rem;">Remove</button>
         `;

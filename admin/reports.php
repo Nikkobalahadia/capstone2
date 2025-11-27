@@ -30,47 +30,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'resolved', admin_notes = ?, resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
                 
+                $result = create_notification(
+                    $report['reporter_id'],
+                    'report_resolved',
+                    'Report Resolved',
+                    'Your report (ID: #' . $report_id . ') has been reviewed and resolved by an administrator. ' . ($admin_notes ? 'Admin notes: ' . $admin_notes : ''),
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason'],
+                        'admin_notes' => $admin_notes
+                    ]
+                );
+                
+                error_log("[v0] Report #$report_id resolved notification sent to user {$report['reporter_id']}: $result");
+                
                 if (function_exists('log_activity')) {
                     log_activity($db, $user['id'], 'report_resolved', ['report_id' => $report_id]);
                 }
                 
-                $success_message = "Report marked as resolved.";
+                $success_message = "Report marked as resolved and reporter notified.";
+                
             } elseif ($action === 'review' && $report_id) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'reviewed', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
+                
+                $result = create_notification(
+                    $report['reporter_id'],
+                    'report_under_review',
+                    'Report Under Review',
+                    'Your report (ID: #' . $report_id . ') is being reviewed by our moderation team. We will take appropriate action if necessary.',
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason']
+                    ]
+                );
+                
+                error_log("[v0] Report #$report_id review notification sent to user {$report['reporter_id']}: $result");
                 
                 if (function_exists('log_activity')) {
                     log_activity($db, $user['id'], 'report_reviewed', ['report_id' => $report_id]);
                 }
                 
-                $success_message = "Report marked as reviewed.";
+                $success_message = "Report marked as reviewed and reporter notified.";
+                
             } elseif ($action === 'dismiss' && $report_id) {
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'dismissed', admin_notes = ?, resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
+                
+                $result = create_notification(
+                    $report['reporter_id'],
+                    'report_dismissed',
+                    'Report Dismissed',
+                    'Your report (ID: #' . $report_id . ') has been reviewed and dismissed. ' . ($admin_notes ? 'Reason: ' . $admin_notes : 'After investigation, we found no violation of our community guidelines.'),
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason'],
+                        'admin_notes' => $admin_notes
+                    ]
+                );
+                
+                error_log("[v0] Report #$report_id dismiss notification sent to user {$report['reporter_id']}: $result");
                 
                 if (function_exists('log_activity')) {
                     log_activity($db, $user['id'], 'report_dismissed', ['report_id' => $report_id]);
                 }
                 
-                $success_message = "Report dismissed.";
+                $success_message = "Report dismissed and reporter notified.";
+                
             } elseif ($action === 'warn_user' && $report_id && isset($_POST['reported_user_id'])) {
                 $reported_user_id = $_POST['reported_user_id'];
                 
-                create_notification(
+                $warn_result = create_notification(
                     $reported_user_id,
                     'account_warning',
-                    'Warning from Admin',
-                    'You have received a warning from the admin regarding your behavior. Please review our community guidelines. Admin notes: ' . $admin_notes,
-                    '/profile/index.php'
+                    'Official Warning - Community Guidelines Violation',
+                    'You have received an official warning for violating our community guidelines. Continued violations may result in account suspension or permanent ban. ' . ($admin_notes ? 'Details: ' . $admin_notes : 'Please review our community guidelines and ensure future compliance.'),
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason'],
+                        'action' => 'warned'
+                    ]
                 );
                 
-                create_notification(
+                $reporter_result = create_notification(
                     $report['reporter_id'],
                     'report_resolved',
-                    'Your Report Has Been Reviewed',
-                    'The user you reported has been warned. Thank you for helping keep our community safe.',
-                    '/notifications/index.php'
+                    'Report Resolved - User Warned',
+                    'Thank you for your report (ID: #' . $report_id . '). After investigation, we have issued an official warning to the reported user. Your vigilance helps keep our community safe.',
+                    [
+                        'report_id' => $report_id,
+                        'action' => 'warned',
+                        'reported_user_id' => $reported_user_id
+                    ]
                 );
+                
+                error_log("[v0] Report #$report_id warn notifications sent - warned user: $warn_result, reporter: $reporter_result");
                 
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'resolved', admin_notes = ?, action_taken = 'warned', resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
@@ -79,7 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     log_activity($db, $user['id'], 'user_warned', ['report_id' => $report_id, 'warned_user_id' => $reported_user_id]);
                 }
                 
-                $success_message = "User has been warned and report resolved.";
+                $success_message = "User warned and all parties notified.";
+                
             } elseif ($action === 'suspend_user' && $report_id && isset($_POST['reported_user_id'])) {
                 $reported_user_id = $_POST['reported_user_id'];
                 $suspension_days = $_POST['suspension_days'] ?? 7;
@@ -87,21 +142,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE users SET is_active = 0, suspension_until = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ?");
                 $stmt->execute([$suspension_days, $reported_user_id]);
                 
-                create_notification(
+                $suspend_result = create_notification(
                     $reported_user_id,
                     'account_suspended',
-                    'Account Suspended',
-                    "Your account has been suspended for $suspension_days days due to violation of community guidelines. Reason: " . $admin_notes,
-                    '/profile/index.php'
+                    'Account Suspended for ' . $suspension_days . ' Days',
+                    'Your account has been temporarily suspended for ' . $suspension_days . ' days due to violation of our community guidelines. You will not be able to access your account until ' . date('F j, Y', strtotime("+$suspension_days days")) . '. ' . ($admin_notes ? 'Violation details: ' . $admin_notes : 'Please review our community guidelines before your account is reactivated.'),
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason'],
+                        'suspension_days' => $suspension_days,
+                        'action' => 'suspended'
+                    ]
                 );
                 
-                create_notification(
+                $reporter_result = create_notification(
                     $report['reporter_id'],
                     'report_resolved',
-                    'Your Report Has Been Reviewed',
-                    "The user you reported has been suspended for $suspension_days days. Thank you for helping keep our community safe.",
-                    '/notifications/index.php'
+                    'Report Resolved - User Suspended',
+                    'Thank you for your report (ID: #' . $report_id . '). After thorough investigation, we have suspended the reported user\'s account for ' . $suspension_days . ' days. Your contribution helps maintain a safe and respectful community.',
+                    [
+                        'report_id' => $report_id,
+                        'action' => 'suspended',
+                        'suspension_days' => $suspension_days
+                    ]
                 );
+                
+                error_log("[v0] Report #$report_id suspend notifications sent - suspended user: $suspend_result, reporter: $reporter_result");
                 
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'resolved', admin_notes = ?, action_taken = 'suspended', resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
@@ -110,28 +176,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     log_activity($db, $user['id'], 'user_suspended', ['report_id' => $report_id, 'suspended_user_id' => $reported_user_id, 'days' => $suspension_days]);
                 }
                 
-                $success_message = "User has been suspended for $suspension_days days and report resolved.";
+                $success_message = "User suspended for $suspension_days days and all parties notified.";
+                
             } elseif ($action === 'ban_user' && $report_id && isset($_POST['reported_user_id'])) {
                 $reported_user_id = $_POST['reported_user_id'];
                 
                 $stmt = $db->prepare("UPDATE users SET is_active = 0, is_banned = 1 WHERE id = ?");
                 $stmt->execute([$reported_user_id]);
                 
-                create_notification(
+                $ban_result = create_notification(
                     $reported_user_id,
-                    'account_suspended',
+                    'account_banned',
                     'Account Permanently Banned',
-                    'Your account has been permanently banned due to severe violation of community guidelines. Reason: ' . $admin_notes,
-                    '/profile/index.php'
+                    'Your account has been permanently banned from our platform due to severe or repeated violations of our community guidelines. This decision is final. ' . ($admin_notes ? 'Reason: ' . $admin_notes : 'If you believe this is an error, please contact support.'),
+                    [
+                        'report_id' => $report_id,
+                        'reason' => $report['reason'],
+                        'action' => 'banned'
+                    ]
                 );
                 
-                create_notification(
+                $reporter_result = create_notification(
                     $report['reporter_id'],
                     'report_resolved',
-                    'Your Report Has Been Reviewed',
-                    'The user you reported has been permanently banned. Thank you for helping keep our community safe.',
-                    '/notifications/index.php'
+                    'Report Resolved - User Permanently Banned',
+                    'Thank you for your report (ID: #' . $report_id . '). After careful review, we have permanently banned the reported user from our platform. We take community safety seriously and appreciate your vigilance.',
+                    [
+                        'report_id' => $report_id,
+                        'action' => 'banned'
+                    ]
                 );
+                
+                error_log("[v0] Report #$report_id ban notifications sent - banned user: $ban_result, reporter: $reporter_result");
                 
                 $stmt = $db->prepare("UPDATE user_reports SET status = 'resolved', admin_notes = ?, action_taken = 'banned', resolved_at = NOW(), resolved_by = ? WHERE id = ?");
                 $stmt->execute([$admin_notes, $user['id'], $report_id]);
@@ -140,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     log_activity($db, $user['id'], 'user_banned', ['report_id' => $report_id, 'banned_user_id' => $reported_user_id]);
                 }
                 
-                $success_message = "User has been permanently banned and report resolved.";
+                $success_message = "User permanently banned and all parties notified.";
             }
         } catch (PDOException $e) {
             $error_message = "Error processing action: " . $e->getMessage();
@@ -149,40 +225,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    $status_filter = $_GET['status'] ?? 'all';
-    $search = $_GET['search'] ?? '';
-    $date_from = $_GET['date_from'] ?? '';
-    $date_to = $_GET['date_to'] ?? '';
-    
-    $where_conditions = [];
-    $params = [];
-    
-    if ($status_filter !== 'all') {
-        $where_conditions[] = "r.status = ?";
-        $params[] = $status_filter;
-    }
-    
-    if ($search) {
-        $where_conditions[] = "(r.reason LIKE ? OR r.description LIKE ? OR reporter.first_name LIKE ? OR reporter.last_name LIKE ?)";
-        $search_param = "%$search%";
-        $params[] = $search_param;
-        $params[] = $search_param;
-        $params[] = $search_param;
-        $params[] = $search_param;
-    }
-    
-    if ($date_from) {
-        $where_conditions[] = "DATE(r.created_at) >= ?";
-        $params[] = $date_from;
-    }
-    
-    if ($date_to) {
-        $where_conditions[] = "DATE(r.created_at) <= ?";
-        $params[] = $date_to;
-    }
-    
-    $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
-    
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="reports_export_' . date('Y-m-d') . '.csv"');
     
@@ -197,12 +239,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         FROM user_reports r
         LEFT JOIN users reporter ON r.reporter_id = reporter.id
         LEFT JOIN users reported ON r.reported_id = reported.id
-        $where_clause
         ORDER BY r.created_at DESC
     ";
     
-    $export_stmt = $db->prepare($export_query);
-    $export_stmt->execute($params);
+    $export_stmt = $db->query($export_query);
     
     while ($row = $export_stmt->fetch()) {
         fputcsv($output, [
@@ -272,7 +312,6 @@ $total_records = $count_stmt->fetch()['total'];
 $total_pages = ceil($total_records / $per_page);
 $offset = ($page - 1) * $per_page;
 
-// Build query with LIMIT and OFFSET directly in the SQL to avoid PDO binding issues
 $query = "
     SELECT r.*, 
            CONCAT(reporter.first_name, ' ', reporter.last_name) as reporter_name,
@@ -590,6 +629,19 @@ foreach ($reason_stats as $reason_stat) {
             color: #6b7280;
             font-size: 15px;
         }
+
+        .notification-preview {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .notification-preview strong {
+            color: #1e40af;
+        }
     </style>
 </head>
 <body>
@@ -604,7 +656,7 @@ foreach ($reason_stats as $reason_stat) {
                             <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
                         </a>
                         <h1>User Reports Management</h1>
-                        <p class="mb-0">Review and take action on user reports</p>
+                        <p class="mb-0">Review and take action on user reports (with automated notifications)</p>
                     </div>
                     <a href="?export=csv&<?php echo http_build_query(['status' => $status_filter, 'search' => $search, 'date_from' => $date_from, 'date_to' => $date_to]); ?>" class="btn btn-success">
                         <i class="fas fa-download me-2"></i> Export to CSV
@@ -738,6 +790,11 @@ foreach ($reason_stats as $reason_stat) {
                                             <?php echo ucfirst($report['status']); ?>
                                         </span>
                                         <span class="badge bg-danger me-2"><?php echo ucfirst(str_replace('_', ' ', $report['reason'])); ?></span>
+                                        <?php if ($report['action_taken']): ?>
+                                            <span class="badge bg-dark me-2">
+                                                <i class="fas fa-gavel me-1"></i><?php echo ucfirst($report['action_taken']); ?>
+                                            </span>
+                                        <?php endif; ?>
                                         <?php if ($report['reported_user_report_count'] > 1): ?>
                                             <span class="badge bg-dark" title="This user has been reported <?php echo $report['reported_user_report_count']; ?> times">
                                                 <i class="fas fa-exclamation-triangle me-1"></i>Repeat Offender (<?php echo $report['reported_user_report_count']; ?>)
@@ -797,16 +854,21 @@ foreach ($reason_stats as $reason_stat) {
                             </div>
                         </div>
 
+                        <!-- Modal with notification previews and SweetAlert2 confirmations -->
                         <div class="modal fade" id="actionModal<?php echo $report['id']; ?>" tabindex="-1">
-                            <div class="modal-dialog">
+                            <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <div class="modal-header">
                                         <h5 class="modal-title">Take Action on Report #<?php echo $report['id']; ?></h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                     </div>
                                     <div class="modal-body">
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-bell me-2"></i><strong>Automated Notifications:</strong> Both the reporter and reported user will be automatically notified based on your action.
+                                        </div>
+
                                         <div class="mb-3">
-                                            <label class="form-label">Admin Notes</label>
+                                            <label class="form-label">Admin Notes (will be included in notifications)</label>
                                             <textarea class="form-control" id="adminNotes<?php echo $report['id']; ?>" rows="3" placeholder="Add notes about your decision..."></textarea>
                                         </div>
                                         
@@ -815,18 +877,24 @@ foreach ($reason_stats as $reason_stat) {
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="admin_notes" id="notesReview<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="action" value="review">
-                                                <button type="button" class="btn btn-info w-100" onclick="confirmAction('formReview<?php echo $report['id']; ?>', 'notesReview<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Mark as Reviewed', 'Are you sure you want to mark this report as **Reviewed**? No punitive action will be taken.', 'info')">
-                                                    <i class="fas fa-eye me-2"></i>Mark as Reviewed (No Action)
+                                                <button type="button" class="btn btn-info w-100" onclick="confirmAction('formReview<?php echo $report['id']; ?>', 'notesReview<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Mark as Reviewed', 'Mark this report as under review? Reporter will be notified that their report is being investigated.', 'info')">
+                                                    <i class="fas fa-eye me-2"></i>Mark as Reviewed (No Action Yet)
                                                 </button>
+                                                <div class="notification-preview mt-2">
+                                                    <strong>Reporter will receive:</strong> "Your report is being reviewed by our moderation team..."
+                                                </div>
                                             </form>
                                             
                                             <form id="formDismiss<?php echo $report['id']; ?>" method="POST" class="d-inline">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="admin_notes" id="notesDismiss<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="action" value="dismiss">
-                                                <button type="button" class="btn btn-secondary w-100" onclick="confirmAction('formDismiss<?php echo $report['id']; ?>', 'notesDismiss<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Dismiss Report', 'Are you sure you want to **Dismiss** this report? This indicates the report is invalid or requires no action.', 'warning')">
-                                                    <i class="fas fa-times me-2"></i>Dismiss Report (Invalid)
+                                                <button type="button" class="btn btn-secondary w-100" onclick="confirmAction('formDismiss<?php echo $report['id']; ?>', 'notesDismiss<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Dismiss Report', 'Dismiss this report as invalid? Reporter will be notified.', 'warning')">
+                                                    <i class="fas fa-times me-2"></i>Dismiss Report (Invalid/No Violation)
                                                 </button>
+                                                <div class="notification-preview mt-2">
+                                                    <strong>Reporter will receive:</strong> "Your report has been reviewed and dismissed. We found no violation..."
+                                                </div>
                                             </form>
                                             
                                             <form id="formWarn<?php echo $report['id']; ?>" method="POST" class="d-inline">
@@ -834,9 +902,13 @@ foreach ($reason_stats as $reason_stat) {
                                                 <input type="hidden" name="reported_user_id" value="<?php echo $report['reported_id']; ?>">
                                                 <input type="hidden" name="admin_notes" id="notesWarn<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="action" value="warn_user">
-                                                <button type="button" class="btn btn-warning w-100" onclick="confirmAction('formWarn<?php echo $report['id']; ?>', 'notesWarn<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Warn User', 'Are you sure you want to **Warn** the reported user? They will receive a notification with the admin notes.', 'warning')">
+                                                <button type="button" class="btn btn-warning w-100" onclick="confirmAction('formWarn<?php echo $report['id']; ?>', 'notesWarn<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Warn User', 'Issue an official warning to the reported user? Both parties will be notified.', 'warning')">
                                                     <i class="fas fa-exclamation-triangle me-2"></i>Warn User
                                                 </button>
+                                                <div class="notification-preview mt-2">
+                                                    <strong>Reported user:</strong> "Official warning - Community Guidelines Violation..."<br>
+                                                    <strong>Reporter:</strong> "User has been warned. Thank you for your report."
+                                                </div>
                                             </form>
                                             
                                             <form id="formSuspend<?php echo $report['id']; ?>" method="POST" class="d-inline">
@@ -846,9 +918,13 @@ foreach ($reason_stats as $reason_stat) {
                                                 <input type="hidden" name="action" value="suspend_user">
                                                 <div class="input-group mb-2">
                                                     <input type="number" name="suspension_days" id="suspensionDays<?php echo $report['id']; ?>" class="form-control" value="7" min="1" max="365" placeholder="Days">
-                                                    <button type="button" class="btn btn-danger" onclick="confirmSuspension('formSuspend<?php echo $report['id']; ?>', 'notesSuspend<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'suspensionDays<?php echo $report['id']; ?>', 'Suspend User', 'Are you sure you want to **Suspend** this user? The duration will be taken from the input field.')">
+                                                    <button type="button" class="btn btn-danger" onclick="confirmSuspension('formSuspend<?php echo $report['id']; ?>', 'notesSuspend<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'suspensionDays<?php echo $report['id']; ?>', 'Suspend User', 'Temporarily suspend the reported user? Both parties will be notified.')">
                                                         <i class="fas fa-ban me-2"></i>Suspend User
                                                     </button>
+                                                </div>
+                                                <div class="notification-preview">
+                                                    <strong>Reported user:</strong> "Account suspended for X days due to violation..."<br>
+                                                    <strong>Reporter:</strong> "User has been suspended. Thank you for keeping our community safe."
                                                 </div>
                                             </form>
                                             
@@ -857,18 +933,25 @@ foreach ($reason_stats as $reason_stat) {
                                                 <input type="hidden" name="reported_user_id" value="<?php echo $report['reported_id']; ?>">
                                                 <input type="hidden" name="admin_notes" id="notesBan<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="action" value="ban_user">
-                                                <button type="button" class="btn btn-dark w-100" onclick="confirmAction('formBan<?php echo $report['id']; ?>', 'notesBan<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'PERMANENT BAN', 'This action **PERMANENTLY BANS** the user. This cannot be undone. Are you absolutely sure?', 'error')">
+                                                <button type="button" class="btn btn-dark w-100" onclick="confirmAction('formBan<?php echo $report['id']; ?>', 'notesBan<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'PERMANENT BAN', 'This PERMANENTLY BANS the user. Both parties will be notified. This cannot be undone!', 'error')">
                                                     <i class="fas fa-user-slash me-2"></i>Ban User Permanently
                                                 </button>
+                                                <div class="notification-preview mt-2">
+                                                    <strong>Reported user:</strong> "Account permanently banned due to severe violation..."<br>
+                                                    <strong>Reporter:</strong> "User has been permanently banned. Thank you for your vigilance."
+                                                </div>
                                             </form>
                                             
                                             <form id="formResolve<?php echo $report['id']; ?>" method="POST" class="d-inline">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="admin_notes" id="notesResolve<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="action" value="resolve">
-                                                <button type="button" class="btn btn-success w-100" onclick="confirmAction('formResolve<?php echo $report['id']; ?>', 'notesResolve<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Mark as Resolved', 'Are you sure you want to mark this report as **Resolved**? Use this if action was taken outside of these quick buttons.', 'success')">
-                                                    <i class="fas fa-check me-2"></i>Resolve (Action Taken Elsewhere)
+                                                <button type="button" class="btn btn-success w-100" onclick="confirmAction('formResolve<?php echo $report['id']; ?>', 'notesResolve<?php echo $report['id']; ?>', 'adminNotes<?php echo $report['id']; ?>', 'Mark as Resolved', 'Mark as resolved if action was taken outside these options. Reporter will be notified.', 'success')">
+                                                    <i class="fas fa-check me-2"></i>Resolve (Custom Action Taken)
                                                 </button>
+                                                <div class="notification-preview mt-2">
+                                                    <strong>Reporter will receive:</strong> "Your report has been reviewed and resolved..."
+                                                </div>
                                             </form>
                                         </div>
                                     </div>
@@ -905,6 +988,9 @@ foreach ($reason_stats as $reason_stat) {
                                         <p><strong>Reason:</strong> <?php echo ucfirst(str_replace('_', ' ', $report['reason'])); ?></p>
                                         <p><strong>Description:</strong> <?php echo htmlspecialchars($report['description']); ?></p>
                                         <p><strong>Submitted:</strong> <?php echo date('M j, Y g:i A', strtotime($report['created_at'])); ?></p>
+                                        <?php if ($report['action_taken']): ?>
+                                            <p><strong>Action Taken:</strong> <span class="badge bg-dark"><?php echo ucfirst($report['action_taken']); ?></span></p>
+                                        <?php endif; ?>
                                         <?php if ($report['admin_notes']): ?>
                                             <hr>
                                             <h6>Admin Notes</h6>
@@ -975,70 +1061,48 @@ foreach ($reason_stats as $reason_stat) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- SweetAlert Functions ---
-
-        /**
-         * Generic SweetAlert confirmation for actions.
-         * @param {string} formId The ID of the form to submit.
-         * @param {string} notesInputId The ID of the hidden input in the form to populate with admin notes.
-         * @param {string} adminNotesTextareaId The ID of the textarea where admin notes are written.
-         * @param {string} title The title of the Swal modal.
-         * @param {string} text The body text of the Swal modal.
-         * @param {string} icon The icon type ('success', 'warning', 'error', 'info', 'question').
-         */
         function confirmAction(formId, notesInputId, adminNotesTextareaId, title, text, icon) {
             const adminNotes = document.getElementById(adminNotesTextareaId).value;
             
             Swal.fire({
                 title: title,
-                html: text + (adminNotes.trim() ? '<br><br>Current Admin Notes will be included.' : ''),
+                html: text + (adminNotes.trim() ? '<br><br><strong>Your admin notes will be included in the notification.</strong>' : ''),
                 icon: icon,
                 showCancelButton: true,
                 confirmButtonColor: '#3b82f6',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, Proceed!',
+                confirmButtonText: 'Yes, Proceed & Notify!',
+                cancelButtonText: 'Cancel',
                 reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Populate the hidden admin_notes field and submit the form
                     document.getElementById(notesInputId).value = adminNotes;
                     document.getElementById(formId).submit();
                 }
             });
         }
         
-        /**
-         * SweetAlert confirmation specifically for user suspension.
-         * @param {string} formId The ID of the form to submit.
-         * @param {string} notesInputId The ID of the hidden input in the form to populate with admin notes.
-         * @param {string} adminNotesTextareaId The ID of the textarea where admin notes are written.
-         * @param {string} suspensionDaysInputId The ID of the input field for suspension days.
-         * @param {string} title The title of the Swal modal.
-         * @param {string} text The body text of the Swal modal.
-         */
         function confirmSuspension(formId, notesInputId, adminNotesTextareaId, suspensionDaysInputId, title, text) {
             const adminNotes = document.getElementById(adminNotesTextareaId).value;
             const suspensionDays = document.getElementById(suspensionDaysInputId).value;
 
             Swal.fire({
                 title: title,
-                html: text + `<br><br>Suspending for **${suspensionDays} days**. Current Admin Notes will be included.`,
+                html: text + `<br><br>Suspending for <strong>${suspensionDays} days</strong>.<br>Both parties will be automatically notified.`,
                 icon: 'error',
                 showCancelButton: true,
-                confirmButtonColor: '#dc3545', // Danger color
+                confirmButtonColor: '#dc3545',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, Suspend!',
+                confirmButtonText: 'Yes, Suspend & Notify!',
+                cancelButtonText: 'Cancel',
                 reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Populate the hidden admin_notes field and submit the form
                     document.getElementById(notesInputId).value = adminNotes;
                     document.getElementById(formId).submit();
                 }
             });
         }
-
-        // --- Chart Generation ---
 
         const statusData = <?php echo json_encode($status_chart_data); ?>;
         const reasonLabels = <?php echo json_encode($reason_chart_labels); ?>;

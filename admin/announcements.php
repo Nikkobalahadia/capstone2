@@ -11,6 +11,9 @@ if (!$user || $user['role'] !== 'admin') {
     redirect('dashboard.php');
 }
 
+// LOGIC COPIED FROM find.php to get the unread count for header display (Notification Retrieval)
+$unread_notifications = get_unread_count($user['id']);
+
 $db = getDB();
 $error = '';
 $success = '';
@@ -66,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $users = $users_stmt->fetchAll();
                     
+                    // Notification Creation Logic
                     foreach ($users as $target_user) {
                         create_notification(
                             $target_user['id'],
@@ -178,7 +182,6 @@ $stats = $db->query("
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- SweetAlert2 CDN for beautiful alerts -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         * {
@@ -493,7 +496,6 @@ $stats = $db->query("
                     <div class="col-md-3 col-lg-2">
                         <label class="form-label">Audience</label>
                         <select name="audience" class="form-select">
-                            <!-- FIX: Removed redundant 'All Users' option -->
                             <option value="all" <?php echo $audience_filter === 'all' ? 'selected' : ''; ?>>All Users</option>
                             <option value="students" <?php echo $audience_filter === 'students' ? 'selected' : ''; ?>>Students</option>
                             <option value="mentors" <?php echo $audience_filter === 'mentors' ? 'selected' : ''; ?>>Mentors</option>
@@ -546,7 +548,6 @@ $stats = $db->query("
                                             <i class="fas fa-<?php echo $announcement['is_active'] ? 'eye-slash' : 'eye'; ?>"></i>
                                         </button>
                                     </form>
-                                    <!-- SweetAlert Delete Button -->
                                     <form method="POST" class="d-inline" onsubmit="confirmDelete(event, this)">
                                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                                         <input type="hidden" name="action" value="delete">

@@ -16,6 +16,9 @@ require_once 'database.php';
 
 require_once 'email.php';
 
+// Include notification helper - THIS IS THE FIX!
+require_once __DIR__ . '/notification_helper.php';
+
 // Error reporting (disable in production)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -24,6 +27,43 @@ ini_set('display_errors', 1);
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
+
+// --- NEW PDO WRAPPER FUNCTIONS TO FIX 'db_query' ERROR ---
+
+/**
+ * Executes a simple non-prepared SQL query using PDO.
+ * WARNING: Only use for simple queries without user input. 
+ * For queries with dynamic data, use PDO prepared statements directly (like in get_logged_in_user()).
+ * @param string $sql The SQL query string.
+ * @return PDOStatement|false The PDOStatement object on success, or false on failure.
+ */
+function db_query($sql) {
+    $db = getDB();
+    try {
+        // We use query() for simple, non-user-supplied queries (like fetching counts)
+        $result = $db->query($sql);
+        return $result; // Returns PDOStatement
+    } catch (PDOException $e) {
+        // Log error or display message (for development only)
+        error_log("DB Query Error: " . $e->getMessage() . " SQL: " . $sql);
+        return false;
+    }
+}
+
+/**
+ * Fetches the next row from a PDOStatement object as an associative array.
+ * @param PDOStatement|false $result The PDOStatement object returned by db_query().
+ * @return array|false An associative array representing the row, or false if no more rows.
+ */
+function db_fetch_assoc($result) {
+    if ($result instanceof PDOStatement) {
+        // PDOStatement uses fetch() with default mode PDO::FETCH_ASSOC set in database.php
+        return $result->fetch(); 
+    }
+    return false;
+}
+
+// --- END NEW PDO WRAPPER FUNCTIONS ---
 
 // Helper functions
 function sanitize_input($data) {
